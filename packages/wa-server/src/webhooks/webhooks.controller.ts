@@ -1,7 +1,9 @@
 import { Controller, Post, Body } from '@nestjs/common';
+import { IsString } from 'class-validator';
 import { WebhookService } from './webhook.service';
 
 class SetCallbackDto {
+  @IsString()
   url: string;
 }
 
