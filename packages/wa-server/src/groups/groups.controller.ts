@@ -55,6 +55,14 @@ export class GroupsController {
     return this.groupsService.updateGroupDescription(sid, gid, body.description);
   }
 
+  @Post('join')
+  joinByInviteLink(
+    @Param('sessionId') sid: string,
+    @Body() body: { inviteCode: string },
+  ) {
+    return this.groupsService.joinByInviteLink(sid, body.inviteCode);
+  }
+
   @Post(':groupId/participants/add')
   addParticipants(
     @Param('sessionId') sid: string,
@@ -104,14 +112,6 @@ export class GroupsController {
   @Post(':groupId/invite-link/revoke')
   revokeInviteLink(@Param('sessionId') sid: string, @Param('groupId') gid: string) {
     return this.groupsService.revokeInviteLink(sid, gid);
-  }
-
-  @Post('join')
-  joinByInviteLink(
-    @Param('sessionId') sid: string,
-    @Body() body: { inviteCode: string },
-  ) {
-    return this.groupsService.joinByInviteLink(sid, body.inviteCode);
   }
 
   @Put(':groupId/settings')
