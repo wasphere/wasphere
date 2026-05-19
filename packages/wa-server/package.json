@@ -1,0 +1,47 @@
+{
+  "name": "@wasphere/wa-server",
+  "version": "1.0.0",
+  "description": "WaSphere WA Server - Standalone WhatsApp binary",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "pkg:linux": "pkg dist/main.js --target node20-linux-x64 --output builds/wa-server-linux",
+    "pkg:win": "pkg dist/main.js --target node20-win-x64 --output builds/wa-server-win.exe",
+    "pkg:mac": "pkg dist/main.js --target node20-macos-x64 --output builds/wa-server-mac"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@whiskeysockets/baileys": "6.7.21",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "jimp": "^0.22.12",
+    "link-preview-js": "^3.0.5",
+    "mime-types": "^2.1.35",
+    "pino": "^8.19.0",
+    "qrcode": "^1.5.3",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/mime-types": "^2.1.4",
+    "@types/node": "^20.11.5",
+    "@types/qrcode": "^1.5.5",
+    "pkg": "^5.8.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/@whiskeysockets/baileys/**/*"
+    ],
+    "scripts": [
+      "dist/**/*.js"
+    ]
+  }
+}
