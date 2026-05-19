@@ -1,5 +1,12 @@
 import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+import { IsString, IsNotEmpty } from 'class-validator';
 import { GroupsService } from './groups.service';
+
+class JoinGroupDto {
+  @IsString()
+  @IsNotEmpty()
+  inviteCode: string;
+}
 
 @Controller('sessions/:sessionId/groups')
 export class GroupsController {
@@ -58,7 +65,7 @@ export class GroupsController {
   @Post('join')
   joinByInviteLink(
     @Param('sessionId') sid: string,
-    @Body() body: { inviteCode: string },
+    @Body() body: JoinGroupDto,
   ) {
     return this.groupsService.joinByInviteLink(sid, body.inviteCode);
   }
