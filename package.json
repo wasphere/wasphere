@@ -1,0 +1,14 @@
+{
+  "name": "wasphere",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WaSphere — open-source WhatsApp automation platform",
+  "license": "MIT",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "wa-server:dev": "pnpm --filter @wasphere/wa-server dev"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
+}
