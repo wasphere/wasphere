@@ -1,4 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { MessagesModule } from './messages/messages.module';
 import { GroupsModule } from './groups/groups.module';
@@ -9,6 +10,7 @@ import { AuthMiddleware } from './auth/auth.middleware';
 
 @Module({
   imports: [
+    WhatsAppModule,
     SessionsModule,
     MessagesModule,
     GroupsModule,

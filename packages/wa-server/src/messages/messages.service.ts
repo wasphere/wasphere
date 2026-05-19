@@ -1,103 +1,46 @@
-import { Injectable } from '@nestjs/common';
-import { SessionsService } from '../sessions/sessions.service';
-import * as fs from 'fs';
-import * as path from 'path';
-import { downloadMediaMessage } from '@whiskeysockets/baileys';
-
-function toJid(number: string): string {
-  if (number.includes('@')) return number;
-  // Remove any non-digit chars except +, then normalize
-  const clean = number.replace(/[^0-9]/g, '');
-  return `${clean}@s.whatsapp.net`;
-}
-
-function toGroupJid(id: string): string {
-  if (id.includes('@g.us')) return id;
-  return `${id}@g.us`;
-}
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  WHATSAPP_ADAPTER,
+  IWhatsAppAdapter,
+  SendResult,
+  PresenceType,
+} from '../whatsapp/whatsapp-adapter.interface';
 
 @Injectable()
 export class MessagesService {
-  constructor(private sessionsService: SessionsService) {}
+  constructor(
+    @Inject(WHATSAPP_ADAPTER) private adapter: IWhatsAppAdapter,
+  ) {}
 
-  // ─── Text ────────────────────────────────────────────────────────
-
-  async sendText(sessionId: string, to: string, text: string, quotedId?: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-
-    const options: any = {};
-    if (quotedId) {
-      // For quoted replies we need to pass quoted message — simplified here
-      options.quoted = { key: { id: quotedId } };
-    }
-
-    const result = await sock.sendMessage(jid, { text }, options);
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendText(sessionId: string, to: string, text: string, quotedId?: string): Promise<SendResult> {
+    return this.adapter.sendText(sessionId, to, text, quotedId);
   }
 
-  // ─── Image ────────────────────────────────────────────────────────
-
-  async sendImage(sessionId: string, to: string, imageUrl: string, caption?: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      image: { url: imageUrl },
-      caption: caption || '',
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendImage(sessionId: string, to: string, imageUrl: string, caption?: string): Promise<SendResult> {
+    return this.adapter.sendImage(sessionId, to, imageUrl, caption);
   }
 
-  // ─── Video ────────────────────────────────────────────────────────
-
-  async sendVideo(sessionId: string, to: string, videoUrl: string, caption?: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      video: { url: videoUrl },
-      caption: caption || '',
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendVideo(sessionId: string, to: string, videoUrl: string, caption?: string): Promise<SendResult> {
+    return this.adapter.sendVideo(sessionId, to, videoUrl, caption);
   }
 
-  // ─── Audio / Voice Note ───────────────────────────────────────────
-
-  async sendAudio(sessionId: string, to: string, audioUrl: string, isVoiceNote: boolean = false) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      audio: { url: audioUrl },
-      mimetype: 'audio/ogg; codecs=opus',
-      ptt: isVoiceNote,
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendAudio(sessionId: string, to: string, audioUrl: string, isVoiceNote: boolean = false): Promise<SendResult> {
+    return this.adapter.sendAudio(sessionId, to, audioUrl, isVoiceNote);
   }
 
-  // ─── Document ────────────────────────────────────────────────────
-
-  async sendDocument(sessionId: string, to: string, docUrl: string, fileName: string, mimetype: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      document: { url: docUrl },
-      fileName,
-      mimetype,
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendDocument(
+    sessionId: string,
+    to: string,
+    docUrl: string,
+    fileName: string,
+    mimetype: string,
+  ): Promise<SendResult> {
+    return this.adapter.sendDocument(sessionId, to, docUrl, fileName, mimetype);
   }
 
-  // ─── Sticker ────────────────────────────────────────────────────
-
-  async sendSticker(sessionId: string, to: string, stickerUrl: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      sticker: { url: stickerUrl },
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendSticker(sessionId: string, to: string, stickerUrl: string): Promise<SendResult> {
+    return this.adapter.sendSticker(sessionId, to, stickerUrl);
   }
-
-  // ─── Location ────────────────────────────────────────────────────
 
   async sendLocation(
     sessionId: string,
@@ -106,37 +49,18 @@ export class MessagesService {
     longitude: number,
     name?: string,
     address?: string,
-  ) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      location: {
-        degreesLatitude: latitude,
-        degreesLongitude: longitude,
-        name: name || '',
-        address: address || '',
-      },
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  ): Promise<SendResult> {
+    return this.adapter.sendLocation(sessionId, to, latitude, longitude, name, address);
   }
 
-  // ─── Contact Card ────────────────────────────────────────────────
-
-  async sendContact(sessionId: string, to: string, displayName: string, phoneNumber: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const vcard =
-      `BEGIN:VCARD\nVERSION:3.0\nFN:${displayName}\nTEL;type=CELL;type=VOICE;waid=${phoneNumber}:+${phoneNumber}\nEND:VCARD`;
-    const result = await sock.sendMessage(jid, {
-      contacts: {
-        displayName,
-        contacts: [{ displayName, vcard }],
-      },
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendContact(
+    sessionId: string,
+    to: string,
+    displayName: string,
+    phoneNumber: string,
+  ): Promise<SendResult> {
+    return this.adapter.sendContact(sessionId, to, displayName, phoneNumber);
   }
-
-  // ─── Buttons ────────────────────────────────────────────────────
 
   async sendButtons(
     sessionId: string,
@@ -144,23 +68,9 @@ export class MessagesService {
     text: string,
     footer: string,
     buttons: { id: string; text: string }[],
-  ) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      text,
-      footer,
-      buttons: buttons.map((b) => ({
-        buttonId: b.id,
-        buttonText: { displayText: b.text },
-        type: 1,
-      })),
-      headerType: 1,
-    } as any);
-    return { messageId: result?.key?.id, status: 'sent' };
+  ): Promise<SendResult> {
+    return this.adapter.sendButtons(sessionId, to, text, footer, buttons);
   }
-
-  // ─── List Message ────────────────────────────────────────────────
 
   async sendList(
     sessionId: string,
@@ -169,21 +79,9 @@ export class MessagesService {
     text: string,
     buttonText: string,
     sections: { title: string; rows: { id: string; title: string; description?: string }[] }[],
-  ) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      text,
-      title,
-      footer: '',
-      buttonText,
-      sections,
-      listType: 1,
-    } as any);
-    return { messageId: result?.key?.id, status: 'sent' };
+  ): Promise<SendResult> {
+    return this.adapter.sendList(sessionId, to, title, text, buttonText, sections);
   }
-
-  // ─── Poll ────────────────────────────────────────────────────────
 
   async sendPoll(
     sessionId: string,
@@ -191,111 +89,58 @@ export class MessagesService {
     name: string,
     options: string[],
     selectableCount: number = 1,
-  ) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      poll: {
-        name,
-        values: options,
-        selectableCount,
-      },
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  ): Promise<SendResult> {
+    return this.adapter.sendPoll(sessionId, to, name, options, selectableCount);
   }
 
-  // ─── Reaction ────────────────────────────────────────────────────
-
-  async sendReaction(sessionId: string, to: string, messageId: string, emoji: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      react: {
-        text: emoji,
-        key: { remoteJid: jid, id: messageId },
-      },
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendReaction(
+    sessionId: string,
+    to: string,
+    messageId: string,
+    emoji: string,
+  ): Promise<SendResult> {
+    return this.adapter.sendReaction(sessionId, to, messageId, emoji);
   }
 
-  // ─── GIF ─────────────────────────────────────────────────────────
-
-  async sendGif(sessionId: string, to: string, gifUrl: string, caption?: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    // WhatsApp doesn't support .gif — send as mp4 with gifPlayback flag
-    const result = await sock.sendMessage(jid, {
-      video: { url: gifUrl },
-      caption: caption || '',
-      gifPlayback: true,
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendGif(sessionId: string, to: string, gifUrl: string, caption?: string): Promise<SendResult> {
+    return this.adapter.sendGif(sessionId, to, gifUrl, caption);
   }
 
-  // ─── View Once ───────────────────────────────────────────────────
-
-  async sendViewOnce(sessionId: string, to: string, imageUrl: string, caption?: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      image: { url: imageUrl },
-      caption: caption || '',
-      viewOnce: true,
-    });
-    return { messageId: result?.key?.id, status: 'sent' };
+  async sendViewOnce(sessionId: string, to: string, imageUrl: string, caption?: string): Promise<SendResult> {
+    return this.adapter.sendViewOnce(sessionId, to, imageUrl, caption);
   }
 
-  // ─── Edit Message ────────────────────────────────────────────────
-
-  async editMessage(sessionId: string, to: string, messageId: string, newText: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    const result = await sock.sendMessage(jid, {
-      edit: messageId,
-      text: newText,
-    } as any);
-    return { messageId: result?.key?.id, status: 'edited' };
+  async editMessage(
+    sessionId: string,
+    to: string,
+    messageId: string,
+    newText: string,
+  ): Promise<SendResult> {
+    return this.adapter.editMessage(sessionId, to, messageId, newText);
   }
 
-  // ─── Delete Message ───────────────────────────────────────────────
-
-  async deleteMessage(sessionId: string, to: string, messageId: string, forEveryone: boolean = true) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    await sock.sendMessage(jid, {
-      delete: { remoteJid: jid, id: messageId, fromMe: true },
-    });
-    return { status: 'deleted' };
+  async deleteMessage(
+    sessionId: string,
+    to: string,
+    messageId: string,
+    forEveryone: boolean = true,
+  ): Promise<{ status: string }> {
+    return this.adapter.deleteMessage(sessionId, to, messageId, forEveryone);
   }
 
-  // ─── Mark Read ───────────────────────────────────────────────────
-
-  async markRead(sessionId: string, to: string, messageIds: string[]) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    await sock.readMessages(
-      messageIds.map((id) => ({ remoteJid: jid, id, fromMe: false })),
-    );
-    return { status: 'read' };
+  async markRead(sessionId: string, to: string, messageIds: string[]): Promise<{ status: string }> {
+    return this.adapter.markRead(sessionId, to, messageIds);
   }
 
-  // ─── Typing Indicator ────────────────────────────────────────────
-
-  async sendTyping(sessionId: string, to: string, isGroup: boolean = false) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = isGroup ? toGroupJid(to) : toJid(to);
-    await sock.sendPresenceUpdate('composing', jid);
-    // Auto-clear after 3 seconds
-    setTimeout(() => sock.sendPresenceUpdate('paused', jid), 3000);
-    return { status: 'typing' };
+  async sendTyping(sessionId: string, to: string, isGroup: boolean = false): Promise<{ status: string }> {
+    return this.adapter.sendTyping(sessionId, to, isGroup);
   }
 
-  // ─── Send Presence ───────────────────────────────────────────────
-
-  async sendPresence(sessionId: string, to: string, presence: 'available' | 'unavailable' | 'composing' | 'recording' | 'paused') {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jid = toJid(to);
-    await sock.sendPresenceUpdate(presence, jid);
-    return { status: presence };
+  async sendPresence(
+    sessionId: string,
+    to: string,
+    presence: PresenceType,
+  ): Promise<{ status: string }> {
+    return this.adapter.sendPresence(sessionId, to, presence);
   }
 }
