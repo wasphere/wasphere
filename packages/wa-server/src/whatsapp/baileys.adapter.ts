@@ -461,7 +461,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
-      image: { url: imageUrl },
+      image: { url: new URL(imageUrl) },
       caption: caption || '',
     });
     return { messageId: result?.key?.id, status: 'sent' };
@@ -476,7 +476,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
-      video: { url: videoUrl },
+      video: { url: new URL(videoUrl) },
       caption: caption || '',
     });
     return { messageId: result?.key?.id, status: 'sent' };
@@ -491,7 +491,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
-      audio: { url: audioUrl },
+      audio: { url: new URL(audioUrl) },
       mimetype: 'audio/ogg; codecs=opus',
       ptt: isVoiceNote,
     });
@@ -508,7 +508,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
-      document: { url: docUrl },
+      document: { url: new URL(docUrl) },
       fileName,
       mimetype,
     });
@@ -519,7 +519,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
-      sticker: { url: stickerUrl },
+      sticker: { url: new URL(stickerUrl) },
     });
     return { messageId: result?.key?.id, status: 'sent' };
   }
@@ -653,7 +653,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const jid = this.toJid(to);
     // WhatsApp doesn't support .gif — send as mp4 with gifPlayback flag
     const result = await sock.sendMessage(jid, {
-      video: { url: gifUrl },
+      video: { url: new URL(gifUrl) },
       caption: caption || '',
       gifPlayback: true,
     });
@@ -669,7 +669,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
-      image: { url: imageUrl },
+      image: { url: new URL(imageUrl) },
       caption: caption || '',
       viewOnce: true,
     });

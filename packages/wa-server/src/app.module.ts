@@ -23,7 +23,7 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(AuthMiddleware)
-      .exclude('api/health') // health check is public
+      .exclude('health') // health check is public
       .forRoutes('*');
   }
 }
