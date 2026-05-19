@@ -58,6 +58,22 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
   // ─── Private helpers ────────────────────────────────────────────────────
 
+  private audioMimetype(url: string, isVoiceNote: boolean): string {
+    if (isVoiceNote) return 'audio/ogg; codecs=opus';
+    const ext = url.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+    const map: Record<string, string> = {
+      mp3: 'audio/mpeg',
+      mp4: 'audio/mp4',
+      m4a: 'audio/mp4',
+      aac: 'audio/aac',
+      wav: 'audio/wav',
+      flac: 'audio/flac',
+      ogg: 'audio/ogg',
+      opus: 'audio/ogg; codecs=opus',
+    };
+    return map[ext] ?? 'audio/mpeg';
+  }
+
   private toJid(number: string): string {
     if (number.includes('@')) return number;
     const clean = number.replace(/[^0-9]/g, '');
@@ -174,14 +190,15 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         keys: makeCacheableSignalKeyStore(state.keys, console as any),
       },
       printQRInTerminal: true,
-      // Mimic a real browser to reduce ban risk
       browser: ['WaSphere', 'Chrome', '120.0.0'],
-      // Don't mark messages as read automatically
       markOnlineOnConnect: false,
-      // For groups — cache metadata to reduce WA API calls
       cachedGroupMetadata: async () => undefined,
-      // Retry stanza sending
       retryRequestDelayMs: 2000,
+      // Required for Signal Protocol retries (e.g. poll vote decryption from @lid devices)
+      getMessage: async (key) => {
+        const cache = this.messageCache.get(sessionId);
+        return cache?.get(key.id ?? '')?.message ?? undefined;
+      },
     });
 
     this.sessions.set(sessionId, sock);
@@ -195,6 +212,10 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     });
 
     sock.ev.on('messages.upsert', async (m) => {
+      // Cache all messages (including own) so getMessage() works during Signal retries
+      for (const msg of m.messages) {
+        this.cacheMessage(sessionId, msg);
+      }
       await this.handleIncomingMessages(sessionId, m);
     });
 
@@ -492,7 +513,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
       audio: { url: new URL(audioUrl) },
-      mimetype: 'audio/ogg; codecs=opus',
+      mimetype: this.audioMimetype(audioUrl, isVoiceNote),
       ptt: isVoiceNote,
     });
     return { messageId: result?.key?.id, status: 'sent' };
