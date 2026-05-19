@@ -685,7 +685,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
-      edit: messageId,
+      edit: { remoteJid: jid, id: messageId, fromMe: true },
       text: newText,
     } as any);
     return { messageId: result?.key?.id, status: 'edited' };
