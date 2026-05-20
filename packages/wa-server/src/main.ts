@@ -34,6 +34,17 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
   });
 
+  // Raw Express middleware — must run before NestJS routing so it catches all requests
+  // including those whose URLs are normalized away by Express route matching
+  app.use((req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
+    const TRAVERSAL_RE = /(?:\/|%2f)(?:\.\.?|%2e%2e?)(?:\/|%2f|$)|\/\//i;
+    if (TRAVERSAL_RE.test(req.url)) {
+      res.status(400).json({ error: 'INVALID_SESSION_ID' });
+      return;
+    }
+    next();
+  });
+
   const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
   if (corsOrigin === '*' || corsOrigin.trim() === '') {
     console.error('ERROR: CORS_ORIGIN must not be wildcard (*) or empty. Set a specific origin. Exiting.');

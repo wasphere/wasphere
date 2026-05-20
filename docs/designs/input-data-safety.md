@@ -134,6 +134,14 @@ Note for cases 5 and 6: NestJS parses route parameters after URL decoding by def
 
 Note for case 4 (null byte): The anchored regex `^[a-zA-Z0-9_-]{1,64}$` rejects null bytes and all control characters by virtue of the character class — they are simply not in `[a-zA-Z0-9_-]`. No separate null-byte check is needed in `ValidateSessionIdPipe`.
 
+### Testing Methodology Note
+
+Path traversal tests MUST use raw HTTP (e.g. `printf | nc` or Python socket). Standard HTTP clients including curl and Postman normalize `../` sequences before transmission and cannot exercise the `RawUrlGuardMiddleware`. A curl test for `../../../etc/passwd` sends `GET /etc/passwd HTTP/1.1` — the middleware never sees the traversal.
+
+Rule for all future security tests targeting URL-based attacks: use raw HTTP to prove the middleware fires. Curl tests remain useful only to verify that normalized paths do not accidentally reach session-handling controllers.
+
+The `RawUrlGuardMiddleware` regex is registered in `main.ts` via `app.use()` — not via NestJS's `MiddlewareConsumer` — because `MiddlewareConsumer` only fires on requests that match a registered route prefix. Unmatched routes (the most likely target for traversal attacks) would bypass NestJS-registered middleware entirely.
+
 ---
 
 ## Issue #5 — Raw Baileys msg Object Forwarded in Webhook (MEDIUM)

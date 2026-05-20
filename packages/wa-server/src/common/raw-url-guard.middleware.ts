@@ -1,3 +1,4 @@
+// Logic moved to main.ts app.use() — NestJS MiddlewareConsumer does not fire on unmatched routes.
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
