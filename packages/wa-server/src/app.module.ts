@@ -1,4 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { MessagesModule } from './messages/messages.module';
 import { GroupsModule } from './groups/groups.module';
@@ -9,6 +10,7 @@ import { AuthMiddleware } from './auth/auth.middleware';
 
 @Module({
   imports: [
+    WhatsAppModule,
     SessionsModule,
     MessagesModule,
     GroupsModule,
@@ -21,7 +23,7 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(AuthMiddleware)
-      .exclude('api/health') // health check is public
+      .exclude('health') // health check is public
       .forRoutes('*');
   }
 }

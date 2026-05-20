@@ -1,146 +1,126 @@
-import { Injectable } from '@nestjs/common';
-import { SessionsService } from '../sessions/sessions.service';
-
-function toGroupJid(id: string): string {
-  if (id.includes('@g.us')) return id;
-  return `${id}@g.us`;
-}
-
-function toJid(number: string): string {
-  if (number.includes('@')) return number;
-  const clean = number.replace(/[^0-9]/g, '');
-  return `${clean}@s.whatsapp.net`;
-}
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  WHATSAPP_ADAPTER,
+  IWhatsAppAdapter,
+  GroupInfo,
+  GroupSetting,
+} from '../whatsapp/whatsapp-adapter.interface';
 
 @Injectable()
 export class GroupsService {
-  constructor(private sessionsService: SessionsService) {}
+  constructor(
+    @Inject(WHATSAPP_ADAPTER) private adapter: IWhatsAppAdapter,
+  ) {}
 
-  async createGroup(sessionId: string, name: string, participants: string[]) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jids = participants.map(toJid);
-    const result = await sock.groupCreate(name, jids);
-    return { groupId: result.id, name, participants: jids };
+  async createGroup(
+    sessionId: string,
+    name: string,
+    participants: string[],
+  ): Promise<{ groupId: string; name: string; participants: string[] }> {
+    return this.adapter.createGroup(sessionId, name, participants);
   }
 
-  async getGroupInfo(sessionId: string, groupId: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const metadata = await sock.groupMetadata(toGroupJid(groupId));
-    return metadata;
+  async getGroupInfo(sessionId: string, groupId: string): Promise<GroupInfo> {
+    return this.adapter.getGroupInfo(sessionId, groupId);
   }
 
-  async getAllGroups(sessionId: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    // Get all chats and filter for groups
-    return { message: 'Use contacts.update event to track groups, or fetch via groupFetchAllParticipating' };
+  async getAllGroupsParticipating(sessionId: string): Promise<GroupInfo[]> {
+    return this.adapter.getAllGroupsParticipating(sessionId);
   }
 
-  async getAllGroupsParticipating(sessionId: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const groups = await sock.groupFetchAllParticipating();
-    return Object.values(groups);
+  async updateGroupName(
+    sessionId: string,
+    groupId: string,
+    name: string,
+  ): Promise<{ success: boolean; name: string }> {
+    return this.adapter.updateGroupName(sessionId, groupId, name);
   }
 
-  async updateGroupName(sessionId: string, groupId: string, name: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    await sock.groupUpdateSubject(toGroupJid(groupId), name);
-    return { success: true, name };
+  async updateGroupDescription(
+    sessionId: string,
+    groupId: string,
+    description: string,
+  ): Promise<{ success: boolean; description: string }> {
+    return this.adapter.updateGroupDescription(sessionId, groupId, description);
   }
 
-  async updateGroupDescription(sessionId: string, groupId: string, description: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    await sock.groupUpdateDescription(toGroupJid(groupId), description);
-    return { success: true, description };
+  async updateGroupPicture(
+    sessionId: string,
+    groupId: string,
+    imageUrl: string,
+  ): Promise<{ success: boolean }> {
+    return this.adapter.updateGroupPicture(sessionId, groupId, imageUrl);
   }
 
-  async updateGroupPicture(sessionId: string, groupId: string, imageUrl: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const response = await fetch(imageUrl);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    await sock.updateProfilePicture(toGroupJid(groupId), buffer);
-    return { success: true };
+  async addParticipants(
+    sessionId: string,
+    groupId: string,
+    participants: string[],
+  ): Promise<{ success: boolean; result: unknown }> {
+    return this.adapter.addParticipants(sessionId, groupId, participants);
   }
 
-  async addParticipants(sessionId: string, groupId: string, participants: string[]) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jids = participants.map(toJid);
-    const result = await sock.groupParticipantsUpdate(toGroupJid(groupId), jids, 'add');
-    return { success: true, result };
+  async removeParticipants(
+    sessionId: string,
+    groupId: string,
+    participants: string[],
+  ): Promise<{ success: boolean; result: unknown }> {
+    return this.adapter.removeParticipants(sessionId, groupId, participants);
   }
 
-  async removeParticipants(sessionId: string, groupId: string, participants: string[]) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jids = participants.map(toJid);
-    const result = await sock.groupParticipantsUpdate(toGroupJid(groupId), jids, 'remove');
-    return { success: true, result };
+  async promoteParticipants(
+    sessionId: string,
+    groupId: string,
+    participants: string[],
+  ): Promise<{ success: boolean; result: unknown }> {
+    return this.adapter.promoteParticipants(sessionId, groupId, participants);
   }
 
-  async promoteParticipants(sessionId: string, groupId: string, participants: string[]) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jids = participants.map(toJid);
-    const result = await sock.groupParticipantsUpdate(toGroupJid(groupId), jids, 'promote');
-    return { success: true, result };
+  async demoteParticipants(
+    sessionId: string,
+    groupId: string,
+    participants: string[],
+  ): Promise<{ success: boolean; result: unknown }> {
+    return this.adapter.demoteParticipants(sessionId, groupId, participants);
   }
 
-  async demoteParticipants(sessionId: string, groupId: string, participants: string[]) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const jids = participants.map(toJid);
-    const result = await sock.groupParticipantsUpdate(toGroupJid(groupId), jids, 'demote');
-    return { success: true, result };
+  async leaveGroup(sessionId: string, groupId: string): Promise<{ success: boolean }> {
+    return this.adapter.leaveGroup(sessionId, groupId);
   }
 
-  async leaveGroup(sessionId: string, groupId: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    await sock.groupLeave(toGroupJid(groupId));
-    return { success: true };
+  async getInviteLink(
+    sessionId: string,
+    groupId: string,
+  ): Promise<{ code: string; link: string }> {
+    return this.adapter.getGroupInviteLink(sessionId, groupId);
   }
 
-  async getInviteLink(sessionId: string, groupId: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const code = await sock.groupInviteCode(toGroupJid(groupId));
-    return {
-      code,
-      link: `https://chat.whatsapp.com/${code}`,
-    };
+  async revokeInviteLink(
+    sessionId: string,
+    groupId: string,
+  ): Promise<{ newCode: string; newLink: string }> {
+    return this.adapter.revokeGroupInviteLink(sessionId, groupId);
   }
 
-  async revokeInviteLink(sessionId: string, groupId: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    const newCode = await sock.groupRevokeInvite(toGroupJid(groupId));
-    return {
-      newCode,
-      newLink: `https://chat.whatsapp.com/${newCode}`,
-    };
+  async joinByInviteLink(
+    sessionId: string,
+    inviteCode: string,
+  ): Promise<{ success: boolean; groupId: string }> {
+    return this.adapter.joinGroupByInviteLink(sessionId, inviteCode);
   }
 
-  async joinByInviteLink(sessionId: string, inviteCode: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    // Extract code from full URL if needed
-    const code = inviteCode.includes('chat.whatsapp.com/')
-      ? inviteCode.split('chat.whatsapp.com/')[1]
-      : inviteCode;
-    const result = await sock.groupAcceptInvite(code);
-    return { success: true, groupId: result };
+  async getGroupPicture(
+    sessionId: string,
+    groupId: string,
+  ): Promise<{ groupId: string; profilePictureUrl: string | null }> {
+    return this.adapter.getGroupPicture(sessionId, groupId);
   }
 
-  async getGroupPicture(sessionId: string, groupId: string) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    try {
-      const url = await sock.profilePictureUrl(toGroupJid(groupId), 'image');
-      return { groupId, profilePictureUrl: url };
-    } catch {
-      return { groupId, profilePictureUrl: null };
-    }
-  }
-
-  // Update group settings (who can send messages, who can edit info)
   async updateGroupSettings(
     sessionId: string,
     groupId: string,
-    setting: 'announcement' | 'not_announcement' | 'locked' | 'unlocked',
-  ) {
-    const sock = this.sessionsService.getSocket(sessionId);
-    await sock.groupSettingUpdate(toGroupJid(groupId), setting);
-    return { success: true, setting };
+    setting: GroupSetting,
+  ): Promise<{ success: boolean; setting: GroupSetting }> {
+    return this.adapter.updateGroupSettings(sessionId, groupId, setting);
   }
 }
