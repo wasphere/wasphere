@@ -7,13 +7,13 @@ Connects to WaSphere Dashboard via IP + Port + Token.
 
 ```bash
 # Linux / Mac
-./wa-server-linux --port 3001 --token YOUR_SECRET_TOKEN
+WA_TOKEN=your-secret-here ./wa-server-linux --port 3001
 
 # Windows
-wa-server-win.exe --port 3001 --token YOUR_SECRET_TOKEN
+set WA_TOKEN=your-secret-here && wa-server-win.exe --port 3001
 
 # Or via Node (dev mode)
-npm run dev -- --port 3001 --token YOUR_SECRET_TOKEN
+WA_TOKEN=your-secret-here npm run dev -- --port 3001
 ```
 
 Then in WaSphere Dashboard → Add WA Server:
