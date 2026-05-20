@@ -1,5 +1,16 @@
-import { Controller, Post, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, Query, BadRequestException } from '@nestjs/common';
+import { IsArray, IsString, ArrayNotEmpty } from 'class-validator';
 import { MessagesService } from './messages.service';
+
+class MarkReadDto {
+  @IsString()
+  to: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  messageIds: string[];
+}
 
 @Controller('sessions/:sessionId/messages')
 export class MessagesController {
@@ -136,15 +147,18 @@ export class MessagesController {
   deleteMessage(
     @Param('sessionId') sid: string,
     @Param('messageId') messageId: string,
-    @Body() body: { to: string; forEveryone?: boolean },
+    @Query('to') to: string,
+    @Query('forEveryone') forEveryoneStr: string,
   ) {
-    return this.messagesService.deleteMessage(sid, body.to, messageId, body.forEveryone);
+    if (!to) throw new BadRequestException('to query parameter is required');
+    const forEveryone = forEveryoneStr === 'true';
+    return this.messagesService.deleteMessage(sid, to, messageId, forEveryone);
   }
 
   @Post('read')
   markRead(
     @Param('sessionId') sid: string,
-    @Body() body: { to: string; messageIds: string[] },
+    @Body() body: MarkReadDto,
   ) {
     return this.messagesService.markRead(sid, body.to, body.messageIds);
   }
