@@ -3,11 +3,11 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 
-// Parse CLI args: --port 3001 --token MY_SECRET
+// Parse CLI args: --port 3001
 function parseArgs(): { port: number; token: string } {
   const args = process.argv.slice(2);
   let port = parseInt(process.env.PORT || '3001');
-  const token = process.env.WA_TOKEN ?? (process.argv.find(a => a.startsWith('--token='))?.split('=')[1] ?? '');
+  const token = process.env.WA_TOKEN ?? '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--port' && args[i + 1]) port = parseInt(args[i + 1]);
@@ -33,6 +33,10 @@ async function bootstrap() {
   });
 
   const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  if (corsOrigin === '*' || corsOrigin.trim() === '') {
+    console.error('ERROR: CORS_ORIGIN must not be wildcard (*) or empty. Set a specific origin. Exiting.');
+    process.exit(1);
+  }
   app.enableCors({ origin: corsOrigin }); // Dashboard will connect from different origin
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.setGlobalPrefix('api');
