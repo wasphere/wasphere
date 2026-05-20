@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as QRCode from 'qrcode';
 import { WebhookService } from '../webhooks/webhook.service';
+import { safeFetch } from '../common/safe-fetch';
 import {
   IWhatsAppAdapter,
   SessionInfo,
@@ -481,8 +482,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
+    const imageBuffer = await safeFetch(imageUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
     const result = await sock.sendMessage(jid, {
-      image: { url: new URL(imageUrl) },
+      image: imageBuffer,
       caption: caption || '',
     });
     return { messageId: result?.key?.id, status: 'sent' };
@@ -496,8 +498,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
+    const videoResponse = await safeFetch(videoUrl, { maxBytes: 100 * 1024 * 1024 });
     const result = await sock.sendMessage(jid, {
-      video: { url: new URL(videoUrl) },
+      video: { stream: videoResponse.stream() },
       caption: caption || '',
     });
     return { messageId: result?.key?.id, status: 'sent' };
@@ -511,8 +514,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
+    const audioBuffer = await safeFetch(audioUrl, { maxBytes: 25 * 1024 * 1024 }).then((r) => r.buffer());
     const result = await sock.sendMessage(jid, {
-      audio: { url: new URL(audioUrl) },
+      audio: audioBuffer,
       mimetype: this.audioMimetype(audioUrl, isVoiceNote),
       ptt: isVoiceNote,
     });
@@ -528,8 +532,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
+    const docResponse = await safeFetch(docUrl, { maxBytes: 100 * 1024 * 1024 });
     const result = await sock.sendMessage(jid, {
-      document: { url: new URL(docUrl) },
+      document: { stream: docResponse.stream() },
       fileName,
       mimetype,
     });
@@ -539,8 +544,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   async sendSticker(sessionId: string, to: string, stickerUrl: string): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
+    const stickerBuffer = await safeFetch(stickerUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
     const result = await sock.sendMessage(jid, {
-      sticker: { url: new URL(stickerUrl) },
+      sticker: stickerBuffer,
     });
     return { messageId: result?.key?.id, status: 'sent' };
   }
@@ -673,8 +679,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
     // WhatsApp doesn't support .gif — send as mp4 with gifPlayback flag
+    const gifResponse = await safeFetch(gifUrl, { maxBytes: 100 * 1024 * 1024 });
     const result = await sock.sendMessage(jid, {
-      video: { url: new URL(gifUrl) },
+      video: { stream: gifResponse.stream() },
       caption: caption || '',
       gifPlayback: true,
     });
@@ -689,8 +696,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
+    const viewOnceBuffer = await safeFetch(imageUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
     const result = await sock.sendMessage(jid, {
-      image: { url: new URL(imageUrl) },
+      image: viewOnceBuffer,
       caption: caption || '',
       viewOnce: true,
     });
@@ -816,8 +824,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     imageUrl: string,
   ): Promise<{ success: boolean }> {
     const sock = this.getSocket(sessionId);
-    const response = await fetch(imageUrl);
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = await safeFetch(imageUrl, { maxBytes: 5 * 1024 * 1024 }).then((r) => r.buffer());
     await sock.updateProfilePicture(this.toGroupJid(groupId), buffer);
     return { success: true };
   }
@@ -1042,8 +1049,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     imageUrl: string,
   ): Promise<{ success: boolean }> {
     const sock = this.getSocket(sessionId);
-    const response = await fetch(imageUrl);
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = await safeFetch(imageUrl, { maxBytes: 5 * 1024 * 1024 }).then((r) => r.buffer());
     await sock.updateProfilePicture(sock.user!.id, buffer);
     return { success: true };
   }
