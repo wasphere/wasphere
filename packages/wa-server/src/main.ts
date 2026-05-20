@@ -32,7 +32,8 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
   });
 
-  app.enableCors({ origin: '*' }); // Dashboard will connect from different origin
+  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  app.enableCors({ origin: corsOrigin }); // Dashboard will connect from different origin
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.setGlobalPrefix('api');
 
