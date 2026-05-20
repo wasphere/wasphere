@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
@@ -903,6 +903,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       const result = await sock.groupAcceptInvite(code);
       return { success: true, groupId: result };
     } catch (err) {
+      if (err instanceof HttpException) throw err;
       throw new BadRequestException('Invalid or expired invite code');
     }
   }

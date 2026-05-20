@@ -1,10 +1,11 @@
 import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 import { GroupsService } from './groups.service';
 
 class JoinGroupDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(512)
   inviteCode: string;
 }
 

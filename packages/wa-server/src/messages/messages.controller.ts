@@ -151,7 +151,7 @@ export class MessagesController {
     @Query('forEveryone') forEveryoneStr: string,
   ) {
     if (!to) throw new BadRequestException('to query parameter is required');
-    const forEveryone = forEveryoneStr !== 'false';
+    const forEveryone = forEveryoneStr === 'true';
     return this.messagesService.deleteMessage(sid, to, messageId, forEveryone);
   }
 
