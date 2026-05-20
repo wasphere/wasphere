@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
 import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 import { GroupsService } from './groups.service';
+import { ValidateSessionIdPipe } from '../common/validate-session-id.pipe';
 
 class JoinGroupDto {
   @IsString()
@@ -14,31 +15,31 @@ export class GroupsController {
   constructor(private groupsService: GroupsService) {}
 
   @Get()
-  getAllGroups(@Param('sessionId') sid: string) {
+  getAllGroups(@Param('sessionId', ValidateSessionIdPipe) sid: string) {
     return this.groupsService.getAllGroupsParticipating(sid);
   }
 
   @Post()
   createGroup(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Body() body: { name: string; participants: string[] },
   ) {
     return this.groupsService.createGroup(sid, body.name, body.participants);
   }
 
   @Get(':groupId')
-  getGroupInfo(@Param('sessionId') sid: string, @Param('groupId') gid: string) {
+  getGroupInfo(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('groupId') gid: string) {
     return this.groupsService.getGroupInfo(sid, gid);
   }
 
   @Get(':groupId/picture')
-  getGroupPicture(@Param('sessionId') sid: string, @Param('groupId') gid: string) {
+  getGroupPicture(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('groupId') gid: string) {
     return this.groupsService.getGroupPicture(sid, gid);
   }
 
   @Put(':groupId/picture')
   updateGroupPicture(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('groupId') gid: string,
     @Body() body: { imageUrl: string },
   ) {
@@ -47,7 +48,7 @@ export class GroupsController {
 
   @Put(':groupId/name')
   updateGroupName(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('groupId') gid: string,
     @Body() body: { name: string },
   ) {
@@ -56,7 +57,7 @@ export class GroupsController {
 
   @Put(':groupId/description')
   updateGroupDescription(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('groupId') gid: string,
     @Body() body: { description: string },
   ) {
@@ -65,7 +66,7 @@ export class GroupsController {
 
   @Post('join')
   joinByInviteLink(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Body() body: JoinGroupDto,
   ) {
     return this.groupsService.joinByInviteLink(sid, body.inviteCode);
@@ -73,7 +74,7 @@ export class GroupsController {
 
   @Post(':groupId/participants/add')
   addParticipants(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('groupId') gid: string,
     @Body() body: { participants: string[] },
   ) {
@@ -82,7 +83,7 @@ export class GroupsController {
 
   @Post(':groupId/participants/remove')
   removeParticipants(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('groupId') gid: string,
     @Body() body: { participants: string[] },
   ) {
@@ -91,7 +92,7 @@ export class GroupsController {
 
   @Post(':groupId/participants/promote')
   promoteParticipants(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('groupId') gid: string,
     @Body() body: { participants: string[] },
   ) {
@@ -100,7 +101,7 @@ export class GroupsController {
 
   @Post(':groupId/participants/demote')
   demoteParticipants(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('groupId') gid: string,
     @Body() body: { participants: string[] },
   ) {
@@ -108,23 +109,23 @@ export class GroupsController {
   }
 
   @Post(':groupId/leave')
-  leaveGroup(@Param('sessionId') sid: string, @Param('groupId') gid: string) {
+  leaveGroup(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('groupId') gid: string) {
     return this.groupsService.leaveGroup(sid, gid);
   }
 
   @Get(':groupId/invite-link')
-  getInviteLink(@Param('sessionId') sid: string, @Param('groupId') gid: string) {
+  getInviteLink(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('groupId') gid: string) {
     return this.groupsService.getInviteLink(sid, gid);
   }
 
   @Post(':groupId/invite-link/revoke')
-  revokeInviteLink(@Param('sessionId') sid: string, @Param('groupId') gid: string) {
+  revokeInviteLink(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('groupId') gid: string) {
     return this.groupsService.revokeInviteLink(sid, gid);
   }
 
   @Put(':groupId/settings')
   updateSettings(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('groupId') gid: string,
     @Body() body: { setting: 'announcement' | 'not_announcement' | 'locked' | 'unlocked' },
   ) {
