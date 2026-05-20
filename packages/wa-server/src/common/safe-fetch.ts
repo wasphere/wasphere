@@ -254,11 +254,9 @@ async function resolveAndValidate(parsedUrl: URL, rawUrl: string): Promise<strin
     }
   }
 
-  // All IPs were blocked
-  throw new SsrfBlockedError(
-    rawUrl,
-    `blocked: all resolved IPs rejected — ${reasons.join('; ')}`,
-  );
+  // All IPs were blocked — log full detail server-side, return generic reason to caller
+  console.error(`[safeFetch] SSRF blocked ${rawUrl}: ${reasons.join('; ')}`);
+  throw new SsrfBlockedError(rawUrl, `blocked: all resolved addresses are private or reserved`);
 }
 
 // ─── maxBytes helper ──────────────────────────────────────────────────────────
