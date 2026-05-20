@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as QRCode from 'qrcode';
 import { WebhookService } from '../webhooks/webhook.service';
+import { sanitizeMessage, sanitizeMessageUpdate, sanitizeReceipt } from '../webhooks/sanitize-message';
 import { safeFetch } from '../common/safe-fetch';
 import {
   IWhatsAppAdapter,
@@ -58,6 +59,15 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   }
 
   // ─── Private helpers ────────────────────────────────────────────────────
+
+  private resolveSessionPath(sessionId: string): string {
+    const resolvedDir = path.resolve(this.sessionsDir);
+    const candidate = path.resolve(this.sessionsDir, sessionId);
+    if (!candidate.startsWith(resolvedDir + path.sep)) {
+      throw new BadRequestException({ error: 'INVALID_SESSION_ID' });
+    }
+    return candidate;
+  }
 
   private audioMimetype(url: string, isVoiceNote: boolean): string {
     if (isVoiceNote) return 'audio/ogg; codecs=opus';
@@ -146,7 +156,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     this.messageCache.delete(sessionId);
 
     // Delete stored auth files
-    const sessionPath = path.join(this.sessionsDir, sessionId);
+    const sessionPath = this.resolveSessionPath(sessionId);
     if (fs.existsSync(sessionPath)) {
       fs.rmSync(sessionPath, { recursive: true });
     }
@@ -162,13 +172,13 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   }
 
   getSessionPath(sessionId: string): string {
-    return path.join(this.sessionsDir, sessionId);
+    return this.resolveSessionPath(sessionId);
   }
 
   // ─── Core socket init ──────────────────────────────────────────────────
 
   private async initSocket(sessionId: string): Promise<void> {
-    const sessionPath = path.join(this.sessionsDir, sessionId);
+    const sessionPath = this.resolveSessionPath(sessionId);
     if (!fs.existsSync(sessionPath)) {
       fs.mkdirSync(sessionPath, { recursive: true });
     }
@@ -221,11 +231,11 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     });
 
     sock.ev.on('messages.update', async (updates) => {
-      await this.webhookService.fire('messages.update', sessionId, updates);
+      await this.webhookService.fire('messages.update', sessionId, updates.map(sanitizeMessageUpdate));
     });
 
     sock.ev.on('message-receipt.update', async (updates) => {
-      await this.webhookService.fire('message.receipt', sessionId, updates);
+      await this.webhookService.fire('message.receipt', sessionId, updates.map(sanitizeReceipt));
     });
 
     sock.ev.on('presence.update', async (update) => {
@@ -418,7 +428,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       await this.webhookService.fire('message.received', sessionId, {
         ...basePayload,
         content,
-        raw: msg, // full raw message for advanced users
+        message: sanitizeMessage(msg),
       });
     }
   }
@@ -430,7 +440,14 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
     const sessionDirs = fs.readdirSync(this.sessionsDir);
     for (const sessionId of sessionDirs) {
-      const sessionPath = path.join(this.sessionsDir, sessionId);
+      let sessionPath: string;
+      try {
+        sessionPath = this.resolveSessionPath(sessionId);
+      } catch {
+        console.warn('restoreAllSessions: skipping invalid session directory "%s"', sessionId);
+        continue;
+      }
+
       if (!fs.statSync(sessionPath).isDirectory()) continue;
 
       // Only restore if creds file exists (means it was authenticated before)

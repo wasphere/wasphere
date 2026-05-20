@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Param, Body, Query } from '@nestjs/common';
 import { ContactsService } from './contacts.service';
+import { ValidateSessionIdPipe } from '../common/validate-session-id.pipe';
 
 @Controller('sessions/:sessionId')
 export class ContactsController {
@@ -7,44 +8,44 @@ export class ContactsController {
 
   // Own profile
   @Get('profile')
-  getOwnProfile(@Param('sessionId') sid: string) {
+  getOwnProfile(@Param('sessionId', ValidateSessionIdPipe) sid: string) {
     return this.contactsService.getOwnProfile(sid);
   }
 
   @Post('profile/name')
-  updateName(@Param('sessionId') sid: string, @Body() body: { name: string }) {
+  updateName(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Body() body: { name: string }) {
     return this.contactsService.updateName(sid, body.name);
   }
 
   @Post('profile/about')
-  updateAbout(@Param('sessionId') sid: string, @Body() body: { about: string }) {
+  updateAbout(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Body() body: { about: string }) {
     return this.contactsService.updateAbout(sid, body.about);
   }
 
   @Post('profile/picture')
-  updateProfilePicture(@Param('sessionId') sid: string, @Body() body: { imageUrl: string }) {
+  updateProfilePicture(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Body() body: { imageUrl: string }) {
     return this.contactsService.updateProfilePicture(sid, body.imageUrl);
   }
 
   @Delete('profile/picture')
-  removeProfilePicture(@Param('sessionId') sid: string) {
+  removeProfilePicture(@Param('sessionId', ValidateSessionIdPipe) sid: string) {
     return this.contactsService.removeProfilePicture(sid);
   }
 
   // Contact checks
   @Get('contacts/:number/check')
-  checkNumber(@Param('sessionId') sid: string, @Param('number') number: string) {
+  checkNumber(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('number') number: string) {
     return this.contactsService.checkNumber(sid, number);
   }
 
   @Post('contacts/check-bulk')
-  checkNumbers(@Param('sessionId') sid: string, @Body() body: { numbers: string[] }) {
+  checkNumbers(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Body() body: { numbers: string[] }) {
     return this.contactsService.checkNumbers(sid, body.numbers);
   }
 
   @Get('contacts/:number/picture')
   getProfilePicture(
-    @Param('sessionId') sid: string,
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Param('number') number: string,
     @Query('highRes') highRes: string,
   ) {
@@ -52,22 +53,22 @@ export class ContactsController {
   }
 
   @Get('contacts/:number/about')
-  getAbout(@Param('sessionId') sid: string, @Param('number') number: string) {
+  getAbout(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('number') number: string) {
     return this.contactsService.getAbout(sid, number);
   }
 
   @Post('contacts/:number/block')
-  blockContact(@Param('sessionId') sid: string, @Param('number') number: string) {
+  blockContact(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('number') number: string) {
     return this.contactsService.blockContact(sid, number);
   }
 
   @Post('contacts/:number/unblock')
-  unblockContact(@Param('sessionId') sid: string, @Param('number') number: string) {
+  unblockContact(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('number') number: string) {
     return this.contactsService.unblockContact(sid, number);
   }
 
   @Post('contacts/:number/presence/subscribe')
-  subscribePresence(@Param('sessionId') sid: string, @Param('number') number: string) {
+  subscribePresence(@Param('sessionId', ValidateSessionIdPipe) sid: string, @Param('number') number: string) {
     return this.contactsService.subscribePresence(sid, number);
   }
 }
