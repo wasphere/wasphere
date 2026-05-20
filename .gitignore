@@ -8,8 +8,8 @@ build/
 builds/
 
 # WhatsApp session data — NEVER commit (contains account credentials)
-sessions/
-**/sessions/
+/sessions/
+packages/wa-server/sessions/
 
 # env / secrets
 .env
