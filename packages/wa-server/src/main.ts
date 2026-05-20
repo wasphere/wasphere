@@ -7,11 +7,15 @@ import { ValidationPipe } from '@nestjs/common';
 function parseArgs(): { port: number; token: string } {
   const args = process.argv.slice(2);
   let port = parseInt(process.env.PORT || '3001');
-  let token = process.env.WA_TOKEN || 'changeme';
+  const token = process.env.WA_TOKEN ?? (process.argv.find(a => a.startsWith('--token='))?.split('=')[1] ?? '');
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--port' && args[i + 1]) port = parseInt(args[i + 1]);
-    if (args[i] === '--token' && args[i + 1]) token = args[i + 1];
+  }
+
+  if (!token || token.length < 16) {
+    console.error('ERROR: WA_TOKEN env var must be set to a secret of at least 16 characters. Exiting.');
+    process.exit(1);
   }
 
   return { port, token };
