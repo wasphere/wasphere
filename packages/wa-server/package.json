@@ -19,6 +19,7 @@
     "@whiskeysockets/baileys": "6.7.21",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "ipaddr.js": "^2.4.0",
     "jimp": "^0.22.12",
     "link-preview-js": "^3.0.5",
     "mime-types": "^2.1.35",
