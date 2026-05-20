@@ -4,7 +4,7 @@ Issues: #3 (Path traversal via sessionId) and #5 (Raw Baileys msg in webhook)
 Branch: fix/security-hardening-input
 Author: Waqas Ahmed Waseer
 Date: 2026-05-20
-Status: Awaiting approval before implementation
+Status: Design approved — implementation may begin
 
 ---
 
@@ -39,6 +39,8 @@ The following locations in `packages/wa-server/src/` build a filesystem path fro
 | 6 | `whatsapp/baileys.adapter.ts` | 437 | `const credsFile = path.join(sessionPath, 'creds.json');` (restoreAllSessions creds check) |
 
 Sites 1–4 are reachable from API callers. Sites 5–6 are reachable from disk only (startup restore iterates `fs.readdirSync`), but must still be hardened because a future attack surface could plant a directory via another vulnerability.
+
+**`restoreAllSessions` failure mode:** If `resolveSessionPath(sessionId)` throws for a directory found on disk at startup (e.g. a pre-planted directory with a traversal name), the server must catch the error, log a warning (`console.warn('restoreAllSessions: skipping invalid session directory "%s"', sessionId)`), and continue to the next directory entry. It must NOT crash. A single malformed directory on disk must never prevent the remaining valid sessions from being restored or the server from starting.
 
 ---
 
@@ -75,7 +77,7 @@ Sites 1–4 are reachable from API callers. Sites 5–6 are reachable from disk 
 | `GroupsController` | `groups/groups.controller.ts` | `@Param('sessionId')` on every handler |
 | `ContactsController` | `contacts/contacts.controller.ts` | `@Param('sessionId')` on every handler |
 
-Implementation note: NestJS does not natively validate `@Param()` values using class-validator unless a custom pipe is applied. The recommended approach is to create a `ValidateSessionIdPipe` that applies the regex, and add it via `@UsePipes` or as a per-param pipe on each route param. Alternatively, a shared `SessionIdParam` DTO can be used wherever the param appears in a body. The implementor must choose one approach and apply it consistently to all four controllers.
+**Implementation choice: `ValidateSessionIdPipe`.**  NestJS does not natively validate `@Param()` values using class-validator. A `ValidateSessionIdPipe` is created and applied as a per-param pipe on every `@Param('sessionId')` and `@Param('id')` across all four controllers. This is the only accepted approach — it applies cleanly to route params without requiring DTO wrappers and cannot be accidentally omitted from a new handler the way a DTO can.
 
 #### Layer 2 — Boundary Assertion Inside the Adapter (Defense in Depth)
 
@@ -129,6 +131,8 @@ All cases below must return `HTTP 400` with body `{"error":"INVALID_SESSION_ID"}
 | 15 | `a` repeated 64 times (64-char string) | MUST PASS — maximum length |
 
 Note for cases 5 and 6: NestJS parses route parameters after URL decoding by default. The validator will therefore see the decoded form (`../`) rather than the percent-encoded form. Cases 5 and 6 test that the decoded result is caught by the regex, not that percent-encoding itself is detected.
+
+Note for case 4 (null byte): The anchored regex `^[a-zA-Z0-9_-]{1,64}$` rejects null bytes and all control characters by virtue of the character class — they are simply not in `[a-zA-Z0-9_-]`. No separate null-byte check is needed in `ValidateSessionIdPipe`.
 
 ---
 
@@ -194,6 +198,7 @@ The `sanitizeMessage` function must use an explicit allowlist — never a denyli
 | `message.conversation` | Yes | Plain text body |
 | `message.extendedTextMessage.text` | Yes | Rich text body |
 | `message.extendedTextMessage.contextInfo.stanzaId` | Yes | Quoted message ID only |
+| `message.extendedTextMessage.contextInfo.quotedMessage` | Yes — recursively sanitized | Must be passed through `sanitizeMessage()` before forwarding; strips Signal internals inside the quoted message while preserving quoted text for UX |
 | `message.extendedTextMessage.contextInfo` (other) | No | Contains Signal ephemeral data |
 | `message.imageMessage.caption` | Yes | |
 | `message.imageMessage.mimetype` | Yes | |
@@ -267,7 +272,10 @@ Each receipt item exposes `key`, `userReceipt`, and timing fields. Forward:
 
 ```
 function sanitizeMessage(msg: proto.IWebMessageInfo): SanitizedMessage
+function sanitizeMessage(msg: null | undefined): null
 ```
+
+The overload handling `null | undefined` is required because `contextInfo.quotedMessage` is optional — recursive calls must handle missing quoted messages gracefully without throwing.
 
 Where `SanitizedMessage` is a locally-defined interface containing only the allowlisted fields above. Using a typed return forces TypeScript to reject accidental additions that are not in the interface.
 
