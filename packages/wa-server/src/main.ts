@@ -50,7 +50,6 @@ async function bootstrap() {
   console.log('Add this server in your WaSphere dashboard:');
   console.log(`  IP/Host : your-server-ip`);
   console.log(`  Port    : ${port}`);
-  console.log(`  Token   : ${token}`);
   console.log('');
 }
 
