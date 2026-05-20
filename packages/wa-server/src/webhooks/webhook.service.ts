@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import * as https from 'https';
-import * as http from 'http';
+import { safeFetch, SsrfBlockedError } from '../common/safe-fetch';
 
 export interface WebhookPayload {
   event: string;
@@ -32,45 +31,26 @@ export class WebhookService {
     try {
       await this.post(this.dashboardUrl, payload);
     } catch (err) {
-      // Silent fail — dashboard might be temporarily down
-      console.warn(`[Webhook] Failed to fire event ${event}: ${err.message}`);
+      if (err instanceof SsrfBlockedError) {
+        // SSRF block on DASHBOARD_WEBHOOK_URL indicates misconfigured or compromised Dashboard
+        console.error(`[Webhook] SSRF_BLOCKED firing event ${event}: ${err.message}`);
+      } else {
+        // Silent fail — dashboard might be temporarily down
+        console.warn(`[Webhook] Failed to fire event ${event}: ${err.message}`);
+      }
     }
   }
 
-  private post(url: string, payload: WebhookPayload): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const body = JSON.stringify(payload);
-      const urlObj = new URL(url);
-      const isHttps = urlObj.protocol === 'https:';
-      const lib = isHttps ? https : http;
-
-      const req = lib.request(
-        {
-          hostname: urlObj.hostname,
-          port: urlObj.port || (isHttps ? 443 : 80),
-          path: urlObj.pathname + urlObj.search,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(body),
-            'X-WaSphere-Event': payload.event,
-            'X-WaSphere-Session': payload.sessionId,
-          },
-          timeout: 5000,
-        },
-        (res) => {
-          res.on('data', () => {});
-          res.on('end', () => resolve());
-        },
-      );
-
-      req.on('error', reject);
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error('Webhook timeout'));
-      });
-      req.write(body);
-      req.end();
+  private async post(url: string, payload: WebhookPayload): Promise<void> {
+    await safeFetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WaSphere-Event': payload.event,
+        'X-WaSphere-Session': payload.sessionId,
+      },
+      body: JSON.stringify(payload),
+      maxBytes: 1 * 1024 * 1024, // 1 MiB — webhook responses are JSON only
     });
   }
 }
