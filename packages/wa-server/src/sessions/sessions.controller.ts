@@ -1,15 +1,7 @@
 import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
-import { IsString, IsNotEmpty, MaxLength, Matches } from 'class-validator';
 import { SessionsService } from './sessions.service';
 import { ValidateSessionIdPipe } from '../common/validate-session-id.pipe';
-
-class CreateSessionDto {
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(64)
-  @Matches(/^[a-zA-Z0-9_-]+$/, { message: 'id may only contain letters, numbers, hyphens and underscores' })
-  id: string;
-}
+import { CreateSessionDto } from './dto/create-session.dto';
 
 @Controller('sessions')
 export class SessionsController {
