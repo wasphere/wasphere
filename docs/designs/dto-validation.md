@@ -3,6 +3,7 @@
 **Branch:** `fix/dto-validation`
 **Scope:** v1 — WA Server (`packages/wa-server/src/`) only
 **Bugs closed:** BUG-2, BUG-4, BUG-8, BUG-9, BUG-11, BUG-12
+**Status:** Design approved — implementation may begin
 
 ---
 
@@ -13,10 +14,10 @@ NestJS pipe layer before it reaches a service or the Baileys adapter. This is do
 
 1. Creating proper DTO classes in dedicated `*.dto.ts` files for every controller.
 2. Applying decorators from `class-validator` and `class-transformer` to every field.
-3. Confirming that the global `ValidationPipe` (already in `main.ts`) is correctly
-   configured to enforce the DTOs.
-4. Creating the missing `ValidateSessionIdPipe` TypeScript source file and wiring it
-   to every `:sessionId` path parameter.
+3. Updating the global `ValidationPipe` in `main.ts` to add `transform: true` and
+   `forbidNonWhitelisted: true` (currently only `whitelist: true` is set).
+4. `ValidateSessionIdPipe` source and controller wiring is already complete (added by
+   security PR `fix/security-hardening-input`). BUG-11 and BUG-12 are confirmed closed.
 
 ---
 
@@ -28,8 +29,8 @@ NestJS pipe layer before it reaches a service or the Baileys adapter. This is do
 | BUG-4 | Poll options array has no size cap, `selectableCount` has no range | `@ArrayMinSize(2)`, `@ArrayMaxSize(12)`, per-option `@MaxLength(100)`, `@Min(1)` `@Max(12)` `@IsInt` |
 | BUG-8 | `sendContact` vCard fields accept any characters enabling vCard injection | `@Matches` regex on `displayName` and `phoneNumber` |
 | BUG-9 | Bulk contacts check has no array size cap — potential DoS | `@ArrayMaxSize(100)` on the `numbers` array |
-| BUG-11 | `sessionId` path param is not validated in source — pipe exists only in `dist/` and is never applied | Create `src/common/validate-session-id.pipe.ts`, apply via `@Param('sessionId', ValidateSessionIdPipe)` on all controllers |
-| BUG-12 | Already closed by `ValidateSessionIdPipe` (security PR `fix/security-hardening-input`) | Confirmed below — the compiled pipe logic is correct; only the source file and wiring are missing |
+| BUG-11 | `sessionId` path param validation | Closed by security PR `fix/security-hardening-input` — `src/common/validate-session-id.pipe.ts` exists and is wired to all four controllers. No action required in this PR. |
+| BUG-12 | Same as BUG-11 | Confirmed fully closed by security PR. |
 
 ---
 
@@ -53,8 +54,12 @@ app.useGlobalPipes(
 );
 ```
 
-`transform: true` is required for `@Transform()` decorators (BUG-2 boolean coercion) and
-for query-param DTOs to work correctly. `forbidNonWhitelisted: true` adds defence-in-depth.
+`transform: true` is required for `@Transform()` decorators (BUG-2 boolean coercion),
+`@IsInt()` coercion, and `@ValidateNested` + `@Type()` on nested objects. **Approved.**
+
+`forbidNonWhitelisted: true` rejects requests that send extra body properties with a 400
+instead of silently stripping them. WaSphere is pre-1.0 with no external API consumers —
+this is the right moment to enforce strict input. **Approved.**
 
 ---
 
@@ -66,7 +71,8 @@ source goes in `src/common/`.
 ```
 packages/wa-server/src/
   common/
-    validate-session-id.pipe.ts   ← NEW: moved from dist-only to proper source
+    validate-session-id.pipe.ts   ← EXISTS (added by security PR — no changes needed)
+    pattern.pipe.ts               ← NEW: PatternPipe factory (see Tricky Endpoints §4–6)
   sessions/
     dto/
       create-session.dto.ts       ← MOVE: inline class in controller → dedicated file
@@ -141,11 +147,8 @@ export class CreateSessionDto {
 
 This is already correct inline in the controller. Move it to its own file; no field changes.
 
-**BUG-11 / BUG-12 note:** The `id` field in `CreateSessionDto` covers the body, but the
-`:id` path param on `GET`, `DELETE`, and `POST .../logout` has no source-level pipe applied.
-The compiled `dist/common/validate-session-id.pipe.js` exists but its `.ts` source does not
-exist in `src/` and it is never used in the controller. This must be fixed (see Common Pipe
-section below).
+**BUG-11 / BUG-12 note:** `ValidateSessionIdPipe` is already wired to `GET /:id`,
+`DELETE /:id`, and `POST /:id/logout` in this controller. Confirmed closed by security PR.
 
 ---
 
@@ -726,29 +729,48 @@ export class SetCallbackDto {
 
 ## Common Pipe — ValidateSessionIdPipe (BUG-11 / BUG-12)
 
-**Critical finding:** `ValidateSessionIdPipe` exists only as compiled JavaScript in
-`packages/wa-server/dist/common/validate-session-id.pipe.js`. The TypeScript source
-`packages/wa-server/src/common/validate-session-id.pipe.ts` does not exist. The pipe is
-never imported or applied in any controller.
+**Confirmed closed by security PR `fix/security-hardening-input`.**
 
-**Required action:**
+`packages/wa-server/src/common/validate-session-id.pipe.ts` exists with the correct
+implementation (regex `^[a-zA-Z0-9_-]{1,64}$`, throws `BadRequestException` with
+`{ error: 'INVALID_SESSION_ID' }`). It is imported and applied to every `:sessionId` param
+across all four controllers and to `:id` in `SessionsController`. No action required.
 
-1. Create `packages/wa-server/src/common/validate-session-id.pipe.ts` with the correct
-   implementation (regex `^[a-zA-Z0-9_-]{1,64}$`, throws `BadRequestException` with
-   `{ error: 'INVALID_SESSION_ID' }`).
+---
 
-2. Apply it to every `:sessionId` path param in all controllers:
-   - `MessagesController` — `@Param('sessionId', ValidateSessionIdPipe)`
-   - `GroupsController` — `@Param('sessionId', ValidateSessionIdPipe)`
-   - `ContactsController` — `@Param('sessionId', ValidateSessionIdPipe)`
+## Common Pipe — PatternPipe factory (NEW)
 
-3. Apply it to `:id` in `SessionsController` for `GET`, `DELETE`, and `POST .../logout`.
-   (The `POST /sessions` body is covered by `CreateSessionDto`.)
+**Approved.** A single configurable `PatternPipe` factory replaces the need for three
+separate pipe files (`ValidatePhoneNumberPipe`, `ValidateMessageIdPipe`,
+`ValidateGroupIdPipe`). One file, used four times:
 
-**BUG-12 status:** The security PR `fix/security-hardening-input` included the correct
-compiled pipe logic. However, because the source was never added to `src/` and the pipe was
-never wired to controllers, BUG-12 is only nominally closed. This PR (`fix/dto-validation`)
-formally closes it by adding the source file and wiring.
+```typescript
+// src/common/pattern.pipe.ts
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+
+export function PatternPipe(regex: RegExp, maxLength: number, errorCode = 'INVALID_PARAM') {
+  @Injectable()
+  class Pipe implements PipeTransform<string, string> {
+    transform(value: string): string {
+      if (!value || value.length > maxLength || !regex.test(value)) {
+        throw new BadRequestException({ error: errorCode });
+      }
+      return value;
+    }
+  }
+  return Pipe;
+}
+
+// Pre-built instances
+export const ValidatePhoneNumberPipe = PatternPipe(/^[\d+@\w.]{1,40}$/, 40, 'INVALID_PHONE_NUMBER');
+export const ValidateMessageIdPipe   = PatternPipe(/^[a-zA-Z0-9_-]{1,100}$/, 100, 'INVALID_MESSAGE_ID');
+export const ValidateGroupIdPipe     = PatternPipe(/^[\d+@\w.]{1,40}$/, 40, 'INVALID_GROUP_ID');
+```
+
+Applied to:
+- `ContactsController` — `@Param('number', ValidatePhoneNumberPipe)`
+- `MessagesController` — `@Param('messageId', ValidateMessageIdPipe)` (edit + delete)
+- `GroupsController` — `@Param('groupId', ValidateGroupIdPipe)`
 
 ---
 
@@ -772,33 +794,41 @@ in Global Setup).
 
 **Required import:** `import { Type } from 'class-transformer';`
 
-### 3. URL fields — @IsUrl vs @IsString + @MaxLength
+### 3. URL fields — @IsUrl with NODE_ENV-aware localhost allowance
 
-All fields that are supposed to carry a URL (`url`, `imageUrl`) use `@IsUrl` with
+**Approved.** All fields carrying a URL (`url`, `imageUrl`) use `@IsUrl` with
 `{ require_tld: true, require_protocol: true }`. This is stricter than `@IsString` alone
 and prevents relative paths or `file://` URLs from reaching `safe-fetch`. It is
 defence-in-depth on top of the existing SSRF guard.
 
+`@IsUrl` rejects `localhost` and `127.0.0.1` by default. To allow local media in dev/test
+environments without weakening production, apply the option conditionally:
+
+```typescript
+// shared helper — used wherever @IsUrl appears
+export const URL_OPTIONS: IsURLOptions = process.env.NODE_ENV === 'production'
+  ? { require_tld: true, require_protocol: true }
+  : { require_tld: false, require_protocol: true, host_whitelist: [/^localhost(:\d+)?$/, /^127\.0\.0\.1(:\d+)?$/] };
+```
+
+The engineer should export this constant from a shared `src/common/validators.ts` file and
+use `@IsUrl(URL_OPTIONS)` everywhere. No custom decorator wrapper is needed.
+
 ### 4. sessionId and :number path params
 
-Path params arrive as strings and bypass `@Body()` DTO validation. They must be handled
-by pipes. `ValidateSessionIdPipe` covers `:sessionId`. The `:number` param in
-`ContactsController` should be guarded by a `ValidatePhoneNumberPipe` that checks the
-value matches `^[\d+@\w.]+$` and has a max length of 40. This pipe is a separate small
-file: `src/common/validate-phone-number.pipe.ts`.
+`ValidateSessionIdPipe` already covers `:sessionId`. The `:number` param in
+`ContactsController` is guarded by `ValidatePhoneNumberPipe` from the `PatternPipe` factory
+(see Common Pipe — PatternPipe factory section above). **Both in scope. Approved.**
 
 ### 5. messageId path param
 
-`@Param('messageId')` in `MessagesController` (edit and delete) is a WhatsApp message ID
-(alphanumeric + underscores, max ~100 chars). A `ValidateMessageIdPipe` using
-`/^[a-zA-Z0-9_-]{1,100}$/` should be applied. Can share structure with
-`ValidateSessionIdPipe` — a single `PatternPipe` factory may be cleaner.
+`@Param('messageId')` in `MessagesController` (edit and delete) is guarded by
+`ValidateMessageIdPipe` from the `PatternPipe` factory. **In scope. Approved.**
 
 ### 6. groupId path param
 
-`@Param('groupId')` in `GroupsController` is a JID with the form `<digits>@g.us`. Max
-length ~40 chars. A `ValidateGroupIdPipe` or the shared JID regex `^[\d+@\w.]+$` is
-sufficient.
+`@Param('groupId')` in `GroupsController` is guarded by `ValidateGroupIdPipe` from the
+`PatternPipe` factory. **In scope. Approved.**
 
 ---
 
@@ -846,15 +876,23 @@ This is a single-agent job. No database migration is needed. No frontend changes
 
 ---
 
-## Risks and Open Questions
+## Design Decisions (all resolved)
 
-| # | Risk / Question | Owner |
-|---|-----------------|-------|
-| 1 | `forbidNonWhitelisted: true` is a breaking change for API consumers sending extra fields. Waqas must decide: apply now or defer to v1.1 after announcing the change. | Waqas |
-| 2 | WA field limits (button text ≤ 20 chars, row title ≤ 24 chars) are based on known Baileys/WA constraints. If the actual limits differ, `@MaxLength` values need adjustment. Waqas should verify against live WA behaviour. | Waqas |
-| 3 | `ValidatePhoneNumberPipe` and `ValidateMessageIdPipe` / `ValidateGroupIdPipe` are new pipes not originally in scope. They are low-effort (< 20 lines each) but Waqas should confirm they are in scope for this PR. | Waqas |
-| 4 | The `emoji` field on `sendReaction` is difficult to validate strictly (Unicode emoji range is complex). `@MaxLength(8)` limits damage but allows non-emoji strings. A custom validator could check `grapheme-splitter` or a Unicode emoji range, but adds a dependency. Waqas must decide: basic length cap only, or strict emoji validator. | Waqas |
-| 5 | `@IsUrl` rejects localhost URLs by default. If the WA server is expected to fetch media from `localhost` in development or integration tests, `@IsUrl({ allow_underscores: true, require_tld: false })` may be needed, or a custom env-aware validator. Waqas should decide. | Waqas |
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | `forbidNonWhitelisted: true` — breaking change? | **YES, apply now.** Pre-1.0, no external consumers. |
+| 2 | `transform: true` in `ValidationPipe` | **YES, required** for `@Transform`, `@IsInt`, `@ValidateNested`. |
+| 3 | `ValidatePhoneNumberPipe` + `ValidateGroupIdPipe` + `ValidateMessageIdPipe` | **YES, all in scope.** Implemented via single `PatternPipe` factory. |
+| 4 | `@IsUrl` on URL fields — localhost in dev? | **YES, `@IsUrl` with NODE_ENV-aware `URL_OPTIONS` constant.** See Tricky Endpoints §3. |
+| 5 | 20 DTO files across 4 `dto/` folders | **YES, approved.** Optional: shared `JidDto` or `@IsJid()` decorator — not a blocker for this PR. |
+
+### Emoji validation (Risk #4 from original design)
+
+`@MaxLength(8)` on `sendReaction.emoji` is sufficient for this PR. A strict emoji validator
+(Unicode range check, grapheme splitter) adds a dependency and is not a blocker.
+
+**Action:** Open a GitHub issue after this PR merges: "v1.2: strict emoji validator for
+sendReaction (currently length-capped only)." The engineer must not add this to this PR.
 
 ---
 
