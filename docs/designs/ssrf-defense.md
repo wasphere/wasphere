@@ -3,7 +3,7 @@
 **Branch**: `fix/security-hardening-ssrf`
 **Author**: Waqas Ahmed Waseer
 **Date**: 2026-05-20
-**Status**: Awaiting Approval #1
+**Status**: Design approved — pending implementation
 
 ---
 
@@ -117,8 +117,8 @@ direct URL-injection capability.
 Because:
 1. No library covers all 9 required points without additional code on top.
 2. The Baileys URL-object path requires pre-fetching the media ourselves and
-   passing a `Buffer` instead of a `{ url }` — a design the libraries do not
-   assist with at all.
+   passing a `Buffer` or `{ stream: Readable }` instead of a `{ url }` — a
+   design the libraries do not assist with at all.
 3. `ipaddr.js` (the best underlying IP-parsing library, used by
    `ssrf-req-filter`) can be added as a direct dependency to handle the IP
    classification logic correctly, avoiding hand-rolled CIDR arithmetic.
@@ -129,7 +129,8 @@ Because:
 
 The hand-rolled implementation will use `ipaddr.js` directly for IP range
 matching (it handles both IPv4 and IPv6 including IPv4-mapped addresses) and
-Node's built-in `dns.promises.lookup` (with `all: true`) for resolution.
+Node's built-in `dns.promises.resolve4` / `dns.promises.resolve6` for
+resolution (see Point 4 and OQ7 for rationale over `dns.promises.lookup`).
 
 ---
 
@@ -142,7 +143,7 @@ export interface SafeFetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   body?: string | Buffer;
-  /** Override max response bytes. Defaults to SSRF_MAX_RESPONSE_MB env var × 1 MiB, or 10 MiB. */
+  /** Override max response bytes. Required per call site (see Size Cap Policy in Point 7). SSRF_MAX_RESPONSE_MB env var overrides all. */
   maxBytes?: number;
 }
 
@@ -152,6 +153,8 @@ export interface SafeFetchResponse {
   buffer(): Promise<Buffer>;
   text(): Promise<string>;
   json<T = unknown>(): Promise<T>;
+  /** Returns a size-capped, timeout-enforced Node.js Readable. Pass to Baileys as { stream }. */
+  stream(): Readable;
 }
 
 /**
@@ -181,13 +184,17 @@ export declare class SsrfTimeoutError extends Error {
 ```
 
 Callers that currently build `{ url: new URL(mediaUrl) }` objects for Baileys
-will be changed to:
+will be changed to use either the `buffer()` or `stream()` path depending on
+media type (see Size Cap Policy in Point 7). Examples:
 
 ```typescript
-const response = await safeFetch(mediaUrl);
-const buffer = await response.buffer();
-// Pass buffer to Baileys instead of { url }
-sock.sendMessage(jid, { image: buffer, caption });
+// Small media (image, sticker, audio) — buffer path
+const buf = await safeFetch(mediaUrl, { maxBytes: 10 * MiB }).then(r => r.buffer());
+sock.sendMessage(jid, { image: buf, caption });
+
+// Large media (video, document, gif) — stream path
+const readable = safeFetch(mediaUrl, { maxBytes: 100 * MiB }).stream();
+sock.sendMessage(jid, { video: { stream: readable } });
 ```
 
 ---
@@ -212,10 +219,10 @@ non-routable range, reaching internal infrastructure.
 | Multicast | 224.0.0.0/4 | RFC 5771 |
 | Reserved / future | 240.0.0.0/4 | RFC 1112 |
 
-**Defense**: After manually resolving the hostname with `dns.promises.lookup({
-all: true })`, every returned `A` record is parsed by `ipaddr.js`. If any
-returned IP falls within the above ranges, the request is rejected before a
-socket is opened.
+**Defense**: After manually resolving the hostname with `dns.promises.resolve4`
+and `dns.promises.resolve6` (run in parallel via `Promise.allSettled`), every
+returned A record is parsed by `ipaddr.js`. If any returned IP falls within the
+above ranges, the request is rejected before a socket is opened.
 
 **Rejection behavior**: `SsrfBlockedError` is thrown with `reason` identifying
 the matched range. The NestJS exception filter maps this to **HTTP 422
@@ -244,10 +251,10 @@ blocked IPv4 address in an IPv6 literal to bypass naive IPv4-only checks.
 | `2002::/16` | 6to4 — may embed RFC 1918 IPv4 addresses |
 | `::/128` | Unspecified |
 
-**Defense**: `dns.promises.lookup({ all: true, family: 6 })` returns AAAA
-records. `ipaddr.js` classifies the IPv6 address. For IPv4-mapped addresses,
-`ipaddr.js` exposes the embedded IPv4 via `.toIPv4Address()`, which is then
-re-run through the Point 1 blocklist.
+**Defense**: The AAAA records returned by `dns.promises.resolve6` (part of the
+parallel `Promise.allSettled` call described in Point 4) are parsed by
+`ipaddr.js`. For IPv4-mapped addresses, `ipaddr.js` exposes the embedded IPv4
+via `.toIPv4Address()`, which is then re-run through the Point 1 blocklist.
 
 By default, if any AAAA record is returned and the server is not explicitly
 configured to allow IPv6 external targets, all IPv6 addresses are rejected.
@@ -304,8 +311,12 @@ The implementation follows this exact sequence:
 1. Parse the URL; extract the hostname.
 2. If the hostname is already an IP literal, validate it directly (skip
    resolution).
-3. Otherwise, call `dns.promises.lookup(hostname, { all: true })` once. This
-   returns all A and AAAA records.
+3. Otherwise, call `dns.promises.resolve4(hostname)` and
+   `dns.promises.resolve6(hostname)` in parallel via `Promise.allSettled`.
+   Collect all results: fulfilled IPv4 addresses from `resolve4`, fulfilled
+   IPv6 addresses from `resolve6`. If `resolve6` rejects (e.g. NXDOMAIN
+   because the hostname has no AAAA records), treat the IPv6 list as empty —
+   this is not an error.
 4. Validate every returned IP against all blocklists (Points 1, 2, 3).
 5. Select the first non-blocked IP.
 6. Open the TCP connection directly to that IP address (not the hostname).
@@ -318,6 +329,24 @@ The implementation follows this exact sequence:
 This approach is sometimes called "IP pinning after resolution". It is the only
 reliable defense against DNS rebinding without a custom DNS resolver with
 pinned TTL enforcement.
+
+**Why `resolve4`/`resolve6` rather than `lookup({ all: true })`**:
+
+`dns.promises.lookup` uses the OS resolver, which respects `/etc/hosts` and
+the NSSwitch configuration. An attacker who can write to `/etc/hosts` (e.g. via
+a container escape or a misconfigured volume mount) can add an entry mapping an
+arbitrary hostname to `169.254.169.254` and bypass the blocklist entirely
+before the check is even reached.
+
+`dns.promises.resolve4` and `dns.promises.resolve6` query DNS directly,
+bypassing `/etc/hosts` and NSSwitch. They are significantly harder to
+manipulate from userspace. Using them is a strict improvement with no
+functional downside for our use case, since we are validating externally
+supplied URLs — not resolving internal service names.
+
+`resolve6` may return NXDOMAIN if the hostname has no AAAA records. This is
+handled gracefully: a rejected `resolve6` promise in the `Promise.allSettled`
+result is treated as an empty IPv6 address list, not as a fatal error.
 
 **Implementation note**: Node's `http.request` and `https.request` accept a
 `host` option that is the socket target. Setting `host` to the IP and `headers:
@@ -402,7 +431,7 @@ allowed"`.
 |---|---|---|
 | Connect timeout | 5 seconds | Not configurable |
 | Read timeout | 30 seconds | Not configurable |
-| Max response size | 10 MiB | `SSRF_MAX_RESPONSE_MB` env var (integer MiB) |
+| Max response size | Per call site (see Size Cap Policy below) | `SSRF_MAX_RESPONSE_MB` env var overrides all |
 
 The connect timeout is enforced by setting `socket.setTimeout` before the
 request is dispatched. The read timeout is enforced by a `setTimeout` that
@@ -412,6 +441,71 @@ of the first data event.
 The size cap is enforced by accumulating response chunks and calling
 `socket.destroy()` as soon as `totalBytes > maxBytes`. The partial data is
 discarded.
+
+#### Size Cap Policy
+
+**OQ2 is resolved: Baileys accepts a `Readable` stream.**
+
+`WAMediaUpload` in Baileys 6.7.21 is typed as:
+
+```typescript
+export type WAMediaPayloadStream = { stream: Readable };
+export type WAMediaUpload = Buffer | WAMediaPayloadStream | WAMediaPayloadURL;
+```
+
+Baileys imports `Readable` from Node's `'stream'` module and accepts it
+natively via the `{ stream: Readable }` wrapper shape. This means `safeFetch`
+does not have to buffer the entire response body into memory for large media
+types.
+
+**Chosen approach: Option A — stream for large media, buffer for small media.**
+
+`SafeFetchResponse` exposes two consumption methods:
+
+```typescript
+export interface SafeFetchResponse {
+  status: number;
+  headers: Record<string, string>;
+  buffer(): Promise<Buffer>;   // accumulates into memory; size-capped
+  text():   Promise<string>;   // accumulates into memory; size-capped
+  json<T = unknown>(): Promise<T>; // accumulates into memory; size-capped
+  stream(): Readable;          // size-capped, timeout-enforced Node.js Readable
+}
+```
+
+`stream()` returns a `Readable` that enforces the size cap inline: it destroys
+itself and emits an error as soon as `totalBytes > maxBytes`. It also enforces
+the read timeout from the moment the first data event fires. The adapter passes
+the result directly to Baileys as `{ stream: safeFetch(url).stream() }`.
+
+**Per-call-site `maxBytes`** is passed as `options.maxBytes` to `safeFetch()`.
+The caller supplies the appropriate limit for the media type. Default limits:
+
+| Call site | Method | Default cap | Consumption |
+|---|---|---|---|
+| `sendImage` | `safeFetch` | 10 MiB | `buffer()` |
+| `sendSticker` | `safeFetch` | 10 MiB | `buffer()` |
+| `sendViewOnce` | `safeFetch` | 10 MiB | `buffer()` |
+| `sendAudio` (voice note / audio) | `safeFetch` | 25 MiB | `buffer()` |
+| `sendVideo` | `safeFetch` | 100 MiB | `stream()` |
+| `sendGif` | `safeFetch` | 100 MiB | `stream()` |
+| `sendDocument` | `safeFetch` | 100 MiB | `stream()` |
+| `updateGroupPicture` | `safeFetch` | 5 MiB | `buffer()` |
+| `updateOwnProfilePicture` | `safeFetch` | 5 MiB | `buffer()` |
+| Webhook service POST | `safeFetch` | 1 MiB | `json()` / `text()` |
+
+The `SSRF_MAX_RESPONSE_MB` environment variable, when set, overrides the
+`maxBytes` for all call sites regardless of the per-call-site default. This is
+an emergency escape hatch for deployments where the defaults are too
+restrictive; it should not be used as a substitute for setting appropriate
+per-call-site limits.
+
+Rationale for `stream()` on video/gif/document: these file types routinely
+reach 64–100 MiB on WhatsApp. Buffering them in full before handing to Baileys
+would double peak memory usage (OQ1). Using `stream()` keeps only the
+in-flight TCP window in memory at any given moment. Images, stickers, voice
+notes, and profile pictures are small enough that the simpler `buffer()` path
+is appropriate.
 
 **Rejection behavior**:
 - Connect timeout: `SsrfTimeoutError`; NestJS maps this to **HTTP 504 Gateway
@@ -563,35 +657,41 @@ to inject a custom agent into Baileys' download path without modifying Baileys
 itself (prohibited by the Architecture Rule).
 
 **Required change for all seven `{ url }` sites**: Pre-fetch the media using
-`safeFetch(mediaUrl)` and convert the response to a `Buffer`, then pass the
-`Buffer` directly to Baileys (Baileys accepts `Buffer` for all media types):
+`safeFetch(mediaUrl, { maxBytes })` and pass the result to Baileys as either a
+`Buffer` (small media) or a `{ stream: Readable }` (large media), per the Size
+Cap Policy in Point 7. Examples:
 
 ```
+// Small media — buffer path
 image: { url: new URL(imageUrl) }
-  →  image: await safeFetch(imageUrl).then(r => r.buffer())
+  →  image: await safeFetch(imageUrl, { maxBytes: 10 * MiB }).then(r => r.buffer())
+
+// Large media — stream path (avoids loading full file into memory)
+video: { url: new URL(videoUrl) }
+  →  video: { stream: safeFetch(videoUrl, { maxBytes: 100 * MiB }).stream() }
 ```
 
 This also eliminates a double-fetch (previously Baileys fetched from the URL;
-now we fetch once and hand the buffer to Baileys).
+now we fetch once and hand the data to Baileys).
 
 **Required change for the two `fetch()` sites** (`updateGroupPicture` and
 `updateOwnProfilePicture`): Replace the global `fetch(imageUrl)` call with
-`safeFetch(imageUrl)` and adapt the buffer extraction. The calling pattern is
-already buffer-based, so the change is minimal.
+`safeFetch(imageUrl, { maxBytes: 5 * MiB })` and adapt the buffer extraction.
+The calling pattern is already buffer-based, so the change is minimal.
 
 **Summary of all 9 adapter call sites**:
 
-| Method | Current pattern | New pattern |
-|---|---|---|
-| `sendImage` | `image: { url: new URL(imageUrl) }` | `image: await safeFetch(imageUrl).then(r => r.buffer())` |
-| `sendVideo` | `video: { url: new URL(videoUrl) }` | `video: await safeFetch(videoUrl).then(r => r.buffer())` |
-| `sendAudio` | `audio: { url: new URL(audioUrl) }` | `audio: await safeFetch(audioUrl).then(r => r.buffer())` |
-| `sendDocument` | `document: { url: new URL(docUrl) }` | `document: await safeFetch(docUrl).then(r => r.buffer())` |
-| `sendSticker` | `sticker: { url: new URL(stickerUrl) }` | `sticker: await safeFetch(stickerUrl).then(r => r.buffer())` |
-| `sendGif` | `video: { url: new URL(gifUrl) }` | `video: await safeFetch(gifUrl).then(r => r.buffer())` |
-| `sendViewOnce` | `image: { url: new URL(imageUrl), viewOnce }` | `image: await safeFetch(imageUrl).then(r => r.buffer())` |
-| `updateGroupPicture` | `fetch(imageUrl)` | `safeFetch(imageUrl)` |
-| `updateOwnProfilePicture` | `fetch(imageUrl)` | `safeFetch(imageUrl)` |
+| Method | Current pattern | New pattern | Cap |
+|---|---|---|---|
+| `sendImage` | `image: { url: new URL(imageUrl) }` | `image: await safeFetch(imageUrl, {maxBytes}).then(r => r.buffer())` | 10 MiB |
+| `sendSticker` | `sticker: { url: new URL(stickerUrl) }` | `sticker: await safeFetch(stickerUrl, {maxBytes}).then(r => r.buffer())` | 10 MiB |
+| `sendViewOnce` | `image: { url: new URL(imageUrl), viewOnce }` | `image: await safeFetch(imageUrl, {maxBytes}).then(r => r.buffer())` | 10 MiB |
+| `sendAudio` | `audio: { url: new URL(audioUrl) }` | `audio: await safeFetch(audioUrl, {maxBytes}).then(r => r.buffer())` | 25 MiB |
+| `sendVideo` | `video: { url: new URL(videoUrl) }` | `video: { stream: safeFetch(videoUrl, {maxBytes}).stream() }` | 100 MiB |
+| `sendGif` | `video: { url: new URL(gifUrl) }` | `video: { stream: safeFetch(gifUrl, {maxBytes}).stream() }` | 100 MiB |
+| `sendDocument` | `document: { url: new URL(docUrl) }` | `document: { stream: safeFetch(docUrl, {maxBytes}).stream() }` | 100 MiB |
+| `updateGroupPicture` | `fetch(imageUrl)` | `safeFetch(imageUrl, {maxBytes})` | 5 MiB |
+| `updateOwnProfilePicture` | `fetch(imageUrl)` | `safeFetch(imageUrl, {maxBytes})` | 5 MiB |
 
 ---
 
@@ -611,21 +711,35 @@ already buffer-based, so the change is minimal.
 
 ### OQ1 — Baileys buffer memory pressure
 
-Pre-fetching large video or document files into memory before handing them to
-Baileys means the full media buffer lives in the Node process simultaneously.
-Baileys previously streamed from the URL. The 10 MiB default cap mitigates
-runaway allocations, but legitimate large media (video files can be 64+ MiB on
-WhatsApp) may need a higher `SSRF_MAX_RESPONSE_MB` value in production. The
-operations team should set this based on observed media sizes at deployment
-time.
+Partially resolved by OQ2. Video, gif, and document call sites now use
+`stream()` rather than `buffer()`, eliminating the full-file allocation for
+large media. For `sendAudio` (25 MiB cap) and `sendImage`/`sendSticker`/
+`sendViewOnce` (10 MiB cap) the buffer path is retained; these file sizes are
+small enough that the memory cost is acceptable. `SSRF_MAX_RESPONSE_MB` remains
+available as an emergency override.
 
-### OQ2 — Baileys streaming API
+### OQ2 — Baileys streaming API — RESOLVED
 
-Baileys may accept a `Readable` stream as media input rather than only a
-`Buffer`. If so, `safeFetch` should expose a `stream()` method that validates
-the URL and returns a constrained readable (size-capped, timeout-enforced) to
-avoid loading the full body into memory. This should be investigated before
-implementation begins.
+**Conclusion: YES, Baileys accepts a `Readable` stream.**
+
+Evidence from
+`@whiskeysockets/baileys@6.7.21` type definitions
+(`lib/Types/Message.d.ts`):
+
+```typescript
+import type { Readable } from 'stream';
+export type WAMediaPayloadStream = { stream: Readable };
+export type WAMediaUpload = Buffer | WAMediaPayloadStream | WAMediaPayloadURL;
+```
+
+`WAMediaUpload` is a union of `Buffer`, `{ stream: Readable }`, and
+`{ url: URL | string }`. Baileys accepts all three forms for all media fields
+(`image`, `video`, `audio`, `document`, `sticker`).
+
+`safeFetch()` therefore exposes a `stream()` method returning a size-capped,
+timeout-enforced `Readable`. The adapter passes `{ stream: safeFetch(url, {maxBytes}).stream() }`
+to Baileys for video, gif, and document uploads. See the Size Cap Policy
+subsection in Point 7 for the full per-call-site breakdown.
 
 ### OQ3 — Webhook service error handling
 
@@ -657,3 +771,18 @@ The Alibaba Cloud ECS metadata endpoint is blocked by IP address. An attacker
 operating a different internal service at `100.100.100.200` on a non-standard
 port would also be blocked. This is desirable behavior and should be documented
 as intentional.
+
+### OQ7 — DNS resolution method — RESOLVED
+
+**Conclusion: use `dns.promises.resolve4` + `dns.promises.resolve6`.**
+
+`dns.promises.lookup` uses the OS resolver and respects `/etc/hosts`. An
+attacker with write access to `/etc/hosts` (e.g. via a container escape) could
+map an arbitrary hostname to a blocked IP and bypass all validation.
+
+`dns.promises.resolve4` and `dns.promises.resolve6` query DNS directly,
+bypassing `/etc/hosts` and NSSwitch. They are called in parallel via
+`Promise.allSettled`. If `resolve6` rejects (NXDOMAIN — no AAAA records for
+the hostname), the IPv6 list is treated as empty and the request proceeds
+normally. This is the method used throughout Point 4 and referenced in Points
+1 and 2 of this document.
