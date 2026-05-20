@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SsrfExceptionFilter } from './common/ssrf-exception.filter';
+import { UriDecodeExceptionFilter } from './common/uri-decode-exception.filter';
 
 // Parse CLI args: --port 3001
 function parseArgs(): { port: number; token: string } {
@@ -39,7 +40,7 @@ async function bootstrap() {
     process.exit(1);
   }
   app.enableCors({ origin: corsOrigin }); // Dashboard will connect from different origin
-  app.useGlobalFilters(new SsrfExceptionFilter());
+  app.useGlobalFilters(new UriDecodeExceptionFilter(), new SsrfExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.setGlobalPrefix('api');
 

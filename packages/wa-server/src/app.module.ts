@@ -7,6 +7,7 @@ import { ContactsModule } from './contacts/contacts.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HealthModule } from './health/health.module';
 import { AuthMiddleware } from './auth/auth.middleware';
+import { RawUrlGuardMiddleware } from './common/raw-url-guard.middleware';
 
 @Module({
   imports: [
@@ -21,6 +22,8 @@ import { AuthMiddleware } from './auth/auth.middleware';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    // Raw URL traversal guard runs first, before auth, on every route
+    consumer.apply(RawUrlGuardMiddleware).forRoutes('*');
     consumer
       .apply(AuthMiddleware)
       .exclude('health') // health check is public
