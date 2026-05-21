@@ -43,6 +43,12 @@ and a real test WhatsApp number. Real data only.
 - **Never use Co-Authored-By trailers.** Commits use the repository git user only — no AI/Claude attribution lines.
 - **Delete feature branches from origin immediately after their PR is merged into main.** Stale merged branches clutter the repo and obscure the true state of work.
 
+## Active Branches
+
+| Branch | Status | Notes |
+|---|---|---|
+| `feature/design-system` | **PARKED** | Dashboard UI shell, login page, sidebar, header, theme. Wakes up in Phase 5 when backend is complete. **DO NOT delete. DO NOT merge until rebased onto main with real API integration.** |
+
 ## Code Style
 - Small, typed, well-named functions. Comments only when the WHY is non-obvious.
 - Follow the existing NestJS module structure (module / controller / service).

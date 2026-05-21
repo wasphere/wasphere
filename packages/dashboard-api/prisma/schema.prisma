@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AuditLog {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  timestamp        DateTime @default(now()) @db.Timestamptz()
+  sessionId        String?  @map("session_id")
+  actorTokenPrefix String?  @map("actor_token_prefix")
+  method           String
+  endpoint         String
+  statusCode       Int?     @map("status_code")
+  requestHash      String?  @map("request_hash")
+  ipAddress        String?  @map("ip_address")
+
+  @@index([timestamp(sort: Desc)])
+  @@index([sessionId, timestamp(sort: Desc)])
+  @@map("audit_logs")
+}
