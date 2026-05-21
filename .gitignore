@@ -24,3 +24,7 @@ npm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# internal — agent definitions and design docs (contains PRD)
+.claude/
+docs/
