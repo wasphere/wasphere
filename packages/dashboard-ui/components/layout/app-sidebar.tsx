@@ -64,16 +64,18 @@ function NavItem({
   collapsed: boolean;
 }) {
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className="mb-0.5">
       <SidebarMenuButton
         render={<Link href={href} />}
         isActive={active}
         tooltip={label}
-        className={
+        className={[
           collapsed
             ? "flex-col justify-center gap-1 h-auto py-2"
-            : "flex-row gap-2"
-        }
+            : "flex-row gap-2",
+          // override default sidebar-accent active with primary green
+          "data-active:!bg-primary/10 data-active:!text-primary data-active:!font-medium",
+        ].join(" ")}
       >
         <Icon className="shrink-0" size={18} />
         <span
