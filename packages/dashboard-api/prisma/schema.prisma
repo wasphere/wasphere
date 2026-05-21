@@ -8,6 +8,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// audit_logs — written by dashboard-api when wa-server POSTs audit events.
+// Phase 2 model. DO NOT MODIFY — the Phase 2 migration is already applied.
+// ---------------------------------------------------------------------------
 model AuditLog {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   timestamp        DateTime @default(now()) @db.Timestamptz()
@@ -22,4 +26,104 @@ model AuditLog {
   @@index([timestamp(sort: Desc)])
   @@index([sessionId, timestamp(sort: Desc)])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// users
+// ---------------------------------------------------------------------------
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  workspaces          WorkspaceMember[]
+  ownedWorkspaces     Workspace[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// workspaces
+// ---------------------------------------------------------------------------
+model Workspace {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  ownerId         String   @map("owner_id") @db.Uuid
+  waServerUrl     String?  @map("wa_server_url")
+  // AES-256-GCM ciphertext, hex-encoded. Null until wa-server is registered.
+  waServerToken   String?  @map("wa_server_token")
+  // 12-byte IV, hex-encoded. Always stored alongside the ciphertext.
+  waServerTokenIv String?  @map("wa_server_token_iv")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  owner   User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members WorkspaceMember[]
+
+  @@index([ownerId])
+  @@map("workspaces")
+}
+
+// ---------------------------------------------------------------------------
+// workspace_members — join table for user <-> workspace many-to-many
+// ---------------------------------------------------------------------------
+model WorkspaceMember {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String        @map("workspace_id") @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  role        WorkspaceRole @default(MEMBER)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+enum WorkspaceRole {
+  OWNER
+  MEMBER
+}
+
+// ---------------------------------------------------------------------------
+// refresh_tokens — stored per user; allows individual token revocation
+// ---------------------------------------------------------------------------
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  // SHA-256 of the raw opaque token string. Never store the raw token.
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz()
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// password_reset_tokens
+// ---------------------------------------------------------------------------
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  // SHA-256 of the raw reset token. Never store the raw token.
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz()
+  usedAt    DateTime? @map("used_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
 }
