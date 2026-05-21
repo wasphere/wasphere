@@ -39,6 +39,7 @@ and a real test WhatsApp number. Real data only.
 - **Every agent that edits files must commit its changes before handing off to the next agent. The next agent always starts from committed code.**
 - PRs are opened at the end of the pipeline; merged to `main` by Waqas only.
 - **Commits always use the repository git user (Waqas Ahmed Waseer). Never add Co-Authored-By or any AI/Claude attribution lines.**
+- **Every PR description AND every squash commit message MUST include `Closes #N` (or `Fixes #N`) for every GitHub issue resolved.** GitHub only auto-closes issues from the exact keyword syntax — prose like "closes issue 1" does nothing. Without this, the issues list silently drifts out of sync with merged code. Example: `Closes #3, Closes #5` in the PR body or commit message.
 
 ## Code Style
 - Small, typed, well-named functions. Comments only when the WHY is non-obvious.
