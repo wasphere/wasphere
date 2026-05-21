@@ -52,7 +52,13 @@ async function bootstrap() {
   }
   app.enableCors({ origin: corsOrigin }); // Dashboard will connect from different origin
   app.useGlobalFilters(new UriDecodeExceptionFilter(), new SsrfExceptionFilter());
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   app.setGlobalPrefix('api');
 
   await app.listen(port);

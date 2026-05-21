@@ -1,4 +1,4 @@
-import { proto } from '@whiskeysockets/baileys';
+import type { proto } from '@whiskeysockets/baileys';
 
 // ─── Output types (allowlist-driven) ──────────────────────────────────────────
 
