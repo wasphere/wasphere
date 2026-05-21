@@ -597,8 +597,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
     const jid = this.toJid(to);
+    const normalizedPhone = phoneNumber.replace(/^\+/, '');
     const vcard =
-      `BEGIN:VCARD\nVERSION:3.0\nFN:${displayName}\nTEL;type=CELL;type=VOICE;waid=${phoneNumber}:+${phoneNumber}\nEND:VCARD`;
+      `BEGIN:VCARD\nVERSION:3.0\nFN:${displayName}\nTEL;type=CELL;type=VOICE;waid=${normalizedPhone}:+${normalizedPhone}\nEND:VCARD`;
     const result = await sock.sendMessage(jid, {
       contacts: {
         displayName,
