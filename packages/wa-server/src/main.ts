@@ -68,8 +68,8 @@ async function bootstrap() {
   console.log('║        WaSphere WA Server            ║');
   console.log('╠══════════════════════════════════════╣');
   console.log(`║  Port  : ${port}                          ║`);
-  console.log(`║  Token : ${token.substring(0, 8)}...              ║`);
   console.log('║  Status: Running ✓                   ║');
+  console.log('║  Token : set via WA_TOKEN env var    ║');
   console.log('╚══════════════════════════════════════╝');
   console.log('');
   console.log('Add this server in your WaSphere dashboard:');
