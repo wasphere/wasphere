@@ -1,11 +1,12 @@
-import { CanActivate, ExecutionContext, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, HttpException, HttpStatus, Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { WHATSAPP_ADAPTER, IWhatsAppAdapter } from '../whatsapp/whatsapp-adapter.interface';
 
 @Injectable()
-export class RateLimitGuard implements CanActivate {
+export class RateLimitGuard implements CanActivate, OnApplicationShutdown {
   private readonly windowStore = new Map<string, number[]>();
   private readonly max: number;
   private readonly windowMs: number;
+  private readonly evictionInterval: NodeJS.Timeout;
 
   constructor(
     @Inject(WHATSAPP_ADAPTER) private readonly adapter: IWhatsAppAdapter,
@@ -13,7 +14,11 @@ export class RateLimitGuard implements CanActivate {
     this.max = parseInt(process.env.RATE_LIMIT_MAX ?? '30', 10);
     this.windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? '60000', 10);
 
-    setInterval(() => this.evictStale(Date.now() - this.windowMs), Math.floor(this.windowMs / 2));
+    this.evictionInterval = setInterval(() => this.evictStale(Date.now() - this.windowMs), Math.floor(this.windowMs / 2));
+  }
+
+  onApplicationShutdown(): void {
+    clearInterval(this.evictionInterval);
   }
 
   canActivate(context: ExecutionContext): boolean {
@@ -47,7 +52,7 @@ export class RateLimitGuard implements CanActivate {
     }
 
     if (timestamps.length >= this.max) {
-      const retryAfterSec = Math.ceil((this.windowMs - (now - timestamps[0])) / 1000);
+      const retryAfterSec = Math.max(1, Math.ceil((this.windowMs - (now - timestamps[0])) / 1000));
       response.setHeader('Retry-After', String(retryAfterSec));
       throw new HttpException(
         { statusCode: 429, error: 'Too Many Requests', retryAfter: retryAfterSec },
