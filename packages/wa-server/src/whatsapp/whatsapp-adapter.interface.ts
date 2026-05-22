@@ -7,17 +7,20 @@ export type SessionStatus =
   | 'qr_ready'
   | 'connected'
   | 'disconnected'
-  | 'logged_out';
+  | 'logged_out'
+  | 'qr_expired'
+  | 'failed';
 
 export interface SessionInfo {
   id: string;
   status: SessionStatus;
-  qrCode?: string;    // base64 data URL
-  qrString?: string;  // raw QR string
+  qrCode?: string;              // base64 data URL
+  qrExpiresAt?: Date;           // set when status is qr_ready, cleared on connect
   phoneNumber?: string;
   name?: string;
   connectedAt?: Date;
   retryCount: number;
+  lastDisconnectReason: string | null;
 }
 
 export interface SendResult {

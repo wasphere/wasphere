@@ -58,6 +58,26 @@ function validateAuditEnv(): void {
   }
 }
 
+function validateMaxSessionsEnv(): void {
+  const raw = process.env.MAX_SESSIONS;
+  if (raw === undefined) return;
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n < 1) {
+    console.error('[WA Server] MAX_SESSIONS must be a positive integer');
+    process.exit(1);
+  }
+}
+
+function validateReconnectEnv(): void {
+  const raw = process.env.MAX_RECONNECT_ATTEMPTS;
+  if (raw === undefined) return;
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n < 1 || n > 100) {
+    console.error('[WA Server] MAX_RECONNECT_ATTEMPTS must be an integer between 1 and 100');
+    process.exit(1);
+  }
+}
+
 function validateRateLimitEnv(): void {
   const rawMax = process.env.RATE_LIMIT_MAX;
   const rawWindow = process.env.RATE_LIMIT_WINDOW_MS;
@@ -99,6 +119,8 @@ function parseArgs(): { port: number; token: string } {
 }
 
 async function bootstrap() {
+  validateMaxSessionsEnv();
+  validateReconnectEnv();
   validateRateLimitEnv();
   validateDocsEnv();
   validateWebhookSigningEnv();

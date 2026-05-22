@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
@@ -46,6 +46,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   // Eviction: when size reaches 100, delete the oldest inserted key before inserting the new one.
   private readonly messageCache = new Map<string, Map<string, proto.IWebMessageInfo>>();
   private readonly MESSAGE_CACHE_LIMIT = 100;
+  private readonly qrMeta = new Map<string, { generatedAt: Date }>();
 
   constructor(private webhookService: WebhookService) {
     // Ensure sessions directory exists
@@ -122,10 +123,16 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       return this.getSessionInfo(sessionId);
     }
 
+    const maxSessions = parseInt(process.env.MAX_SESSIONS ?? '10', 10);
+    if (this.sessionInfo.size >= maxSessions) {
+      throw new HttpException({ message: 'Maximum session limit reached' }, HttpStatus.TOO_MANY_REQUESTS);
+    }
+
     this.sessionInfo.set(sessionId, {
       id: sessionId,
       status: 'connecting',
       retryCount: 0,
+      lastDisconnectReason: null,
     });
 
     await this.initSocket(sessionId);
@@ -135,6 +142,13 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   getSessionInfo(sessionId: string): SessionInfo {
     const info = this.sessionInfo.get(sessionId);
     if (!info) throw new NotFoundException(`Session ${sessionId} not found`);
+
+    if (info.status === 'qr_ready' && info.qrExpiresAt && new Date() > info.qrExpiresAt) {
+      const expired: SessionInfo = { ...info, status: 'qr_expired', qrCode: undefined };
+      this.sessionInfo.set(sessionId, expired);
+      return expired;
+    }
+
     return info;
   }
 
@@ -143,17 +157,27 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
+    if (!this.sessionInfo.has(sessionId)) {
+      throw new NotFoundException(`Session ${sessionId} not found`);
+    }
+
     const sock = this.sessions.get(sessionId);
+    const info = this.sessionInfo.get(sessionId)!;
+
     if (sock) {
-      try {
-        await sock.logout();
-      } catch (_) {}
+      if (info.status === 'connected') {
+        await Promise.race([
+          sock.logout().catch(() => {}),
+          new Promise(r => setTimeout(r, 5000)),
+        ]);
+      }
       sock.end(undefined);
       this.sessions.delete(sessionId);
     }
 
     this.sessionInfo.delete(sessionId);
     this.messageCache.delete(sessionId);
+    this.qrMeta.delete(sessionId);
 
     // Delete stored auth files
     const sessionPath = this.resolveSessionPath(sessionId);
@@ -272,11 +296,13 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     // New QR code generated
     if (qr) {
       const qrBase64 = await QRCode.toDataURL(qr);
+      const generatedAt = new Date();
+      this.qrMeta.set(sessionId, { generatedAt });
       this.sessionInfo.set(sessionId, {
         ...info,
         status: 'qr_ready',
         qrCode: qrBase64,
-        qrString: qr,
+        qrExpiresAt: new Date(generatedAt.getTime() + 60_000),
       });
 
       await this.webhookService.fire('session.qr', sessionId, {
@@ -292,15 +318,17 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       const sock = this.sessions.get(sessionId);
       const user = sock?.user;
 
+      this.qrMeta.delete(sessionId);
       this.sessionInfo.set(sessionId, {
         ...info,
         status: 'connected',
         qrCode: undefined,
-        qrString: undefined,
+        qrExpiresAt: undefined,
         phoneNumber: user?.id?.split(':')[0],
         name: user?.name,
         connectedAt: new Date(),
         retryCount: 0,
+        lastDisconnectReason: null,
       });
 
       await this.webhookService.fire('session.connected', sessionId, {
@@ -314,44 +342,61 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     // Disconnected
     if (connection === 'close') {
       const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      const reasonStr: string =
+        (lastDisconnect?.error as any)?.output?.payload?.error ?? String(statusCode ?? 'unknown');
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-      console.log(`[${sessionId}] Disconnected — code: ${statusCode}, loggedOut: ${isLoggedOut}`);
+      console.log(`[${sessionId}] Disconnected — code: ${statusCode}, reason: ${reasonStr}`);
 
       if (isLoggedOut) {
         // User explicitly logged out — don't reconnect, clean up
-        this.sessionInfo.set(sessionId, { ...info, status: 'logged_out' });
+        this.sessionInfo.set(sessionId, { ...info, status: 'logged_out', lastDisconnectReason: reasonStr });
         await this.webhookService.fire('session.logged_out', sessionId, {});
         this.sessions.delete(sessionId);
-      } else {
-        // Network issue, WA update, etc. — reconnect with backoff
-        this.sessionInfo.set(sessionId, { ...info, status: 'disconnected' });
-        await this.webhookService.fire('session.disconnected', sessionId, {
-          reason: statusCode,
-        });
-
-        if (info.retryCount < this.MAX_RETRIES) {
-          const delay = this.RETRY_DELAY_MS * Math.pow(2, info.retryCount); // exponential backoff
-          console.log(
-            `[${sessionId}] Reconnecting in ${delay}ms (attempt ${info.retryCount + 1}/${this.MAX_RETRIES})`,
-          );
-
-          this.sessionInfo.set(sessionId, {
-            ...info,
-            retryCount: info.retryCount + 1,
-          });
-
-          setTimeout(() => {
-            this.sessions.delete(sessionId);
-            this.initSocket(sessionId);
-          }, delay);
-        } else {
-          console.error(`[${sessionId}] Max retries reached — giving up`);
-          await this.webhookService.fire('session.failed', sessionId, {
-            reason: 'max_retries_exceeded',
-          });
-        }
+        return;
       }
+
+      const newRetryCount = (info.retryCount ?? 0) + 1;
+      const isAuthFailure = statusCode === 401 || statusCode === 405
+        || reasonStr === 'loggedOut' || reasonStr === 'badSession';
+      const maxAttempts = parseInt(process.env.MAX_RECONNECT_ATTEMPTS ?? '5', 10);
+
+      if (isAuthFailure || newRetryCount >= maxAttempts) {
+        this.sessionInfo.set(sessionId, {
+          ...info,
+          status: 'failed',
+          lastDisconnectReason: reasonStr,
+          retryCount: newRetryCount,
+        });
+        await this.webhookService.fire('session.failed', sessionId, {
+          sessionId,
+          reason: reasonStr,
+          retryCount: newRetryCount,
+        });
+        console.error(`[${sessionId}] Session failed — reason: ${reasonStr}, retryCount: ${newRetryCount}`);
+        return;
+      }
+
+      // Network issue, WA update, etc. — reconnect with backoff
+      this.sessionInfo.set(sessionId, {
+        ...info,
+        status: 'disconnected',
+        lastDisconnectReason: reasonStr,
+        retryCount: newRetryCount,
+      });
+      await this.webhookService.fire('session.disconnected', sessionId, {
+        reason: reasonStr,
+      });
+
+      const delay = this.RETRY_DELAY_MS * Math.pow(2, info.retryCount); // exponential backoff
+      console.log(
+        `[${sessionId}] Reconnecting in ${delay}ms (attempt ${newRetryCount}/${maxAttempts})`,
+      );
+
+      setTimeout(() => {
+        this.sessions.delete(sessionId);
+        this.initSocket(sessionId);
+      }, delay);
     }
   }
 
@@ -438,13 +483,20 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   private async restoreAllSessions() {
     if (!fs.existsSync(this.sessionsDir)) return;
 
+    const SESSION_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
     const sessionDirs = fs.readdirSync(this.sessionsDir);
+
     for (const sessionId of sessionDirs) {
+      if (!SESSION_ID_RE.test(sessionId)) {
+        console.warn(`[Restore] Skipping invalid session directory: ${sessionId}`);
+        continue;
+      }
+
       let sessionPath: string;
       try {
         sessionPath = this.resolveSessionPath(sessionId);
       } catch {
-        console.warn('restoreAllSessions: skipping invalid session directory "%s"', sessionId);
+        console.warn(`[Restore] Skipping invalid session directory: ${sessionId}`);
         continue;
       }
 
@@ -459,13 +511,12 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         id: sessionId,
         status: 'connecting',
         retryCount: 0,
+        lastDisconnectReason: null,
       });
 
-      try {
-        await this.initSocket(sessionId);
-      } catch (err) {
-        console.error(`[Restore] Failed to restore ${sessionId}: ${err.message}`);
-      }
+      this.initSocket(sessionId).catch(err =>
+        console.error(`[Restore] Failed to init session ${sessionId}: ${err.message}`)
+      );
     }
   }
 
