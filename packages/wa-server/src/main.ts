@@ -17,6 +17,29 @@ function validateDocsEnv(): void {
   }
 }
 
+function validateWebhookSigningEnv(): void {
+  const webhookUrl = process.env.DASHBOARD_WEBHOOK_URL ?? '';
+  const secret = process.env.WEBHOOK_SIGNING_SECRET ?? '';
+
+  if (!webhookUrl) return; // no URL configured — signing irrelevant
+
+  if (!secret) {
+    console.error(
+      '[WA Server] WEBHOOK_SIGNING_SECRET must be set when DASHBOARD_WEBHOOK_URL is configured. ' +
+      'Generate one with: openssl rand -hex 32'
+    );
+    process.exit(1);
+  }
+
+  if (secret.length < 32) {
+    console.error(
+      '[WA Server] WEBHOOK_SIGNING_SECRET must be at least 32 characters. ' +
+      'Generate one with: openssl rand -hex 32'
+    );
+    process.exit(1);
+  }
+}
+
 function parseArgs(): { port: number; token: string } {
   const args = process.argv.slice(2);
   let port = parseInt(process.env.PORT || '3001');
@@ -36,6 +59,7 @@ function parseArgs(): { port: number; token: string } {
 
 async function bootstrap() {
   validateDocsEnv();
+  validateWebhookSigningEnv();
   const { port, token } = parseArgs();
 
   // Inject parsed values into env so modules can access
