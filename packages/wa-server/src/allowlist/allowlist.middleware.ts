@@ -182,10 +182,13 @@ function isAllowed(
 
 const ALLOWLIST: AllowlistEntry[] = initAllowlist();
 const ALLOWLIST_ENABLED: boolean = (process.env.ALLOWED_IPS ?? '').trim().length > 0;
-const swaggerBase = '/' + (process.env.SWAGGER_PATH ?? 'api/docs');
+// Strip leading/trailing slashes from SWAGGER_PATH to match main.ts normalisation
+const swaggerBase = '/' + (process.env.SWAGGER_PATH ?? 'api/docs').replace(/^\/+|\/+$/g, '');
 const BYPASS_PATHS = new Set([
   '/api/health/live',
   '/api/health/ready',
+  '/api/health/live/',   // trailing-slash variants for load-balancers that append /
+  '/api/health/ready/',
   swaggerBase,
   swaggerBase + '-json',
 ]);
@@ -202,6 +205,9 @@ export class AllowlistMiddleware implements NestMiddleware {
     const urlPath = req.originalUrl.split('?')[0];
     if (BYPASS_PATHS.has(urlPath)) return next();
 
+    // SECURITY: Only set TRUST_PROXY=true if your reverse proxy strips existing
+    // X-Forwarded-For headers before appending the real client IP. Otherwise
+    // any client can spoof their source IP and bypass the allowlist entirely.
     const trustProxy = process.env.TRUST_PROXY === 'true';
     const rawIP: string =
       (trustProxy
@@ -213,7 +219,9 @@ export class AllowlistMiddleware implements NestMiddleware {
     const normalized = normalizeIP(rawIP);
     if (normalized && isAllowed(normalized, ALLOWLIST)) return next();
 
-    console.warn(`[Allowlist] Blocked: ${rawIP} → ${req.method} ${urlPath}`);
+    const safeIP = rawIP.replace(/[\r\n\t\x00-\x1f\x7f]/g, '_');
+    const safePath = urlPath.replace(/[\r\n\t\x00-\x1f\x7f]/g, '_');
+    console.warn(`[Allowlist] Blocked: ${safeIP} → ${req.method} ${safePath}`);
     res.status(403).json({ statusCode: 403, error: 'Forbidden' });
   }
 }

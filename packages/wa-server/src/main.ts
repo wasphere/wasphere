@@ -134,6 +134,12 @@ function validateAllowlistEnv(): void {
     process.exit(1);
   }
   console.info(`[Allowlist] Allowlist enabled — ${validCount} valid entries loaded.`);
+  if (process.env.TRUST_PROXY === 'true') {
+    console.warn(
+      '[Allowlist] TRUST_PROXY=true: ensure your reverse proxy strips X-Forwarded-For before ' +
+      'appending the real client IP, otherwise the allowlist can be bypassed by IP spoofing.',
+    );
+  }
 }
 
 function parseArgs(): { port: number; token: string } {
