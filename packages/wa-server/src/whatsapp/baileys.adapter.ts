@@ -1320,12 +1320,8 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const merged: SessionConfig = { ...existing, ...patch };
 
     // Cross-field validation
-    if (
-      merged.random_delay_min_ms > 0 &&
-      merged.random_delay_max_ms > 0 &&
-      merged.random_delay_max_ms < merged.random_delay_min_ms
-    ) {
-      throw new BadRequestException('random_delay_max_ms must be >= random_delay_min_ms when both are non-zero');
+    if (merged.random_delay_max_ms < merged.random_delay_min_ms) {
+      throw new BadRequestException('random_delay_max_ms must be >= random_delay_min_ms');
     }
 
     // Atomic write
