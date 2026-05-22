@@ -1,5 +1,8 @@
 export const WHATSAPP_ADAPTER = Symbol('WHATSAPP_ADAPTER');
 
+import { SessionConfig } from './session-config.interface';
+export { SessionConfig };
+
 // ─── Supporting types (no Baileys dependency) ─────────────────────────────
 
 export type SessionStatus =
@@ -22,6 +25,7 @@ export interface SessionInfo {
   retryCount: number;
   lastDisconnectReason: string | null;
   proxy?: string;
+  config: SessionConfig;
 }
 
 export interface SendResult {
@@ -68,13 +72,14 @@ export interface IWhatsAppAdapter {
 
   // -- Session lifecycle --------------------------------------------------
 
-  createSession(sessionId: string, proxy?: string): Promise<SessionInfo>;
+  createSession(sessionId: string, proxy?: string, config?: Partial<SessionConfig>): Promise<SessionInfo>;
   getSessionInfo(sessionId: string): SessionInfo;
   getAllSessions(): SessionInfo[];
   deleteSession(sessionId: string): Promise<void>;
   logoutSession(sessionId: string): Promise<void>;
   /** Returns the session directory path for this sessionId */
   getSessionPath(sessionId: string): string;
+  patchSessionConfig(sessionId: string, patch: Partial<SessionConfig>): Promise<{ config: SessionConfig }>;
 
   // -- Messaging: send ---------------------------------------------------
 
