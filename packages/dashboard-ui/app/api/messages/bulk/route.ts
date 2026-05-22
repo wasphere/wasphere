@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/bulk/send-text`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/bulk/send-text`,
     {
       method: "POST",
       headers: {

@@ -33,7 +33,7 @@ export async function POST(
   }
 
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/sessions/${sessionId}/logout`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}/logout`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },

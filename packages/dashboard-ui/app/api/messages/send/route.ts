@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     : { to, text }
 
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/sessions/${sessionId}/${endpoint}`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}/${endpoint}`,
     {
       method: "POST",
       headers: {
