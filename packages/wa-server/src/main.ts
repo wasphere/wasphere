@@ -40,6 +40,24 @@ function validateWebhookSigningEnv(): void {
   }
 }
 
+function validateAuditEnv(): void {
+  const auditUrl = process.env.AUDIT_DASHBOARD_URL ?? '';
+  const secret = process.env.INTERNAL_WEBHOOK_SECRET ?? '';
+
+  if (!auditUrl) {
+    console.info('[Audit] AUDIT_DASHBOARD_URL not configured — audit events will be logged to stdout only.');
+    return;
+  }
+
+  if (!secret || secret.length < 32) {
+    console.warn(
+      '[Audit] WARNING: AUDIT_DASHBOARD_URL is set but INTERNAL_WEBHOOK_SECRET is missing or too short (min 32 chars). ' +
+      'Audit delivery will fail until this is corrected.'
+    );
+    // Do NOT exit — audit is non-critical path
+  }
+}
+
 function parseArgs(): { port: number; token: string } {
   const args = process.argv.slice(2);
   let port = parseInt(process.env.PORT || '3001');
@@ -60,6 +78,7 @@ function parseArgs(): { port: number; token: string } {
 async function bootstrap() {
   validateDocsEnv();
   validateWebhookSigningEnv();
+  validateAuditEnv();
   const { port, token } = parseArgs();
 
   // Inject parsed values into env so modules can access
