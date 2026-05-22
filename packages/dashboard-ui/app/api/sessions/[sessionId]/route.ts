@@ -33,7 +33,7 @@ export async function GET(
   }
 
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/sessions/${sessionId}`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}`,
     {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
@@ -62,7 +62,7 @@ export async function DELETE(
   }
 
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/sessions/${sessionId}`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}`,
     {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },

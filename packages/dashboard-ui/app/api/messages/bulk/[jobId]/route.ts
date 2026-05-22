@@ -33,7 +33,7 @@ export async function GET(
   }
 
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/bulk/jobs/${jobId}`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/bulk/jobs/${jobId}`,
     {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",

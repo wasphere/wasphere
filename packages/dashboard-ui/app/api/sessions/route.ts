@@ -28,7 +28,7 @@ export async function GET() {
   }
 
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/sessions`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions`,
     {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   }
 
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/sessions`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions`,
     {
       method: "POST",
       headers: {
