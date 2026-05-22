@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, MaxLength, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MaxLength, Matches, IsInt, Min, Max, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSessionDto {
@@ -25,4 +25,28 @@ export class CreateSessionDto {
     message: 'proxy must be a valid http://, https://, or socks5:// URL without embedded credentials',
   })
   proxy?: string;
+
+  @ApiPropertyOptional({ example: 2000 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(60000)
+  random_delay_min_ms?: number;
+
+  @ApiPropertyOptional({ example: 5000 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(60000)
+  random_delay_max_ms?: number;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  auto_read_on_receive?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  receive_enabled?: boolean;
 }
