@@ -111,8 +111,16 @@ function validateAllowlistEnv(): void {
   const entries = raw.split(',').map(s => s.trim()).filter(Boolean);
   let validCount = 0;
   for (const entry of entries) {
-    const withoutCidr = entry.split('/')[0];
-    if (net.isIP(withoutCidr) !== 0) {
+    const slashIdx = entry.indexOf('/');
+    const withoutCidr = slashIdx === -1 ? entry : entry.slice(0, slashIdx);
+    const family = net.isIP(withoutCidr); // 4, 6, or 0
+    const maxPrefix = family === 4 ? 32 : family === 6 ? 128 : -1;
+    let valid = family !== 0;
+    if (valid && slashIdx !== -1) {
+      const prefix = parseInt(entry.slice(slashIdx + 1), 10);
+      valid = !isNaN(prefix) && prefix >= 0 && prefix <= maxPrefix;
+    }
+    if (valid) {
       validCount++;
     } else {
       console.warn(`[Allowlist] Malformed entry skipped: "${entry}"`);
