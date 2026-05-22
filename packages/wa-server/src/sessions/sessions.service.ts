@@ -7,8 +7,8 @@ export class SessionsService {
     @Inject(WHATSAPP_ADAPTER) private adapter: IWhatsAppAdapter,
   ) {}
 
-  async createSession(sessionId: string): Promise<SessionInfo> {
-    return this.adapter.createSession(sessionId);
+  async createSession(sessionId: string, proxy?: string): Promise<SessionInfo> {
+    return this.adapter.createSession(sessionId, proxy);
   }
 
   getSessionInfo(sessionId: string): SessionInfo {

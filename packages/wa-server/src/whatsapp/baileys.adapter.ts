@@ -1,3 +1,7 @@
+import * as https from 'https';
+import * as net from 'net';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import makeWASocket, {
   DisconnectReason,
@@ -137,11 +141,52 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     return sock;
   }
 
+  // ─── Proxy helpers ─────────────────────────────────────────────────────
+
+  // TCP-only preflight: proves the proxy host is reachable before a session
+  // slot is consumed. Does not perform the SOCKS5 / HTTP CONNECT handshake —
+  // that happens inside Baileys. Intentional trade-off documented in design doc.
+  private preflightProxy(proxyUrl: string): Promise<void> {
+    const { hostname, port, protocol } = new URL(proxyUrl);
+    const portNum = parseInt(port || (protocol === 'https:' ? '443' : '80'), 10);
+    return new Promise((resolve, reject) => {
+      const sock = net.createConnection({ host: hostname, port: portNum });
+      const timer = setTimeout(() => { sock.destroy(); reject(new Error('timeout')); }, 5000);
+      sock.on('connect', () => { clearTimeout(timer); sock.destroy(); resolve(); });
+      sock.on('error', (err) => { clearTimeout(timer); reject(err); });
+    });
+  }
+
+  // NOTE: No SSRF check is applied here. WaSphere is self-hosted — the operator
+  // who supplies the proxy URL IS the server owner and controls the network.
+  // This is the same trust boundary as MAX_SESSIONS and X-Api-Token.
+  // If a multi-tenant hosted mode is ever added, revisit this decision.
+  private buildProxyAgent(proxyUrl: string): https.Agent {
+    const { protocol } = new URL(proxyUrl);
+    if (protocol === 'socks5:') return new SocksProxyAgent(proxyUrl) as unknown as https.Agent;
+    return new HttpsProxyAgent(proxyUrl) as unknown as https.Agent;
+  }
+
   // ─── Session lifecycle ──────────────────────────────────────────────────
 
-  async createSession(sessionId: string): Promise<SessionInfo> {
+  async createSession(sessionId: string, proxy?: string): Promise<SessionInfo> {
+    // Idempotency first — existing session short-circuits before any network I/O.
     if (this.sessionInfo.has(sessionId)) {
       return this.getSessionInfo(sessionId);
+    }
+
+    // Preflight TCP check before consuming a session slot or writing any state.
+    // On failure: 422 — slot not consumed, proxy.json not written.
+    if (proxy) {
+      try {
+        await this.preflightProxy(proxy);
+      } catch (err: any) {
+        console.warn(`[${sessionId}] Proxy preflight failed: ${err.message}`);
+        throw new HttpException(
+          { message: 'Proxy unreachable or timed out', code: 'PROXY_PREFLIGHT_FAILED' },
+          HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
     }
 
     const maxSessions = parseInt(process.env.MAX_SESSIONS ?? '10', 10);
@@ -154,9 +199,10 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       status: 'connecting',
       retryCount: 0,
       lastDisconnectReason: null,
+      proxy,
     });
 
-    await this.initSocket(sessionId);
+    await this.initSocket(sessionId, proxy);
     return this.getSessionInfo(sessionId);
   }
 
@@ -222,10 +268,16 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
   // ─── Core socket init ──────────────────────────────────────────────────
 
-  private async initSocket(sessionId: string): Promise<void> {
+  private async initSocket(sessionId: string, proxy?: string): Promise<void> {
     const sessionPath = this.resolveSessionPath(sessionId);
     if (!fs.existsSync(sessionPath)) {
       fs.mkdirSync(sessionPath, { recursive: true });
+    }
+
+    // Persist proxy URL alongside session credentials so it survives restarts.
+    if (proxy) {
+      const proxyFile = path.join(sessionPath, 'proxy.json');
+      fs.writeFileSync(proxyFile, JSON.stringify({ proxy }), 'utf8');
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
@@ -236,10 +288,10 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       version = fetched.version;
     } catch {
       version = WA_VERSION_FALLBACK;
-      console.warn('[Baileys] Remote version fetch failed — using bundled fallback version');
+      console.warn(`[${sessionId}] fetchLatestBaileysVersion failed (likely proxy-only network), using WA_VERSION_FALLBACK`);
     }
 
-    const sock = makeWASocket({
+    const socketOptions: Parameters<typeof makeWASocket>[0] = {
       version,
       auth: {
         creds: state.creds,
@@ -255,7 +307,13 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         const cache = this.messageCache.get(sessionId);
         return cache?.get(key.id ?? '')?.message ?? undefined;
       },
-    });
+    };
+
+    if (proxy) {
+      socketOptions.agent = this.buildProxyAgent(proxy);
+    }
+
+    const sock = makeWASocket(socketOptions);
 
     this.sessions.set(sessionId, sock);
 
@@ -417,7 +475,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
       setTimeout(() => {
         this.sessions.delete(sessionId);
-        this.initSocket(sessionId);
+        this.initSocket(sessionId, info.proxy);
       }, delay);
     }
   }
@@ -536,15 +594,32 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         continue;
       }
 
-      console.log(`[Restore] Restoring session: ${sessionId}`);
+      // Read proxy.json if present — same symlink guard as creds.json
+      let restoredProxy: string | undefined;
+      const proxyFile = path.join(sessionPath, 'proxy.json');
+      if (fs.existsSync(proxyFile)) {
+        if (fs.lstatSync(proxyFile).isSymbolicLink()) {
+          console.warn(`[Restore] Skipping ${sessionId} — symlinked proxy.json rejected`);
+          continue;
+        }
+        try {
+          const raw = JSON.parse(fs.readFileSync(proxyFile, 'utf8'));
+          if (typeof raw.proxy === 'string') restoredProxy = raw.proxy;
+        } catch {
+          console.warn(`[Restore] ${sessionId} — malformed proxy.json, restoring without proxy`);
+        }
+      }
+
+      console.log(`[Restore] Restoring session: ${sessionId}${restoredProxy ? ` (proxy: ${restoredProxy})` : ''}`);
       this.sessionInfo.set(sessionId, {
         id: sessionId,
         status: 'connecting',
         retryCount: 0,
         lastDisconnectReason: null,
+        proxy: restoredProxy,
       });
 
-      this.initSocket(sessionId).catch(err =>
+      this.initSocket(sessionId, restoredProxy).catch(err =>
         console.error(`[Restore] Failed to init session ${sessionId}: ${err.message}`)
       );
     }

@@ -21,6 +21,7 @@ export interface SessionInfo {
   connectedAt?: Date;
   retryCount: number;
   lastDisconnectReason: string | null;
+  proxy?: string;
 }
 
 export interface SendResult {
@@ -67,7 +68,7 @@ export interface IWhatsAppAdapter {
 
   // -- Session lifecycle --------------------------------------------------
 
-  createSession(sessionId: string): Promise<SessionInfo>;
+  createSession(sessionId: string, proxy?: string): Promise<SessionInfo>;
   getSessionInfo(sessionId: string): SessionInfo;
   getAllSessions(): SessionInfo[];
   deleteSession(sessionId: string): Promise<void>;
