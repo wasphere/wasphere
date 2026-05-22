@@ -1,8 +1,121 @@
+"use client";
+
+import { useState, Suspense } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MessageSquare } from "lucide-react";
+
+function SessionNotice() {
+  const searchParams = useSearchParams();
+  const reason = searchParams.get("reason");
+
+  if (reason === "expired") {
+    return (
+      <p className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950/40 dark:text-yellow-300">
+        Your session has expired. Please log in again.
+      </p>
+    );
+  }
+
+  if (reason === "logout") {
+    return (
+      <p className="mb-4 rounded-md border border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">
+        You have been logged out.
+      </p>
+    );
+  }
+
+  return null;
+}
+
+function LoginForm() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { message?: string };
+        setError(body.message ?? "Invalid email or password.");
+        return;
+      }
+
+      router.push("/dashboard/overview");
+    } catch {
+      setError("Could not reach the server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form className="mt-8 flex flex-col gap-5" onSubmit={handleSubmit}>
+      <SessionNotice />
+
+      {error && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="you@example.com"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          disabled={loading}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Password</Label>
+          <Link
+            href="/forgot-password"
+            className="text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            Forgot password?
+          </Link>
+        </div>
+        <Input
+          id="password"
+          type="password"
+          placeholder="••••••••"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          disabled={loading}
+        />
+      </div>
+
+      <Button type="submit" className="w-full mt-1" disabled={loading}>
+        {loading ? "Signing in…" : "Sign in"}
+      </Button>
+    </form>
+  );
+}
 
 export default function LoginPage() {
   return (
@@ -20,39 +133,9 @@ export default function LoginPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
           <p className="mt-1 text-sm text-muted-foreground">Sign in to your account</p>
 
-          <form className="mt-8 flex flex-col gap-5">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                autoComplete="email"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
-            </div>
-
-            <Button type="submit" className="w-full mt-1">
-              Sign in
-            </Button>
-          </form>
+          <Suspense>
+            <LoginForm />
+          </Suspense>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
             Don&apos;t have an account?{" "}
@@ -84,20 +167,14 @@ export default function LoginPage() {
           Self-hosted WhatsApp Automation
         </div>
 
-        {/* Center quote */}
+        {/* Center brand copy */}
         <div className="flex flex-col gap-6">
           <blockquote className="text-3xl font-medium leading-snug tracking-tight text-white">
-            &ldquo;Send, receive, and automate WhatsApp at scale — without giving up your data or your infrastructure.&rdquo;
+            &ldquo;Self-hosted WhatsApp automation for hosting providers and developers&rdquo;
           </blockquote>
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-sm">
-              W
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">Waqas Ahmed Waseer</span>
-              <span className="text-xs text-white/40">Founder, WaSphere</span>
-            </div>
-          </div>
+          <p className="text-sm text-white/40">
+            WaSphere — Built on Baileys. MIT Core, Pro layer.
+          </p>
         </div>
 
         {/* Bottom stats */}
