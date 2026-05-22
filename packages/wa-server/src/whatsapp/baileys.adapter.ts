@@ -30,6 +30,7 @@ import {
   GroupSetting,
   PresenceType,
 } from './whatsapp-adapter.interface';
+import { SessionConfig, SESSION_CONFIG_DEFAULTS } from './session-config.interface';
 
 // Allowlist for Baileys disconnect reason strings surfaced in API responses / webhooks.
 // Prevents raw Boom payload text (which may contain internal state) reaching clients.
@@ -63,6 +64,7 @@ const WA_VERSION_FALLBACK: [number, number, number] = [2, 3000, 1015901307];
 export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   private sessions = new Map<string, WASocket>();
   private sessionInfo = new Map<string, SessionInfo>();
+  private readonly sessionConfigs = new Map<string, SessionConfig>();
   private readonly sessionsDir = './sessions';
   private readonly MAX_RETRIES = 5;
   private readonly RETRY_DELAY_MS = 5000;
@@ -141,6 +143,14 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     return sock;
   }
 
+  private async applyRandomDelay(sessionId: string): Promise<void> {
+    const config = this.sessionConfigs.get(sessionId) ?? SESSION_CONFIG_DEFAULTS;
+    const { random_delay_min_ms: min, random_delay_max_ms: max } = config;
+    if (min === 0 && max === 0) return;
+    const delay = min + Math.floor(Math.random() * (max - min + 1));
+    await new Promise(r => setTimeout(r, delay));
+  }
+
   // ─── Proxy helpers ─────────────────────────────────────────────────────
 
   // TCP-only preflight: proves the proxy host is reachable before a session
@@ -169,7 +179,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
   // ─── Session lifecycle ──────────────────────────────────────────────────
 
-  async createSession(sessionId: string, proxy?: string): Promise<SessionInfo> {
+  async createSession(sessionId: string, proxy?: string, config?: Partial<SessionConfig>): Promise<SessionInfo> {
     // Idempotency first — existing session short-circuits before any network I/O.
     if (this.sessionInfo.has(sessionId)) {
       return this.getSessionInfo(sessionId);
@@ -194,15 +204,18 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       throw new HttpException({ message: 'Maximum session limit reached' }, HttpStatus.TOO_MANY_REQUESTS);
     }
 
+    const initialConfig: SessionConfig = { ...SESSION_CONFIG_DEFAULTS, ...config };
+
     this.sessionInfo.set(sessionId, {
       id: sessionId,
       status: 'connecting',
       retryCount: 0,
       lastDisconnectReason: null,
       proxy,
+      config: initialConfig,
     });
 
-    await this.initSocket(sessionId, proxy);
+    await this.initSocket(sessionId, proxy, config);
     return this.getSessionInfo(sessionId);
   }
 
@@ -210,13 +223,17 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const info = this.sessionInfo.get(sessionId);
     if (!info) throw new NotFoundException(`Session ${sessionId} not found`);
 
-    if (info.status === 'qr_ready' && info.qrExpiresAt && new Date() > info.qrExpiresAt) {
-      const expired: SessionInfo = { ...info, status: 'qr_expired', qrCode: undefined };
+    // Ensure config is always present (falls back to in-memory map or defaults)
+    const config = this.sessionConfigs.get(sessionId) ?? SESSION_CONFIG_DEFAULTS;
+    const infoWithConfig: SessionInfo = { ...info, config };
+
+    if (infoWithConfig.status === 'qr_ready' && infoWithConfig.qrExpiresAt && new Date() > infoWithConfig.qrExpiresAt) {
+      const expired: SessionInfo = { ...infoWithConfig, status: 'qr_expired', qrCode: undefined };
       this.sessionInfo.set(sessionId, expired);
       return expired;
     }
 
-    return info;
+    return infoWithConfig;
   }
 
   getAllSessions(): SessionInfo[] {
@@ -268,7 +285,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
   // ─── Core socket init ──────────────────────────────────────────────────
 
-  private async initSocket(sessionId: string, proxy?: string): Promise<void> {
+  private async initSocket(sessionId: string, proxy?: string, configFields?: Partial<SessionConfig>): Promise<void> {
     const sessionPath = this.resolveSessionPath(sessionId);
     if (!fs.existsSync(sessionPath)) {
       fs.mkdirSync(sessionPath, { recursive: true });
@@ -278,6 +295,21 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     if (proxy) {
       const proxyFile = path.join(sessionPath, 'proxy.json');
       fs.writeFileSync(proxyFile, JSON.stringify({ proxy }), 'utf8');
+    }
+
+    // Persist config if any config fields were supplied at creation time.
+    if (configFields && Object.keys(configFields).length > 0) {
+      const mergedConfig: SessionConfig = { ...SESSION_CONFIG_DEFAULTS, ...configFields };
+      const configFile = path.join(sessionPath, 'config.json');
+      const tmpFile = configFile + '.tmp';
+      fs.writeFileSync(tmpFile, JSON.stringify(mergedConfig), 'utf8');
+      fs.renameSync(tmpFile, configFile);
+      this.sessionConfigs.set(sessionId, mergedConfig);
+    } else {
+      // Apply defaults if not already set (e.g. on reconnect)
+      if (!this.sessionConfigs.has(sessionId)) {
+        this.sessionConfigs.set(sessionId, { ...SESSION_CONFIG_DEFAULTS });
+      }
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
@@ -494,6 +526,17 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       // Cache message for quoted reply support
       this.cacheMessage(sessionId, msg);
 
+      const config = this.sessionConfigs.get(sessionId) ?? SESSION_CONFIG_DEFAULTS;
+
+      if (!config.receive_enabled) continue; // early exit — webhook not fired
+
+      if (config.auto_read_on_receive) {
+        const sock = this.sessions.get(sessionId);
+        if (sock) {
+          await sock.readMessages([msg.key]).catch(() => {});
+        }
+      }
+
       const contentType = getContentType(msg.message || {});
       const isGroup = msg.key.remoteJid?.endsWith('@g.us');
 
@@ -610,6 +653,26 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         }
       }
 
+      // Read config.json if present — same symlink guard as creds.json and proxy.json
+      let restoredConfig: SessionConfig;
+      const configFile = path.join(sessionPath, 'config.json');
+      if (fs.existsSync(configFile)) {
+        if (fs.lstatSync(configFile).isSymbolicLink()) {
+          console.warn(`[Restore] Skipping ${sessionId} — symlinked config.json rejected`);
+          continue;
+        }
+        try {
+          const raw = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+          restoredConfig = { ...SESSION_CONFIG_DEFAULTS, ...raw };
+        } catch {
+          console.warn(`[${sessionId}] Malformed config.json — using defaults`);
+          restoredConfig = { ...SESSION_CONFIG_DEFAULTS };
+        }
+      } else {
+        restoredConfig = { ...SESSION_CONFIG_DEFAULTS };
+      }
+      this.sessionConfigs.set(sessionId, restoredConfig);
+
       console.log(`[Restore] Restoring session: ${sessionId}${restoredProxy ? ` (proxy: ${restoredProxy})` : ''}`);
       this.sessionInfo.set(sessionId, {
         id: sessionId,
@@ -617,6 +680,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         retryCount: 0,
         lastDisconnectReason: null,
         proxy: restoredProxy,
+        config: restoredConfig,
       });
 
       this.initSocket(sessionId, restoredProxy).catch(err =>
@@ -634,6 +698,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     quotedMessageId?: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
 
     const options: any = {};
@@ -654,6 +719,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     caption?: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const imageBuffer = await safeFetch(imageUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
     const result = await sock.sendMessage(jid, {
@@ -670,6 +736,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     caption?: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const videoResponse = await safeFetch(videoUrl, { maxBytes: 100 * 1024 * 1024 });
     const result = await sock.sendMessage(jid, {
@@ -686,6 +753,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     isVoiceNote: boolean = false,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const audioBuffer = await safeFetch(audioUrl, { maxBytes: 25 * 1024 * 1024 }).then((r) => r.buffer());
     const result = await sock.sendMessage(jid, {
@@ -704,6 +772,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     mimetype: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const docResponse = await safeFetch(docUrl, { maxBytes: 100 * 1024 * 1024 });
     const result = await sock.sendMessage(jid, {
@@ -716,6 +785,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
   async sendSticker(sessionId: string, to: string, stickerUrl: string): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const stickerBuffer = await safeFetch(stickerUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
     const result = await sock.sendMessage(jid, {
@@ -733,6 +803,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     address?: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
       location: {
@@ -752,6 +823,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     phoneNumber: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const normalizedPhone = phoneNumber.replace(/^\+/, '');
     const vcard =
@@ -773,6 +845,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     buttons: { id: string; text: string }[],
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
       text,
@@ -796,6 +869,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     sections: { title: string; rows: { id: string; title: string; description?: string }[] }[],
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
       text,
@@ -816,6 +890,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     selectableCount: number = 1,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
       poll: {
@@ -834,6 +909,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     emoji: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const result = await sock.sendMessage(jid, {
       react: {
@@ -851,6 +927,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     caption?: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     // WhatsApp doesn't support .gif — send as mp4 with gifPlayback flag
     const gifResponse = await safeFetch(gifUrl, { maxBytes: 100 * 1024 * 1024 });
@@ -869,6 +946,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     caption?: string,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
+    await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     const viewOnceBuffer = await safeFetch(imageUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
     const result = await sock.sendMessage(jid, {
@@ -1232,5 +1310,42 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     await sock.removeProfilePicture(sock.user!.id);
     return { success: true };
+  }
+
+  // ─── Session config ────────────────────────────────────────────────────
+
+  async patchSessionConfig(sessionId: string, patch: Partial<SessionConfig>): Promise<{ config: SessionConfig }> {
+    const sessionPath = this.resolveSessionPath(sessionId);
+    const existing = this.sessionConfigs.get(sessionId) ?? SESSION_CONFIG_DEFAULTS;
+    const merged: SessionConfig = { ...existing, ...patch };
+
+    // Cross-field validation
+    if (
+      merged.random_delay_min_ms > 0 &&
+      merged.random_delay_max_ms > 0 &&
+      merged.random_delay_max_ms < merged.random_delay_min_ms
+    ) {
+      throw new BadRequestException('random_delay_max_ms must be >= random_delay_min_ms when both are non-zero');
+    }
+
+    // Atomic write
+    const configFile = path.join(sessionPath, 'config.json');
+    const tmpFile = configFile + '.tmp';
+    fs.writeFileSync(tmpFile, JSON.stringify(merged), 'utf8');
+    fs.renameSync(tmpFile, configFile);
+
+    // Update in-memory map
+    this.sessionConfigs.set(sessionId, merged);
+
+    // Update sessionInfo entry with new config
+    const info = this.sessionInfo.get(sessionId);
+    if (info) {
+      this.sessionInfo.set(sessionId, { ...info, config: merged });
+    }
+
+    // Fire webhook event
+    await this.webhookService.fire('session.config_updated', sessionId, merged);
+
+    return { config: merged };
   }
 }
