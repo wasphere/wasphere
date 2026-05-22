@@ -19,8 +19,8 @@ function isAuditable(method: string, statusCode: number): boolean {
 @Injectable()
 export class AuditMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
-    // Strip /api prefix (Express already removes global prefix from req.path)
-    const path = req.path;
+    // req.path is always '/' in NestJS MiddlewareConsumer — use originalUrl and strip global prefix
+    const path = req.originalUrl.split('?')[0].replace(/^\/api/, '') || '/';
 
     res.on('finish', () => {
       // AuditMiddleware MUST NEVER throw or block — all errors caught and console.warn'd

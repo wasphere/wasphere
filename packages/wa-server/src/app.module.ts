@@ -36,6 +36,13 @@ export class AppModule implements NestModule {
       ? [`/${swaggerPath}`, `/${swaggerPath}-json`]
       : [];
 
+    // AuditMiddleware must be registered FIRST so res.on('finish') is attached before
+    // AuthMiddleware can short-circuit the request (e.g. 401). Without this ordering,
+    // rejected requests are invisible to audit.
+    consumer
+      .apply(AuditMiddleware)
+      .forRoutes('*');
+
     consumer
       .apply(AuthMiddleware)
       .exclude(
@@ -43,10 +50,6 @@ export class AppModule implements NestModule {
         { path: 'health/ready', method: RequestMethod.GET },
         ...docsPaths,
       )
-      .forRoutes('*');
-
-    consumer
-      .apply(AuditMiddleware)
       .forRoutes('*');
   }
 }
