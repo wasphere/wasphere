@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, Query, UseGuards, Get, HttpCode } from '@nestjs/common';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
@@ -19,6 +19,8 @@ import { DeleteMessageQueryDto } from './dto/delete-message-query.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
 import { SendTypingDto } from './dto/send-typing.dto';
 import { SendPresenceDto } from './dto/send-presence.dto';
+import { BulkMessageDto } from './dto/bulk-message.dto';
+import { BulkJob } from './bulk-message.types';
 
 @ApiTags('Messages')
 @Controller('sessions/:sessionId/messages')
@@ -373,5 +375,34 @@ export class MessagesController {
     @Body() body: SendPresenceDto,
   ) {
     return this.messagesService.sendPresence(sid, body.to, body.presence);
+  }
+
+  @Post('bulk')
+  @HttpCode(202)
+  @ApiOperation({ summary: 'Start a bulk send job' })
+  @ApiParam({ name: 'sessionId', description: 'Session identifier', example: 'my-session' })
+  @ApiResponse({ status: 202, description: 'Bulk job accepted. Returns jobId and total recipient count.' })
+  @ApiResponse({ status: 400, description: 'Malformed request body.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid X-Api-Token.' })
+  @ApiResponse({ status: 409, description: 'A bulk job is already running for this session.' })
+  async startBulk(
+    @Param('sessionId', ValidateSessionIdPipe) sessionId: string,
+    @Body() body: BulkMessageDto,
+  ): Promise<{ jobId: string; total: number }> {
+    return this.messagesService.startBulkJob(sessionId, body);
+  }
+
+  @Get('bulk/:jobId')
+  @ApiOperation({ summary: 'Get bulk job status' })
+  @ApiParam({ name: 'sessionId', description: 'Session identifier', example: 'my-session' })
+  @ApiParam({ name: 'jobId', description: 'Bulk job UUID returned by POST /bulk' })
+  @ApiResponse({ status: 200, description: 'Bulk job status and per-recipient outcomes.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid X-Api-Token.' })
+  @ApiResponse({ status: 404, description: 'Job not found.' })
+  getBulkStatus(
+    @Param('sessionId', ValidateSessionIdPipe) sessionId: string,
+    @Param('jobId') jobId: string,
+  ): BulkJob {
+    return this.messagesService.getBulkJobStatus(sessionId, jobId);
   }
 }
