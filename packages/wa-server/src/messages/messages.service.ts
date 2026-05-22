@@ -1,16 +1,40 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, OnApplicationShutdown } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import {
   WHATSAPP_ADAPTER,
   IWhatsAppAdapter,
   SendResult,
   PresenceType,
 } from '../whatsapp/whatsapp-adapter.interface';
+import { WebhookService } from '../webhooks/webhook.service';
+import { BulkJob, BulkOutcome } from './bulk-message.types';
+import { BulkMessageDto } from './dto/bulk-message.dto';
+
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+// Map known adapter/Baileys error patterns to safe user-facing strings
+function sanitiseError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('not found') || msg.includes('not connected')) return 'Session not connected';
+  if (msg.includes('rate') || msg.includes('429')) return 'Rate limit reached';
+  if (msg.includes('timeout') || msg.includes('timed out')) return 'Request timed out';
+  return 'Send failed';
+}
 
 @Injectable()
-export class MessagesService {
+export class MessagesService implements OnApplicationShutdown {
+  private readonly bulkJobs = new Map<string, BulkJob>();
+  private readonly activeBulkSessions = new Set<string>();
+  private readonly BULK_JOB_TTL_MS = 60 * 60 * 1000;
+  private readonly evictionTimer: NodeJS.Timeout;
+
   constructor(
     @Inject(WHATSAPP_ADAPTER) private adapter: IWhatsAppAdapter,
-  ) {}
+    private readonly webhookService: WebhookService,
+  ) {
+    // Periodic eviction so memory is reclaimed even when no new jobs are submitted (SA-6)
+    this.evictionTimer = setInterval(() => this.evictExpiredJobs(), 5 * 60 * 1000);
+  }
 
   async sendText(sessionId: string, to: string, text: string, quotedId?: string): Promise<SendResult> {
     return this.adapter.sendText(sessionId, to, text, quotedId);
@@ -142,5 +166,108 @@ export class MessagesService {
     presence: PresenceType,
   ): Promise<{ status: string }> {
     return this.adapter.sendPresence(sessionId, to, presence);
+  }
+
+  startBulkJob(sessionId: string, dto: BulkMessageDto): { jobId: string; total: number } {
+    this.evictExpiredJobs();
+
+    if (this.activeBulkSessions.has(sessionId)) {
+      throw new ConflictException('A bulk job is already running for this session');
+    }
+
+    const jobId = randomUUID();
+    const outcomes: BulkOutcome[] = dto.recipients.map((recipient, index) => ({
+      recipient,
+      index,
+      status: 'pending',
+    }));
+
+    const job: BulkJob = {
+      jobId,
+      sessionId,
+      total: dto.recipients.length,
+      sent: 0,
+      failed: 0,
+      status: 'running',
+      createdAt: Date.now(),
+      outcomes,
+    };
+
+    this.bulkJobs.set(jobId, job);
+    this.activeBulkSessions.add(sessionId);
+
+    this.runBulkLoop(jobId, sessionId, dto).catch(() => {
+      job.status = 'failed';
+      this.activeBulkSessions.delete(sessionId);
+    });
+
+    return { jobId, total: job.total };
+  }
+
+  getBulkJobStatus(sessionId: string, jobId: string): BulkJob {
+    const job = this.bulkJobs.get(jobId);
+    if (!job) throw new NotFoundException(`Bulk job ${jobId} not found`);
+    if (job.sessionId !== sessionId) throw new NotFoundException(`Bulk job ${jobId} not found`);
+    return job;
+  }
+
+  private async runBulkLoop(jobId: string, sessionId: string, dto: BulkMessageDto): Promise<void> {
+    const job = this.bulkJobs.get(jobId)!;
+
+    try {
+      for (let i = 0; i < dto.recipients.length; i++) {
+        const recipient = dto.recipients[i];
+        const outcome = job.outcomes[i];
+
+        try {
+          const result = await this.adapter.sendText(sessionId, recipient, dto.message.text);
+          outcome.status = 'sent';
+          outcome.messageId = result.messageId;
+          outcome.timestamp = Date.now();
+          job.sent++;
+
+          this.webhookService.fire('bulk.sent', sessionId, {
+            jobId,
+            recipient,
+            index: i,
+            total: job.total,
+            result,
+          });
+        } catch (err) {
+          const safeError = sanitiseError(err);
+          outcome.status = 'failed';
+          outcome.error = safeError;
+          outcome.timestamp = Date.now();
+          job.failed++;
+
+          this.webhookService.fire('bulk.failed', sessionId, {
+            jobId,
+            recipient,
+            index: i,
+            total: job.total,
+            error: safeError,
+          });
+        }
+
+        if (i < dto.recipients.length - 1) {
+          await sleep(dto.delayMs);
+        }
+      }
+
+      job.status = job.failed === job.total ? 'failed' : 'completed';
+    } finally {
+      this.activeBulkSessions.delete(sessionId);
+    }
+  }
+
+  onApplicationShutdown(): void {
+    clearInterval(this.evictionTimer);
+  }
+
+  private evictExpiredJobs(): void {
+    const cutoff = Date.now() - this.BULK_JOB_TTL_MS;
+    for (const [id, job] of this.bulkJobs) {
+      if (job.createdAt < cutoff) this.bulkJobs.delete(id);
+    }
   }
 }
