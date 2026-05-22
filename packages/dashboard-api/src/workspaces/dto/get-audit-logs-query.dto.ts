@@ -1,4 +1,4 @@
-import { IsOptional, IsInt, Min, Max, IsISO8601, IsString } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsISO8601, IsString, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class GetAuditLogsQueryDto {
@@ -25,6 +25,7 @@ export class GetAuditLogsQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   sessionId?: string;
 
   @IsOptional()

@@ -127,6 +127,10 @@ export class WorkspacesService {
     });
     if (!membership) throw new ForbiddenException('Not a member of this workspace');
 
+    if (query.from && query.to && new Date(query.from) > new Date(query.to)) {
+      throw new BadRequestException('"from" must be earlier than or equal to "to"');
+    }
+
     const where: Prisma.AuditLogWhereInput = {};
     if (query.from || query.to) {
       where.timestamp = {
