@@ -1,7 +1,8 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import * as crypto from 'crypto';
-import { safeFetch } from '../common/safe-fetch';
+import * as http from 'http';
+import * as https from 'https';
 
 // Computed once at module load — never per-request
 const WA_TOKEN = process.env.WA_TOKEN ?? '';
@@ -70,20 +71,36 @@ export class AuditMiddleware implements NestMiddleware {
         // Always log to stdout
         console.log(JSON.stringify({ audit: true, ...event }));
 
-        // Fire-and-forget POST to dashboard-api — no await, response already committed
+        // Fire-and-forget POST to dashboard-api using native http/https.
+        // AUDIT_DASHBOARD_URL is operator-configured (not user-supplied), so safeFetch's
+        // SSRF protection is not appropriate here — it would block private/localhost addresses
+        // used in self-hosted deployments where wa-server and dashboard-api run on the same host.
         const auditUrl = process.env.AUDIT_DASHBOARD_URL;
         const secret = process.env.INTERNAL_WEBHOOK_SECRET ?? '';
         if (auditUrl) {
-          safeFetch(auditUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Internal-Secret': secret,
-            },
-            body: JSON.stringify(event),
-          }).catch((err: unknown) => {
-            console.warn('[Audit] Failed to deliver audit event:', (err as Error).message);
-          });
+          try {
+            const parsed = new URL(auditUrl);
+            const mod = parsed.protocol === 'https:' ? https : http;
+            const body = JSON.stringify(event);
+            const req = mod.request({
+              hostname: parsed.hostname,
+              port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+              path: parsed.pathname,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Internal-Secret': secret,
+                'Content-Length': Buffer.byteLength(body),
+              },
+            });
+            req.on('error', (err) => {
+              console.warn('[Audit] Failed to deliver audit event:', err.message);
+            });
+            req.write(body);
+            req.end();
+          } catch (deliveryErr) {
+            console.warn('[Audit] Failed to deliver audit event:', (deliveryErr as Error).message);
+          }
         }
       } catch (err) {
         // MUST NOT propagate — response is already sent
