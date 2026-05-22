@@ -10,6 +10,8 @@ import { AuthMiddleware } from './auth/auth.middleware';
 import { AuditModule } from './audit/audit.module';
 import { AuditMiddleware } from './audit/audit.middleware';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
+import { AllowlistModule } from './allowlist/allowlist.module';
+import { AllowlistMiddleware } from './allowlist/allowlist.middleware';
 
 @Module({
   imports: [
@@ -22,6 +24,7 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
     HealthModule,
     AuditModule,
     RateLimitModule,
+    AllowlistModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -43,6 +46,10 @@ export class AppModule implements NestModule {
     // rejected requests are invisible to audit.
     consumer
       .apply(AuditMiddleware)
+      .forRoutes('*');
+
+    consumer
+      .apply(AllowlistMiddleware)
       .forRoutes('*');
 
     consumer

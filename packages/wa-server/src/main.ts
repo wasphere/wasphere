@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import * as fs from 'fs';
+import * as net from 'net';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
@@ -101,6 +102,46 @@ function validateRateLimitEnv(): void {
   }
 }
 
+function validateAllowlistEnv(): void {
+  const raw = process.env.ALLOWED_IPS ?? '';
+  if (!raw.trim()) {
+    console.info('[Allowlist] ALLOWED_IPS not set — allowlist disabled, all IPs permitted.');
+    return;
+  }
+  const entries = raw.split(',').map(s => s.trim()).filter(Boolean);
+  let validCount = 0;
+  for (const entry of entries) {
+    const slashIdx = entry.indexOf('/');
+    const withoutCidr = slashIdx === -1 ? entry : entry.slice(0, slashIdx);
+    const family = net.isIP(withoutCidr); // 4, 6, or 0
+    const maxPrefix = family === 4 ? 32 : family === 6 ? 128 : -1;
+    let valid = family !== 0;
+    if (valid && slashIdx !== -1) {
+      const prefix = parseInt(entry.slice(slashIdx + 1), 10);
+      valid = !isNaN(prefix) && prefix >= 0 && prefix <= maxPrefix;
+    }
+    if (valid) {
+      validCount++;
+    } else {
+      console.warn(`[Allowlist] Malformed entry skipped: "${entry}"`);
+    }
+  }
+  if (validCount === 0) {
+    console.error(
+      '[Allowlist] FATAL: ALLOWED_IPS is set but contains no valid entries. ' +
+      'Fix your allowlist or unset ALLOWED_IPS to disable. Exiting.',
+    );
+    process.exit(1);
+  }
+  console.info(`[Allowlist] Allowlist enabled — ${validCount} valid entries loaded.`);
+  if (process.env.TRUST_PROXY === 'true') {
+    console.warn(
+      '[Allowlist] TRUST_PROXY=true: ensure your reverse proxy strips X-Forwarded-For before ' +
+      'appending the real client IP, otherwise the allowlist can be bypassed by IP spoofing.',
+    );
+  }
+}
+
 function parseArgs(): { port: number; token: string } {
   const args = process.argv.slice(2);
   let port = parseInt(process.env.PORT || '3001');
@@ -119,6 +160,7 @@ function parseArgs(): { port: number; token: string } {
 }
 
 async function bootstrap() {
+  validateAllowlistEnv();
   validateMaxSessionsEnv();
   validateReconnectEnv();
   validateRateLimitEnv();
