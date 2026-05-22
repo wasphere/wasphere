@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, OnApplicationShutdown } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import {
   WHATSAPP_ADAPTER,
@@ -12,16 +12,29 @@ import { BulkMessageDto } from './dto/bulk-message.dto';
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
+// Map known adapter/Baileys error patterns to safe user-facing strings
+function sanitiseError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('not found') || msg.includes('not connected')) return 'Session not connected';
+  if (msg.includes('rate') || msg.includes('429')) return 'Rate limit reached';
+  if (msg.includes('timeout') || msg.includes('timed out')) return 'Request timed out';
+  return 'Send failed';
+}
+
 @Injectable()
-export class MessagesService {
+export class MessagesService implements OnApplicationShutdown {
   private readonly bulkJobs = new Map<string, BulkJob>();
   private readonly activeBulkSessions = new Set<string>();
   private readonly BULK_JOB_TTL_MS = 60 * 60 * 1000;
+  private readonly evictionTimer: NodeJS.Timeout;
 
   constructor(
     @Inject(WHATSAPP_ADAPTER) private adapter: IWhatsAppAdapter,
     private readonly webhookService: WebhookService,
-  ) {}
+  ) {
+    // Periodic eviction so memory is reclaimed even when no new jobs are submitted (SA-6)
+    this.evictionTimer = setInterval(() => this.evictExpiredJobs(), 5 * 60 * 1000);
+  }
 
   async sendText(sessionId: string, to: string, text: string, quotedId?: string): Promise<SendResult> {
     return this.adapter.sendText(sessionId, to, text, quotedId);
@@ -183,7 +196,10 @@ export class MessagesService {
     this.bulkJobs.set(jobId, job);
     this.activeBulkSessions.add(sessionId);
 
-    this.runBulkLoop(jobId, sessionId, dto).catch(() => {});
+    this.runBulkLoop(jobId, sessionId, dto).catch(() => {
+      job.status = 'failed';
+      this.activeBulkSessions.delete(sessionId);
+    });
 
     return { jobId, total: job.total };
   }
@@ -218,8 +234,9 @@ export class MessagesService {
             result,
           });
         } catch (err) {
+          const safeError = sanitiseError(err);
           outcome.status = 'failed';
-          outcome.error = (err as Error).message;
+          outcome.error = safeError;
           outcome.timestamp = Date.now();
           job.failed++;
 
@@ -228,7 +245,7 @@ export class MessagesService {
             recipient,
             index: i,
             total: job.total,
-            error: (err as Error).message,
+            error: safeError,
           });
         }
 
@@ -241,6 +258,10 @@ export class MessagesService {
     } finally {
       this.activeBulkSessions.delete(sessionId);
     }
+  }
+
+  onApplicationShutdown(): void {
+    clearInterval(this.evictionTimer);
   }
 
   private evictExpiredJobs(): void {
