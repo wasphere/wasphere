@@ -27,6 +27,27 @@ import {
   PresenceType,
 } from './whatsapp-adapter.interface';
 
+// Allowlist for Baileys disconnect reason strings surfaced in API responses / webhooks.
+// Prevents raw Boom payload text (which may contain internal state) reaching clients.
+const SAFE_DISCONNECT_REASONS: Record<string, string> = {
+  '401': 'Unauthorized',
+  '405': 'Method Not Allowed',
+  '408': 'Connection Timeout',
+  '410': 'Gone',
+  '428': 'Precondition Required',
+  '440': 'Login Timeout',
+  '500': 'Internal Server Error',
+  '503': 'Service Unavailable',
+  'loggedOut': 'Logged out',
+  'badSession': 'Bad session',
+  'Unauthorized': 'Unauthorized',
+  'unknown': 'Unknown',
+};
+
+function sanitiseReason(raw: string): string {
+  return SAFE_DISCONNECT_REASONS[raw] ?? 'Disconnected';
+}
+
 // Fallback WA protocol version used when fetchLatestBaileysVersion() fails.
 // Source: @whiskeysockets/baileys src/Defaults/baileys-version.json as of 2026-05-20
 //   (Baileys 6.7.21, last verified against WhiskeySockets/Baileys commit history)
@@ -119,7 +140,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   // ─── Session lifecycle ──────────────────────────────────────────────────
 
   async createSession(sessionId: string): Promise<SessionInfo> {
-    if (this.sessions.has(sessionId)) {
+    if (this.sessionInfo.has(sessionId)) {
       return this.getSessionInfo(sessionId);
     }
 
@@ -342,15 +363,16 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     // Disconnected
     if (connection === 'close') {
       const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-      const reasonStr: string =
+      const rawReason: string =
         (lastDisconnect?.error as any)?.output?.payload?.error ?? String(statusCode ?? 'unknown');
+      const safeReason = sanitiseReason(rawReason);
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-      console.log(`[${sessionId}] Disconnected — code: ${statusCode}, reason: ${reasonStr}`);
+      console.log(`[${sessionId}] Disconnected — code: ${statusCode}, reason: ${rawReason}`);
 
       if (isLoggedOut) {
         // User explicitly logged out — don't reconnect, clean up
-        this.sessionInfo.set(sessionId, { ...info, status: 'logged_out', lastDisconnectReason: reasonStr });
+        this.sessionInfo.set(sessionId, { ...info, status: 'logged_out', lastDisconnectReason: safeReason });
         await this.webhookService.fire('session.logged_out', sessionId, {});
         this.sessions.delete(sessionId);
         return;
@@ -358,22 +380,22 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
       const newRetryCount = (info.retryCount ?? 0) + 1;
       const isAuthFailure = statusCode === 401 || statusCode === 405
-        || reasonStr === 'loggedOut' || reasonStr === 'badSession';
+        || rawReason === 'loggedOut' || rawReason === 'badSession';
       const maxAttempts = parseInt(process.env.MAX_RECONNECT_ATTEMPTS ?? '5', 10);
 
       if (isAuthFailure || newRetryCount >= maxAttempts) {
         this.sessionInfo.set(sessionId, {
           ...info,
           status: 'failed',
-          lastDisconnectReason: reasonStr,
+          lastDisconnectReason: safeReason,
           retryCount: newRetryCount,
         });
         await this.webhookService.fire('session.failed', sessionId, {
           sessionId,
-          reason: reasonStr,
+          reason: safeReason,
           retryCount: newRetryCount,
         });
-        console.error(`[${sessionId}] Session failed — reason: ${reasonStr}, retryCount: ${newRetryCount}`);
+        console.error(`[${sessionId}] Session failed — reason: ${rawReason}, retryCount: ${newRetryCount}`);
         return;
       }
 
@@ -381,11 +403,11 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       this.sessionInfo.set(sessionId, {
         ...info,
         status: 'disconnected',
-        lastDisconnectReason: reasonStr,
+        lastDisconnectReason: safeReason,
         retryCount: newRetryCount,
       });
       await this.webhookService.fire('session.disconnected', sessionId, {
-        reason: reasonStr,
+        reason: safeReason,
       });
 
       const delay = this.RETRY_DELAY_MS * Math.pow(2, info.retryCount); // exponential backoff
