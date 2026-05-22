@@ -1,6 +1,12 @@
 import { IsString, IsNotEmpty, MaxLength, Matches } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateSessionDto {
+  @ApiProperty({
+    description: 'Unique session identifier. Alphanumeric, hyphens, and underscores only.',
+    example: 'my-session',
+    maxLength: 64,
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(64)
