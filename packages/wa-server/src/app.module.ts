@@ -23,18 +23,19 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     const basicUser = process.env.DOCS_BASIC_AUTH_USER;
     const basicPass = process.env.DOCS_BASIC_AUTH_PASS;
-    const rawSwaggerPath = (process.env.SWAGGER_PATH ?? '/api/docs').replace(/\/$/, '');
-    const swaggerPath = rawSwaggerPath.replace(/^\/api\//, '');
+    // swaggerPath is the full path as Express sees it (matches main.ts calculation)
+    const swaggerPath = (process.env.SWAGGER_PATH ?? 'api/docs').replace(/^\/+|\/+$/g, '');
 
-    // When Basic Auth is configured, exclude docs paths so Basic Auth middleware
-    // can respond before AuthMiddleware intercepts the request.
+    // When Basic Auth is configured, exclude docs paths so the Express-level Basic Auth
+    // middleware can respond before AuthMiddleware intercepts.
+    // Paths must match the full URL (Swagger routes are Express-level, not NestJS routes).
     const docsPaths = basicUser && basicPass
-      ? [swaggerPath, `${swaggerPath}-json`]
+      ? [`/${swaggerPath}`, `/${swaggerPath}-json`]
       : [];
 
     consumer
       .apply(AuthMiddleware)
-      .exclude('health', ...docsPaths) // health check is public; docs excluded when Basic Auth is active
+      .exclude('health', ...docsPaths)
       .forRoutes('*');
   }
 }

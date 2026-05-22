@@ -74,10 +74,11 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Swagger / OpenAPI setup
+  // swaggerPath is the full path as Express sees it (e.g. 'api/docs').
+  // SwaggerModule.setup() registers directly on Express — it does NOT apply the
+  // NestJS global prefix. So we pass the full path including 'api/'.
   const swaggerEnabled = process.env.SWAGGER_ENABLED !== 'false';
-  const rawSwaggerPath = (process.env.SWAGGER_PATH ?? '/api/docs').replace(/\/$/, '');
-  // Strip /api/ prefix for SwaggerModule.setup (which adds it via globalPrefix)
-  const swaggerPath = rawSwaggerPath.replace(/^\/api\//, '');
+  const swaggerPath = (process.env.SWAGGER_PATH ?? 'api/docs').replace(/^\/+|\/+$/g, '');
 
   if (swaggerEnabled) {
     const { version } = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -94,28 +95,42 @@ async function bootstrap() {
 
     const basicUser = process.env.DOCS_BASIC_AUTH_USER;
     const basicPass = process.env.DOCS_BASIC_AUTH_PASS;
+    const expressApp = app.getHttpAdapter().getInstance();
 
+    // SwaggerModule registers directly on Express (not NestJS router), so NestJS
+    // middleware consumer (AuthMiddleware) does not cover Swagger routes.
+    // We attach auth guards directly on the Express app BEFORE SwaggerModule.setup().
     if (basicUser && basicPass) {
-      // Basic Auth middleware scoped to docs paths only
-      const expressApp = app.getHttpAdapter().getInstance();
-      const makeBasicAuthMiddleware = (realm: string) => (req: any, res: any, next: any) => {
+      // Basic Auth mode: check Basic credentials on all /api/docs* paths.
+      const basicAuthGuard = (req: any, res: any, next: any) => {
         const authHeader = req.headers['authorization'];
         if (!authHeader || !authHeader.startsWith('Basic ')) {
-          res.setHeader('WWW-Authenticate', `Basic realm="${realm}"`);
+          res.setHeader('WWW-Authenticate', 'Basic realm="WaSphere Docs"');
           return res.status(401).send('Unauthorized');
         }
         const [user, pass] = Buffer.from(authHeader.slice(6), 'base64').toString().split(':');
         if (user !== basicUser || pass !== basicPass) {
-          res.setHeader('WWW-Authenticate', `Basic realm="${realm}"`);
+          res.setHeader('WWW-Authenticate', 'Basic realm="WaSphere Docs"');
           return res.status(401).send('Unauthorized');
         }
         next();
       };
-
-      expressApp.use(`/api/${swaggerPath}`, makeBasicAuthMiddleware('WaSphere Docs'));
-      expressApp.use(`/api/${swaggerPath}-json`, makeBasicAuthMiddleware('WaSphere Docs'));
+      expressApp.use(`/${swaggerPath}`, basicAuthGuard);
+      expressApp.use(`/${swaggerPath}-json`, basicAuthGuard);
+    } else {
+      // X-Api-Token fallback mode: reuse the same token check as the rest of the API.
+      const tokenGuard = (req: any, res: any, next: any) => {
+        const incoming = req.headers['x-api-token'];
+        if (!incoming || incoming !== token) {
+          return res.status(401).json({ message: 'Unauthorized', statusCode: 401 });
+        }
+        next();
+      };
+      expressApp.use(`/${swaggerPath}`, tokenGuard);
+      expressApp.use(`/${swaggerPath}-json`, tokenGuard);
     }
 
+    // SwaggerModule registers at /${swaggerPath} and /${swaggerPath}-json on Express directly.
     SwaggerModule.setup(swaggerPath, app, document);
   }
 
