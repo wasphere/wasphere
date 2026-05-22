@@ -34,6 +34,10 @@ export class WebhookService {
     this.dashboardUrl = url;
   }
 
+  getDashboardUrl(): string | null {
+    return this.dashboardUrl || null;  // empty string normalises to null
+  }
+
   async fire(event: string, sessionId: string, data: any) {
     if (!this.dashboardUrl) return;
 
