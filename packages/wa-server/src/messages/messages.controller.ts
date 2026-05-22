@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
 import { ValidateSessionIdPipe } from '../common/validate-session-id.pipe';
@@ -21,6 +22,7 @@ import { SendPresenceDto } from './dto/send-presence.dto';
 
 @ApiTags('Messages')
 @Controller('sessions/:sessionId/messages')
+@UseGuards(RateLimitGuard)
 export class MessagesController {
   constructor(private messagesService: MessagesService) {}
 

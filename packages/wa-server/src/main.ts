@@ -58,6 +58,29 @@ function validateAuditEnv(): void {
   }
 }
 
+function validateRateLimitEnv(): void {
+  const rawMax = process.env.RATE_LIMIT_MAX;
+  const rawWindow = process.env.RATE_LIMIT_WINDOW_MS;
+
+  if (rawMax === undefined && rawWindow === undefined) return;
+
+  if (rawMax !== undefined) {
+    const max = parseInt(rawMax, 10);
+    if (isNaN(max) || max < 1) {
+      console.error('[WA Server] RATE_LIMIT_MAX must be a positive integer');
+      process.exit(1);
+    }
+  }
+
+  if (rawWindow !== undefined) {
+    const windowMs = parseInt(rawWindow, 10);
+    if (isNaN(windowMs) || windowMs < 1000) {
+      console.error('[WA Server] RATE_LIMIT_WINDOW_MS must be an integer >= 1000 (1 second)');
+      process.exit(1);
+    }
+  }
+}
+
 function parseArgs(): { port: number; token: string } {
   const args = process.argv.slice(2);
   let port = parseInt(process.env.PORT || '3001');
@@ -76,6 +99,7 @@ function parseArgs(): { port: number; token: string } {
 }
 
 async function bootstrap() {
+  validateRateLimitEnv();
   validateDocsEnv();
   validateWebhookSigningEnv();
   validateAuditEnv();
