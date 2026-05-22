@@ -13,8 +13,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Search, HelpCircle, Moon, Sun, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/auth/auth-provider";
+import { logout } from "@/lib/api";
 
 export function AppHeader() {
+  const { user } = useAuth();
+
+  const displayName = user?.name ?? user?.email ?? "…";
+  const displayEmail = user?.email ?? "";
+  const avatarInitial = (user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase();
+
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b bg-background px-3 gap-2">
       {/* Left — trigger + logo + badge */}
@@ -48,15 +56,15 @@ export function AppHeader() {
           <DropdownMenuTrigger>
             <Avatar className="h-7 w-7 cursor-pointer ring-2 ring-transparent hover:ring-primary/30 transition-all">
               <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-                WA
+                {avatarInitial}
               </AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="flex flex-col gap-0.5 pb-2">
-              <span className="font-semibold text-sm">Waqas Ahmed Waseer</span>
+              <span className="font-semibold text-sm">{displayName}</span>
               <span className="text-xs text-muted-foreground font-normal">
-                waqasahmadwaseer@gmail.com
+                {displayEmail}
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -76,7 +84,10 @@ export function AppHeader() {
               <Monitor size={14} /> System
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => void logout()}
+            >
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
