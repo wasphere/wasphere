@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuditModule } from './audit/audit.module';
 import { AuditMiddleware } from './audit/audit.middleware';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AuditMiddleware } from './audit/audit.middleware';
     WebhooksModule,
     HealthModule,
     AuditModule,
+    RateLimitModule,
   ],
 })
 export class AppModule implements NestModule {
