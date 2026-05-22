@@ -170,6 +170,11 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   // ─── Session lifecycle ──────────────────────────────────────────────────
 
   async createSession(sessionId: string, proxy?: string): Promise<SessionInfo> {
+    // Idempotency first — existing session short-circuits before any network I/O.
+    if (this.sessionInfo.has(sessionId)) {
+      return this.getSessionInfo(sessionId);
+    }
+
     // Preflight TCP check before consuming a session slot or writing any state.
     // On failure: 422 — slot not consumed, proxy.json not written.
     if (proxy) {
@@ -181,10 +186,6 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
           HttpStatus.UNPROCESSABLE_ENTITY,
         );
       }
-    }
-
-    if (this.sessionInfo.has(sessionId)) {
-      return this.getSessionInfo(sessionId);
     }
 
     const maxSessions = parseInt(process.env.MAX_SESSIONS ?? '10', 10);
