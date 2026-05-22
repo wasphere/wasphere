@@ -46,7 +46,7 @@ export class SessionsController {
   @ApiResponse({ status: 401, description: 'Missing or invalid X-Api-Token.' })
   @ApiResponse({ status: 422, description: 'Session with this ID already exists.' })
   create(@Body() body: CreateSessionDto) {
-    return this.sessionsService.createSession(body.id);
+    return this.sessionsService.createSession(body.id, body.proxy);
   }
 
   // DELETE /api/sessions/:id — disconnect & remove session
