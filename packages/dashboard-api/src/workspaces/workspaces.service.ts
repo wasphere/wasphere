@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from './encryption.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { SetWaServerDto } from './dto/set-wa-server.dto';
+import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
 
 @Injectable()
 export class WorkspacesService {
@@ -117,6 +118,42 @@ export class WorkspacesService {
 
     const token = this.encryption.decrypt(w.waServerToken, w.waServerTokenIv);
     return { waServerUrl: w.waServerUrl, token };
+  }
+
+  async getAuditLogs(workspaceId: string, userId: string, query: GetAuditLogsQueryDto) {
+    // Membership check — throws ForbiddenException if not a member
+    const membership = await this.prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId } },
+    });
+    if (!membership) throw new ForbiddenException('Not a member of this workspace');
+
+    if (query.from && query.to && new Date(query.from) > new Date(query.to)) {
+      throw new BadRequestException('"from" must be earlier than or equal to "to"');
+    }
+
+    const where: Prisma.AuditLogWhereInput = {};
+    if (query.from || query.to) {
+      where.timestamp = {
+        ...(query.from ? { gte: new Date(query.from) } : {}),
+        ...(query.to   ? { lte: new Date(query.to)   } : {}),
+      };
+    }
+    if (query.sessionId  !== undefined) where.sessionId  = query.sessionId;
+    if (query.statusCode !== undefined) where.statusCode = query.statusCode;
+
+    const skip = (query.page - 1) * query.pageSize;
+
+    const [items, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        skip,
+        take: query.pageSize,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
   private async requireOwner(userId: string, workspaceId: string) {
