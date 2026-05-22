@@ -181,8 +181,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       try {
         await this.preflightProxy(proxy);
       } catch (err: any) {
+        console.warn(`[${sessionId}] Proxy preflight failed: ${err.message}`);
         throw new HttpException(
-          { message: `Proxy unreachable: ${err.message}`, code: 'PROXY_PREFLIGHT_FAILED' },
+          { message: 'Proxy unreachable or timed out', code: 'PROXY_PREFLIGHT_FAILED' },
           HttpStatus.UNPROCESSABLE_ENTITY,
         );
       }
