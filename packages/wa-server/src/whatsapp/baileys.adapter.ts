@@ -522,11 +522,19 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         continue;
       }
 
-      if (!fs.statSync(sessionPath).isDirectory()) continue;
+      // Reject symlinked session directories — lstatSync does not follow symlinks
+      if (!fs.lstatSync(sessionPath).isDirectory()) continue;
 
       // Only restore if creds file exists (means it was authenticated before)
       const credsFile = path.join(sessionPath, 'creds.json');
       if (!fs.existsSync(credsFile)) continue;
+
+      // Reject symlinked creds.json — protects shared-host deployments from
+      // arbitrary file reads via crafted symlinks inside the sessions directory
+      if (fs.lstatSync(credsFile).isSymbolicLink()) {
+        console.warn(`[Restore] Skipping ${sessionId} — symlinked creds.json rejected`);
+        continue;
+      }
 
       console.log(`[Restore] Restoring session: ${sessionId}`);
       this.sessionInfo.set(sessionId, {

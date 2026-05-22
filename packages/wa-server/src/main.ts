@@ -62,8 +62,8 @@ function validateMaxSessionsEnv(): void {
   const raw = process.env.MAX_SESSIONS;
   if (raw === undefined) return;
   const n = parseInt(raw, 10);
-  if (isNaN(n) || n < 1) {
-    console.error('[WA Server] MAX_SESSIONS must be a positive integer');
+  if (isNaN(n) || n < 1 || n > 1000) {
+    console.error('[WA Server] MAX_SESSIONS must be a positive integer between 1 and 1000');
     process.exit(1);
   }
 }
