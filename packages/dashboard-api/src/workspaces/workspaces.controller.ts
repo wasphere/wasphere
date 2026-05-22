@@ -9,16 +9,19 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { WorkspacesService } from './workspaces.service';
 import { ProxyService } from './proxy.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { SetWaServerDto } from './dto/set-wa-server.dto';
+import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; email: string };
@@ -61,6 +64,26 @@ export class WorkspacesController {
   @HttpCode(HttpStatus.OK)
   deleteWorkspace(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.workspacesService.deleteWorkspace(req.user.userId, id);
+  }
+
+  @Get(':id/audit-logs')
+  @ApiTags('workspaces')
+  @ApiOperation({ summary: 'List audit logs for a workspace' })
+  @ApiResponse({ status: 200, description: 'Paginated audit log list' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not a member of this workspace' })
+  @ApiQuery({ name: 'page',       required: false, type: Number })
+  @ApiQuery({ name: 'pageSize',   required: false, type: Number })
+  @ApiQuery({ name: 'from',       required: false, type: String })
+  @ApiQuery({ name: 'to',         required: false, type: String })
+  @ApiQuery({ name: 'sessionId',  required: false, type: String })
+  @ApiQuery({ name: 'statusCode', required: false, type: Number })
+  getAuditLogs(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Query() query: GetAuditLogsQueryDto,
+  ) {
+    return this.workspacesService.getAuditLogs(id, req.user.userId, query);
   }
 
   @All(':id/proxy/*')
