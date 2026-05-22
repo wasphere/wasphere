@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { WebhookService } from './webhook.service';
 import { SetCallbackDto } from './dto/set-callback.dto';
@@ -20,5 +20,25 @@ export class WebhooksController {
   setCallback(@Body() body: SetCallbackDto) {
     this.webhookService.setDashboardUrl(body.url);
     return { success: true, message: 'Callback URL registered' };
+  }
+
+  @Get('callback')
+  @ApiOperation({
+    summary: 'Get webhook callback URL',
+    description: 'Returns the currently registered callback URL, or null if none has been set.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Current callback URL.',
+    schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', nullable: true, example: 'https://dashboard.example.com/webhook' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid X-Api-Token.' })
+  getCallbackUrl(): { url: string | null } {
+    return { url: this.webhookService.getDashboardUrl() };
   }
 }
