@@ -7,6 +7,8 @@ import { ContactsModule } from './contacts/contacts.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HealthModule } from './health/health.module';
 import { AuthMiddleware } from './auth/auth.middleware';
+import { AuditModule } from './audit/audit.module';
+import { AuditMiddleware } from './audit/audit.middleware';
 
 @Module({
   imports: [
@@ -17,6 +19,7 @@ import { AuthMiddleware } from './auth/auth.middleware';
     ContactsModule,
     WebhooksModule,
     HealthModule,
+    AuditModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -40,6 +43,10 @@ export class AppModule implements NestModule {
         { path: 'health/ready', method: RequestMethod.GET },
         ...docsPaths,
       )
+      .forRoutes('*');
+
+    consumer
+      .apply(AuditMiddleware)
       .forRoutes('*');
   }
 }
