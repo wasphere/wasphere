@@ -7,6 +7,8 @@ import { ContactsModule } from './contacts/contacts.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HealthModule } from './health/health.module';
 import { AuthMiddleware } from './auth/auth.middleware';
+import { AuditModule } from './audit/audit.module';
+import { AuditMiddleware } from './audit/audit.middleware';
 
 @Module({
   imports: [
@@ -17,6 +19,7 @@ import { AuthMiddleware } from './auth/auth.middleware';
     ContactsModule,
     WebhooksModule,
     HealthModule,
+    AuditModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -32,6 +35,13 @@ export class AppModule implements NestModule {
     const docsPaths = basicUser && basicPass
       ? [`/${swaggerPath}`, `/${swaggerPath}-json`]
       : [];
+
+    // AuditMiddleware must be registered FIRST so res.on('finish') is attached before
+    // AuthMiddleware can short-circuit the request (e.g. 401). Without this ordering,
+    // rejected requests are invisible to audit.
+    consumer
+      .apply(AuditMiddleware)
+      .forRoutes('*');
 
     consumer
       .apply(AuthMiddleware)
