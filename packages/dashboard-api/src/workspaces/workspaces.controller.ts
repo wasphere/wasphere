@@ -66,6 +66,14 @@ export class WorkspacesController {
     return this.workspacesService.deleteWorkspace(req.user.userId, id);
   }
 
+  @Get(':id/stats')
+  @ApiTags('workspaces')
+  @ApiOperation({ summary: 'Message statistics for a workspace (last 7 days + totals)' })
+  @ApiResponse({ status: 200, description: 'Stats object' })
+  getStats(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.workspacesService.getStats(id, req.user.userId);
+  }
+
   @Get(':id/audit-logs')
   @ApiTags('workspaces')
   @ApiOperation({ summary: 'List audit logs for a workspace' })

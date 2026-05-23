@@ -156,6 +156,76 @@ export class WorkspacesService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
+  async getStats(workspaceId: string, userId: string) {
+    const membership = await this.prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId } },
+    });
+    if (!membership) throw new ForbiddenException('Not a member of this workspace');
+
+    const MESSAGE_PATTERN = /\/messages\/([^/?]+)/;
+
+    // Last 7 full UTC days + today
+    const now = new Date();
+    const dayStart = (daysAgo: number): Date => {
+      const d = new Date(now);
+      d.setUTCHours(0, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() - daysAgo);
+      return d;
+    };
+
+    const since7 = dayStart(6); // 7 days including today
+
+    const [allTimeLogs, recentLogs] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: {
+          endpoint: { contains: '/messages/' },
+          method: 'POST',
+          statusCode: { gte: 200, lt: 300 },
+        },
+        select: { endpoint: true },
+      }),
+      this.prisma.auditLog.findMany({
+        where: {
+          endpoint: { contains: '/messages/' },
+          method: 'POST',
+          statusCode: { gte: 200, lt: 300 },
+          timestamp: { gte: since7 },
+        },
+        select: { endpoint: true, timestamp: true },
+      }),
+    ]);
+
+    // Total & by-type from all time
+    const byType: Record<string, number> = {};
+    for (const log of allTimeLogs) {
+      const m = MESSAGE_PATTERN.exec(log.endpoint);
+      const type = m?.[1] ?? 'unknown';
+      byType[type] = (byType[type] ?? 0) + 1;
+    }
+
+    // Per-day buckets for last 7 days
+    const buckets: Record<string, number> = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = dayStart(i);
+      buckets[d.toISOString().slice(0, 10)] = 0;
+    }
+    for (const log of recentLogs) {
+      const key = new Date(log.timestamp).toISOString().slice(0, 10);
+      if (key in buckets) buckets[key]++;
+    }
+
+    const last7Days = Object.entries(buckets).map(([date, count]) => ({ date, count }));
+
+    return {
+      totalMessages: allTimeLogs.length,
+      last7Days,
+      byType: Object.entries(byType)
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8),
+    };
+  }
+
   private async requireOwner(userId: string, workspaceId: string) {
     const membership = await this.prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId } },
