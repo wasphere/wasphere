@@ -2,7 +2,9 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { CheckCircle2, XCircle, Loader2, Terminal, Copy, Check } from "lucide-react"
 
 interface RequestInfo {
   method: string
@@ -49,6 +51,31 @@ function formatTimestamp(iso: string): string {
   }
 }
 
+function CopyButton({
+  onClick,
+  copied,
+  label,
+  size = "xs",
+}: {
+  onClick: () => void
+  copied: boolean
+  label: string
+  size?: "xs" | "sm"
+}) {
+  return (
+    <Button
+      type="button"
+      size={size as "sm"}
+      variant="ghost"
+      onClick={onClick}
+      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
+    >
+      {copied ? <Check size={11} /> : <Copy size={11} />}
+      {copied ? "Copied" : label}
+    </Button>
+  )
+}
+
 export function ResponsePanel({
   state,
   statusCode,
@@ -61,8 +88,7 @@ export function ResponsePanel({
   const [copiedCurl, setCopiedCurl] = React.useState(false)
 
   const copyResponse = async () => {
-    const text = JSON.stringify(data, null, 2)
-    await navigator.clipboard.writeText(text).catch(() => null)
+    await navigator.clipboard.writeText(JSON.stringify(data, null, 2)).catch(() => null)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -84,92 +110,123 @@ export function ResponsePanel({
 
   const messageId = data ? extractMessageId(data) : null
 
+  const cardBorderClass =
+    state === "success"
+      ? "border-green-500/30 dark:border-green-500/20"
+      : state === "error"
+        ? "border-destructive/30 dark:border-destructive/20"
+        : ""
+
   return (
-    <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
-      <h2 className="text-sm font-semibold text-foreground">API Response</h2>
-
-      {request && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground font-medium">Request</p>
-            <Button type="button" size="xs" variant="outline" onClick={copyCurl}>
-              {copiedCurl ? "Copied!" : "Copy as curl"}
-            </Button>
-          </div>
-          <pre className="bg-zinc-900 text-zinc-100 rounded-md p-3 overflow-auto text-xs font-mono max-h-40 whitespace-pre-wrap break-all">
-            <span className="text-blue-400">{request.method}</span>{" "}
-            <span className="text-green-400">{request.url}</span>{"\n"}
-            {JSON.stringify(request.body, null, 2)}
-          </pre>
+    <Card className={cn("flex flex-col gap-0 overflow-hidden transition-colors duration-300", cardBorderClass)}>
+      {/* Header */}
+      <CardHeader className="px-4 py-3 border-b border-border/60 flex-row items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Terminal size={14} className="text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground">API Response</span>
         </div>
-      )}
-
-      {state === "idle" && !request && (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          Send a message to see the response
-        </p>
-      )}
-      {state === "idle" && request && null}
-
-      {state === "loading" && (
-        <div className="flex items-center justify-center py-8">
-          <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
-        </div>
-      )}
-
-      {(state === "success" || state === "error") && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
-                getStatusBadgeClass(statusCode)
-              )}
-            >
-              {statusCode ?? "Network Error"}
-            </span>
-            {timestamp && (
-              <span className="text-xs text-muted-foreground">
-                {formatTimestamp(timestamp)}
-              </span>
-            )}
+        {state === "success" && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400">
+            <CheckCircle2 size={13} />
+            {timestamp && <span>{formatTimestamp(timestamp)}</span>}
           </div>
+        )}
+        {state === "error" && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+            <XCircle size={13} />
+            {timestamp && <span>{formatTimestamp(timestamp)}</span>}
+          </div>
+        )}
+        {state === "loading" && (
+          <Loader2 size={14} className="animate-spin text-muted-foreground" />
+        )}
+      </CardHeader>
 
-          {messageId && (
-            <div className="flex flex-col gap-1">
-              <p className="text-xs text-muted-foreground font-medium">Message ID</p>
-              <div className="flex items-center gap-2">
-                <code className="text-xs font-mono bg-muted rounded px-2 py-1 flex-1 break-all">
-                  {messageId}
-                </code>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  onClick={() => copyMessageId(messageId)}
-                  className="shrink-0"
-                >
-                  {copiedId ? "Copied" : "Copy"}
-                </Button>
-              </div>
+      <CardContent className="p-4 flex flex-col gap-4">
+        {/* Idle — no request yet */}
+        {state === "idle" && !request && (
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+              <Terminal size={18} className="text-muted-foreground/50" />
             </div>
-          )}
+            <p className="text-sm text-muted-foreground">Send a message to see the response</p>
+          </div>
+        )}
 
-          <pre className="bg-zinc-900 text-zinc-100 rounded-md p-3 overflow-auto text-xs font-mono mt-2 max-h-64 whitespace-pre-wrap break-all">
-            {JSON.stringify(data, null, 2)}
-          </pre>
+        {/* Request block */}
+        {request && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">Request</span>
+              <CopyButton onClick={copyCurl} copied={copiedCurl} label="Copy as curl" />
+            </div>
+            <pre className="bg-zinc-950 text-zinc-100 rounded-lg p-3 overflow-auto text-xs font-mono max-h-40 whitespace-pre-wrap break-all leading-relaxed">
+              <span className="text-blue-400">{request.method}</span>{" "}
+              <span className="text-green-400">{request.url}</span>{"\n"}
+              {JSON.stringify(request.body, null, 2)}
+            </pre>
+          </div>
+        )}
 
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={copyResponse}
-            className="w-fit"
-          >
-            {copied ? "Copied!" : "Copy Response"}
-          </Button>
-        </div>
-      )}
-    </div>
+        {/* Loading */}
+        {state === "loading" && (
+          <div className="flex items-center justify-center py-8">
+            <div className="flex flex-col items-center gap-2">
+              <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+              <p className="text-xs text-muted-foreground">Sending…</p>
+            </div>
+          </div>
+        )}
+
+        {/* Success / Error */}
+        {(state === "success" || state === "error") && (
+          <div className="flex flex-col gap-3">
+            {/* Status badge */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums",
+                  getStatusBadgeClass(statusCode)
+                )}
+              >
+                {statusCode ?? "Network Error"}
+              </span>
+            </div>
+
+            {/* Message ID */}
+            {messageId && (
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-muted-foreground">Message ID</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs font-mono bg-muted rounded-md px-2 py-1.5 flex-1 break-all text-foreground/80">
+                    {messageId}
+                  </code>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyMessageId(messageId)}
+                    className="h-7 px-2 shrink-0"
+                  >
+                    {copiedId ? <Check size={12} /> : <Copy size={12} />}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Response body */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">Response</span>
+                <CopyButton onClick={copyResponse} copied={copied} label="Copy" />
+              </div>
+              <pre className="bg-zinc-950 text-zinc-100 rounded-lg p-3 overflow-auto text-xs font-mono max-h-64 whitespace-pre-wrap break-all leading-relaxed">
+                {JSON.stringify(data, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
