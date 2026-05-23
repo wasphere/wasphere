@@ -81,6 +81,7 @@ export class WebhooksController {
   }
 
   @Post(':webhookId/test')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Send a test delivery to a webhook URL',
     description: 'Fires a webhook.test event immediately and returns the HTTP status from the receiver.',
