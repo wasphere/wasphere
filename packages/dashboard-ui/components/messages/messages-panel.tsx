@@ -209,7 +209,7 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
     } catch {
       setResponseState("error")
       setResponseTimestamp(new Date().toISOString())
-      setResponseData({ message: "Connection Error" })
+      setResponseData({ message: "Could not reach WA Server. Check Settings → WA Server configuration." })
       setResponseStatusCode(undefined)
     } finally {
       setSubmitting(false)

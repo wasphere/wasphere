@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MediaInput } from "@/components/messages/media-input"
+import { SAMPLE_DOCUMENT_URL } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -39,7 +40,7 @@ export function DocumentForm({ onSubmit, submitting }: FormProps) {
   }
 
   const fillSample = () => {
-    setUrl("https://pdfobject.com/pdf/sample.pdf")
+    setUrl(SAMPLE_DOCUMENT_URL)
     setFileName("sample.pdf")
     setMimetype("application/pdf")
     setErrors({})

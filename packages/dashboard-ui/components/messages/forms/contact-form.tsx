@@ -4,6 +4,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SAMPLE_CONTACT_NAME, SAMPLE_CONTACT_PHONE } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -17,8 +18,8 @@ export function ContactForm({ onSubmit, submitting }: FormProps) {
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
   const fillSample = () => {
-    setDisplayName("John Doe")
-    setPhoneNumber("+923000000000")
+    setDisplayName(SAMPLE_CONTACT_NAME)
+    setPhoneNumber(SAMPLE_CONTACT_PHONE)
     setErrors({})
   }
 

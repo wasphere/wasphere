@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { MediaInput } from "@/components/messages/media-input"
+import { SAMPLE_STICKER_URL } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -14,7 +15,7 @@ export function StickerForm({ onSubmit, submitting }: FormProps) {
   const [error, setError] = React.useState("")
 
   const fillSample = () => {
-    setUrl("https://picsum.photos/512/512")
+    setUrl(SAMPLE_STICKER_URL)
     setError("")
   }
 
