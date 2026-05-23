@@ -114,6 +114,10 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
   private audioMimetype(url: string, isVoiceNote: boolean): string {
     if (isVoiceNote) return 'audio/ogg; codecs=opus';
+    if (url.startsWith('data:')) {
+      const mime = url.slice(5, url.indexOf(';'));
+      return mime || 'audio/mpeg';
+    }
     const ext = url.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
     const map: Record<string, string> = {
       mp3: 'audio/mpeg',
@@ -753,9 +757,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
-    const videoResponse = await safeFetch(videoUrl, { maxBytes: 100 * 1024 * 1024 });
+    const videoBuffer = await resolveMediaBuffer(videoUrl, 100 * 1024 * 1024);
     const result = await sock.sendMessage(jid, {
-      video: { stream: videoResponse.stream() },
+      video: videoBuffer,
       caption: caption || '',
     });
     return { messageId: result?.key?.id, status: 'sent' };
@@ -789,9 +793,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
-    const docResponse = await safeFetch(docUrl, { maxBytes: 100 * 1024 * 1024 });
+    const docBuffer = await resolveMediaBuffer(docUrl, 100 * 1024 * 1024);
     const result = await sock.sendMessage(jid, {
-      document: { stream: docResponse.stream() },
+      document: docBuffer,
       fileName,
       mimetype,
     });
