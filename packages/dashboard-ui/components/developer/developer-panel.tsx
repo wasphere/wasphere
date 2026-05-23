@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
+import { useSearchParams } from "next/navigation"
 import { Eye, EyeOff, Copy, ExternalLink } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -407,9 +408,12 @@ interface DeveloperPanelProps {
 }
 
 export function DeveloperPanel({ waServerUrl }: DeveloperPanelProps) {
-  const [activeTab, setActiveTab] = React.useState<"api-keys" | "api-reference" | "audit-log">(
-    "api-keys"
-  )
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+  const validTabs = ["api-keys", "api-reference", "audit-log"] as const
+  type Tab = typeof validTabs[number]
+  const initialTab: Tab = (validTabs as readonly string[]).includes(tabParam ?? "") ? (tabParam as Tab) : "api-keys"
+  const [activeTab, setActiveTab] = React.useState<Tab>(initialTab)
 
   return (
     <Tabs
