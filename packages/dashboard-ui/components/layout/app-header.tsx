@@ -15,9 +15,11 @@ import { Search, HelpCircle, Moon, Sun, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { logout } from "@/lib/api";
+import { useTheme } from "next-themes";
 
 export function AppHeader() {
   const { user } = useAuth();
+  const { setTheme } = useTheme();
 
   const displayName = user?.name ?? user?.email ?? "…";
   const displayEmail = user?.email ?? "";
@@ -68,19 +70,16 @@ export function AppHeader() {
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Account preferences</DropdownMenuItem>
-            <DropdownMenuItem>Changelog</DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground font-normal pb-1">
               Theme
             </DropdownMenuLabel>
-            <DropdownMenuItem className="gap-2">
+            <DropdownMenuItem className="gap-2" onClick={() => setTheme("light")}>
               <Sun size={14} /> Light
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2">
+            <DropdownMenuItem className="gap-2" onClick={() => setTheme("dark")}>
               <Moon size={14} /> Dark
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2">
+            <DropdownMenuItem className="gap-2" onClick={() => setTheme("system")}>
               <Monitor size={14} /> System
             </DropdownMenuItem>
             <DropdownMenuSeparator />
