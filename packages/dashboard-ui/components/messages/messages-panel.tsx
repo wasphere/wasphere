@@ -31,6 +31,8 @@ import { PollForm } from "@/components/messages/forms/poll-form"
 import { ReactionForm } from "@/components/messages/forms/reaction-form"
 import { ViewOnceForm } from "@/components/messages/forms/view-once-form"
 import { type MessageType } from "@/lib/message-types"
+import { EmptyState } from "@/components/ui/empty-state"
+import { MessagesIllustration } from "@/components/empty-states"
 
 interface SessionItem {
   id: string
@@ -305,12 +307,12 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
         )}
 
         {sessions.length === 0 && !sessionsError && (
-          <div className="rounded-md border bg-muted/40 px-4 py-6 text-center">
-            <p className="text-sm font-medium text-foreground">No sessions yet</p>
-            <p className="text-xs text-zinc-400 mt-1">
-              <a href="/dashboard/sessions" className="underline underline-offset-2">Create a session</a> to start sending messages.
-            </p>
-          </div>
+          <EmptyState
+            illustration={<MessagesIllustration />}
+            message="No sessions yet"
+            description="Create a session to start sending messages."
+            action={<a href="/dashboard/sessions" className="text-sm font-medium text-primary underline underline-offset-2">Go to Sessions</a>}
+          />
         )}
 
         {noConnected && sessions.length > 0 && (
