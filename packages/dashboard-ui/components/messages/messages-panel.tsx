@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import { toast } from "sonner"
+import { Send } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -33,6 +34,8 @@ import { ViewOnceForm } from "@/components/messages/forms/view-once-form"
 import { type MessageType } from "@/lib/message-types"
 import { EmptyState } from "@/components/ui/empty-state"
 import { MessagesIllustration } from "@/components/empty-states"
+import { StatusDot } from "@/components/ui/status-dot"
+import { cn } from "@/lib/utils"
 
 interface SessionItem {
   id: string
@@ -289,187 +292,288 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
 
   const noConnected = connectedSessions.length === 0
 
+  // Bulk progress percentage
+  const bulkProgress =
+    bulkJob &&
+    typeof bulkJob.sent === "number" &&
+    typeof bulkJob.total === "number" &&
+    bulkJob.total > 0
+      ? Math.round((bulkJob.sent / bulkJob.total) * 100)
+      : null
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
-      {/* Left: form area */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Messages</h1>
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">Test and send WhatsApp messages.</p>
-          </div>
+    <div className="flex flex-col gap-6">
+      {/* Page header */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20 shadow-sm dark:shadow-[0_0_18px_rgba(34,197,94,0.22)]">
+          <Send size={18} className="text-primary" />
         </div>
-
-        {sessionsError && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {sessionsError}
-          </div>
-        )}
-
-        {sessions.length === 0 && !sessionsError && (
-          <EmptyState
-            illustration={<MessagesIllustration />}
-            message="No sessions yet"
-            description="Create a session to start sending messages."
-            action={<a href="/dashboard/sessions" className="text-sm font-medium text-primary underline underline-offset-2">Go to Sessions</a>}
-          />
-        )}
-
-        {noConnected && sessions.length > 0 && (
-          <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-            No connected sessions. Go to{" "}
-            <a href="/dashboard/sessions" className="font-medium underline underline-offset-2">
-              Sessions
-            </a>{" "}
-            and connect a WhatsApp account before sending messages.
-          </div>
-        )}
-
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-sm font-medium text-foreground">Session</Label>
-          <Select
-            value={selectedSessionId}
-            onValueChange={(val) => { if (val !== null) setSelectedSessionId(val) }}
-          >
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select a session" />
-            </SelectTrigger>
-            <SelectContent>
-              {sessions.map((session) => (
-                <SelectItem key={session.id} value={session.id}>
-                  {sessionLabel(session)}
-                  {session.status !== "connected" && (
-                    <span className="ml-1.5 text-xs text-muted-foreground">({session.status})</span>
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Messages</h1>
+          <p className="text-sm text-muted-foreground">Test and send WhatsApp messages.</p>
         </div>
-
-        <Tabs
-          value={activeTab}
-          onValueChange={(val) => setActiveTab(val as "single" | "bulk")}
-        >
-          <TabsList>
-            <TabsTrigger value="single">Single Message</TabsTrigger>
-            <TabsTrigger value="bulk">Bulk</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="single" className="mt-4 flex flex-col gap-4">
-            <RecipientInput value={to} onChange={setTo} error={toError} />
-            <MessageTypeSelector value={messageType} onChange={setMessageType} />
-            <div className="rounded-xl border bg-card p-4">
-              {renderForm(messageType, handleFormSubmit, submitting)}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="bulk" className="mt-4">
-            <form onSubmit={handleBulkSubmit} className="flex flex-col gap-4 max-w-lg">
-              <div className="rounded-lg border border-blue-400/40 bg-blue-50/60 dark:bg-blue-900/10 px-3 py-2 text-xs text-blue-800 dark:text-blue-300">
-                Bulk send supports <strong>text messages</strong> only. Up to 50 recipients per job.
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="bulk-recipients">
-                  Recipients{" "}
-                  <span className="text-muted-foreground font-normal">
-                    (one WhatsApp JID per line, max 50)
-                  </span>
-                </Label>
-                <Textarea
-                  id="bulk-recipients"
-                  placeholder={"447911123456@s.whatsapp.net\n447911654321@s.whatsapp.net"}
-                  value={recipients}
-                  onChange={(e) => setRecipients(e.target.value)}
-                  rows={5}
-                />
-                {bulkErrors.recipients && (
-                  <p className="text-xs text-destructive">{bulkErrors.recipients}</p>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="bulk-text">Message</Label>
-                  <span className="text-xs text-muted-foreground">{bulkText.length}/65536</span>
-                </div>
-                <Textarea
-                  id="bulk-text"
-                  placeholder="Type your message…"
-                  value={bulkText}
-                  onChange={(e) => setBulkText(e.target.value)}
-                  rows={4}
-                />
-                {bulkErrors.text && (
-                  <p className="text-xs text-destructive">{bulkErrors.text}</p>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="bulk-delay">Delay Between Sends</Label>
-                  <span className="text-xs text-muted-foreground">{(bulkDelayMs / 1000).toFixed(1)}s</span>
-                </div>
-                <input
-                  id="bulk-delay"
-                  type="range"
-                  min={1000}
-                  max={10000}
-                  step={500}
-                  value={bulkDelayMs}
-                  onChange={(e) => setBulkDelayMs(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
-                <p className="text-xs text-zinc-700 dark:text-zinc-300">Recommended 2–5s to avoid rate limits</p>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={bulkSubmitting || pollingJobId !== null}
-                className="w-fit"
-              >
-                {bulkSubmitting ? "Starting…" : "Send to All"}
-              </Button>
-
-              {bulkJob && (
-                <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-                  {bulkJob.status === "completed" ? (
-                    <p className="text-green-600 dark:text-green-400 font-medium">
-                      Completed
-                      {typeof bulkJob.sent === "number" &&
-                        typeof bulkJob.total === "number" &&
-                        ` — Sent: ${bulkJob.sent} / ${bulkJob.total}`}
-                    </p>
-                  ) : bulkJob.status === "failed" ? (
-                    <p className="text-destructive font-medium">Failed</p>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
-                      <p className="text-muted-foreground">
-                        {typeof bulkJob.sent === "number" &&
-                        typeof bulkJob.total === "number"
-                          ? `Sending… ${bulkJob.sent} / ${bulkJob.total}`
-                          : `Status: ${bulkJob.status}`}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </form>
-          </TabsContent>
-        </Tabs>
       </div>
 
-      {/* Right: response panel */}
-      <div className="lg:sticky lg:top-4 h-fit">
-        <ResponsePanel
-          state={responseState}
-          statusCode={responseStatusCode}
-          timestamp={responseTimestamp}
-          data={responseData}
-          request={lastRequest}
+      {/* Alerts */}
+      {sessionsError && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {sessionsError}
+        </div>
+      )}
+
+      {sessions.length === 0 && !sessionsError && (
+        <EmptyState
+          illustration={<MessagesIllustration />}
+          message="No sessions yet"
+          description="Create a session to start sending messages."
+          action={
+            <a href="/dashboard/sessions" className="text-sm font-medium text-primary underline underline-offset-2">
+              Go to Sessions
+            </a>
+          }
         />
+      )}
+
+      {noConnected && sessions.length > 0 && (
+        <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          No connected sessions. Go to{" "}
+          <a href="/dashboard/sessions" className="font-medium underline underline-offset-2">
+            Sessions
+          </a>{" "}
+          and connect a WhatsApp account before sending messages.
+        </div>
+      )}
+
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
+        {/* ── Left column ── */}
+        <div className="flex flex-col gap-4">
+
+          {/* Config card: session + mode toggle */}
+          <Card>
+            <CardContent className="p-4 flex flex-col gap-4">
+              {/* Session row */}
+              <div className="flex flex-wrap items-center gap-3">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
+                  Session
+                </Label>
+                <Select
+                  value={selectedSessionId}
+                  onValueChange={(val) => { if (val) setSelectedSessionId(val) }}
+                >
+                  <SelectTrigger className="w-56 h-8 text-sm">
+                    <SelectValue placeholder="Select a session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>
+                        <div className="flex items-center gap-2">
+                          <StatusDot status={session.status} />
+                          <span>{sessionLabel(session)}</span>
+                          {session.status !== "connected" && (
+                            <span className="text-xs text-muted-foreground">({session.status})</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Mode toggle */}
+              <div className="flex items-center gap-3">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
+                  Mode
+                </Label>
+                <div className="flex gap-0.5 p-0.5 bg-muted rounded-lg">
+                  {(["single", "bulk"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveTab(tab)}
+                      className={cn(
+                        "px-3 py-1 text-xs font-medium rounded-md transition-all duration-150 cursor-pointer",
+                        activeTab === tab
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {tab === "single" ? "Single Message" : "Bulk"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Single mode ── */}
+          {activeTab === "single" && (
+            <>
+              {/* Recipient card */}
+              <Card>
+                <CardContent className="p-4">
+                  <RecipientInput value={to} onChange={setTo} error={toError} />
+                </CardContent>
+              </Card>
+
+              {/* Compose card */}
+              <Card>
+                <CardHeader className="px-4 pt-4 pb-3 border-b border-border/60">
+                  <CardTitle className="text-sm font-semibold text-foreground">Compose</CardTitle>
+                  <CardDescription className="text-xs">
+                    Choose a message type and fill in the content below.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 flex flex-col gap-4">
+                  <MessageTypeSelector value={messageType} onChange={setMessageType} />
+                  <div className="border-t border-border/60 pt-4">
+                    {renderForm(messageType, handleFormSubmit, submitting)}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* ── Bulk mode ── */}
+          {activeTab === "bulk" && (
+            <Card>
+              <CardHeader className="px-4 pt-4 pb-3 border-b border-border/60">
+                <CardTitle className="text-sm font-semibold">Bulk Send</CardTitle>
+                <CardDescription className="text-xs">
+                  Send text messages to up to 50 recipients in one job.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4">
+                <form onSubmit={handleBulkSubmit} className="flex flex-col gap-5">
+                  {/* Info banner */}
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary/80 dark:text-primary/70">
+                    Bulk send supports <strong>text messages</strong> only. Up to 50 recipients per job.
+                  </div>
+
+                  {/* Recipients */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="bulk-recipients" className="text-sm font-medium text-foreground">
+                      Recipients{" "}
+                      <span className="text-muted-foreground font-normal">(one WhatsApp JID per line, max 50)</span>
+                    </Label>
+                    <Textarea
+                      id="bulk-recipients"
+                      placeholder={"447911123456@s.whatsapp.net\n447911654321@s.whatsapp.net"}
+                      value={recipients}
+                      onChange={(e) => setRecipients(e.target.value)}
+                      rows={5}
+                    />
+                    {bulkErrors.recipients && (
+                      <p className="text-xs text-destructive">{bulkErrors.recipients}</p>
+                    )}
+                  </div>
+
+                  {/* Message */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="bulk-text" className="text-sm font-medium text-foreground">Message</Label>
+                      <span className="text-xs text-muted-foreground tabular-nums">{bulkText.length} / 65536</span>
+                    </div>
+                    <Textarea
+                      id="bulk-text"
+                      placeholder="Type your message…"
+                      value={bulkText}
+                      onChange={(e) => setBulkText(e.target.value)}
+                      rows={4}
+                    />
+                    {bulkErrors.text && (
+                      <p className="text-xs text-destructive">{bulkErrors.text}</p>
+                    )}
+                  </div>
+
+                  {/* Delay slider */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="bulk-delay" className="text-sm font-medium text-foreground">
+                        Delay Between Sends
+                      </Label>
+                      <span className="text-xs font-mono font-medium text-primary tabular-nums">
+                        {(bulkDelayMs / 1000).toFixed(1)}s
+                      </span>
+                    </div>
+                    <input
+                      id="bulk-delay"
+                      type="range"
+                      min={1000}
+                      max={10000}
+                      step={500}
+                      value={bulkDelayMs}
+                      onChange={(e) => setBulkDelayMs(Number(e.target.value))}
+                      className="w-full accent-primary h-1.5 rounded-full cursor-pointer"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Recommended 2–5 s to avoid rate limits.
+                    </p>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={bulkSubmitting || pollingJobId !== null}
+                    className="w-fit"
+                  >
+                    {bulkSubmitting ? "Starting…" : "Send to All"}
+                  </Button>
+
+                  {/* Job status */}
+                  {bulkJob && (
+                    <div className="rounded-lg border bg-muted/40 px-4 py-3 flex flex-col gap-2">
+                      {bulkJob.status === "completed" ? (
+                        <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                          Completed
+                          {typeof bulkJob.sent === "number" &&
+                            typeof bulkJob.total === "number" &&
+                            ` — ${bulkJob.sent} / ${bulkJob.total} sent`}
+                        </p>
+                      ) : bulkJob.status === "failed" ? (
+                        <p className="text-sm font-medium text-destructive">Failed</p>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <div className="size-3.5 animate-spin rounded-full border-2 border-muted border-t-primary" />
+                              <span>
+                                {typeof bulkJob.sent === "number" && typeof bulkJob.total === "number"
+                                  ? `Sending… ${bulkJob.sent} / ${bulkJob.total}`
+                                  : `Status: ${bulkJob.status}`}
+                              </span>
+                            </div>
+                            {bulkProgress !== null && (
+                              <span className="text-xs font-mono tabular-nums text-primary">{bulkProgress}%</span>
+                            )}
+                          </div>
+                          {bulkProgress !== null && (
+                            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-primary transition-all duration-500"
+                                style={{ width: `${bulkProgress}%` }}
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* ── Right column: response panel ── */}
+        <div className="lg:sticky lg:top-20 h-fit">
+          <ResponsePanel
+            state={responseState}
+            statusCode={responseStatusCode}
+            timestamp={responseTimestamp}
+            data={responseData}
+            request={lastRequest}
+          />
+        </div>
       </div>
     </div>
   )
