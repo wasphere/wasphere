@@ -17,7 +17,9 @@ import {
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { Request, Response } from 'express';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CombinedAuthGuard } from '../auth/combined-auth.guard';
+import { ApiKeyPermissionGuard } from '../auth/api-key-permission.guard';
+import { RequiresPermission } from '../auth/requires-permission.decorator';
 import { WorkspacesService } from './workspaces.service';
 import { ProxyService } from './proxy.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -25,12 +27,12 @@ import { SetWaServerDto } from './dto/set-wa-server.dto';
 import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
 
 interface AuthenticatedRequest extends Request {
-  user: { userId: string; email: string };
+  user: { userId: string; email?: string; workspaceId?: string; permissions?: string[] };
 }
 
 @ApiTags('Workspaces')
 @Controller('workspaces')
-@UseGuards(JwtAuthGuard)
+@UseGuards(CombinedAuthGuard, ApiKeyPermissionGuard)
 export class WorkspacesController {
   constructor(
     private readonly workspacesService: WorkspacesService,
@@ -49,11 +51,13 @@ export class WorkspacesController {
   }
 
   @Get(':id')
+  @RequiresPermission('workspace:read')
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.workspacesService.getOne(req.user.userId, id);
   }
 
   @Patch(':id/wa-server')
+  @RequiresPermission('workspace:write')
   setWaServer(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -64,11 +68,13 @@ export class WorkspacesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequiresPermission('workspace:write')
   deleteWorkspace(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.workspacesService.deleteWorkspace(req.user.userId, id);
   }
 
   @Get(':id/stats')
+  @RequiresPermission('workspace:read')
   @ApiTags('workspaces')
   @ApiOperation({ summary: 'Message statistics for a workspace (last 7 days + totals)' })
   @ApiResponse({ status: 200, description: 'Stats object' })
@@ -77,6 +83,7 @@ export class WorkspacesController {
   }
 
   @Get(':id/audit-logs')
+  @RequiresPermission('audit:read')
   @ApiTags('workspaces')
   @ApiOperation({ summary: 'List audit logs for a workspace' })
   @ApiResponse({ status: 200, description: 'Paginated audit log list' })
