@@ -1,10 +1,11 @@
 import { Controller, Get, Inject, HttpException, HttpCode } from '@nestjs/common';
-import { ApiExcludeEndpoint } from '@nestjs/swagger';
+import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { readFileSync } from 'fs';
 import { WHATSAPP_ADAPTER, IWhatsAppAdapter } from '../whatsapp/whatsapp-adapter.interface';
 
 const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
 
+@ApiTags('Health')
 @Controller('health')
 export class HealthController {
   constructor(
