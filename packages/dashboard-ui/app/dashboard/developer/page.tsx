@@ -13,16 +13,26 @@ interface Workspace {
 
 async function fetchWorkspace(token: string): Promise<Workspace | null> {
   try {
-    const res = await fetch(`${API_BASE}/workspaces`, {
+    // Fetch the list first to get the workspace id.
+    const listRes = await fetch(`${API_BASE}/workspaces`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     })
-    if (!res.ok) return null
-    const data = await res.json()
-    const list: Workspace[] = Array.isArray(data)
-      ? data
-      : (data.workspaces ?? [])
-    return list[0] ?? null
+    if (!listRes.ok) return null
+    const listData = await listRes.json()
+    const list: Array<{ id: string }> = Array.isArray(listData)
+      ? listData
+      : (listData.workspaces ?? [])
+    const workspaceId = list[0]?.id
+    if (!workspaceId) return null
+
+    // Fetch the detail endpoint which includes waServerUrl.
+    const detailRes = await fetch(`${API_BASE}/workspaces/${workspaceId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    if (!detailRes.ok) return null
+    return await detailRes.json()
   } catch {
     return null
   }
