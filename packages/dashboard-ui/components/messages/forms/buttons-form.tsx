@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { SAMPLE_TEXT } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -24,7 +25,7 @@ export function ButtonsForm({ onSubmit, submitting }: FormProps) {
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
   const fillSample = () => {
-    setText("Please choose an option below:")
+    setText(SAMPLE_TEXT)
     setFooter("Powered by WaSphere")
     setButtons([
       { id: "opt_1", text: "Option A" },

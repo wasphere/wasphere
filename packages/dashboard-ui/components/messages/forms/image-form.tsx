@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaInput } from "@/components/messages/media-input"
+import { SAMPLE_IMAGE_URL } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -17,7 +18,7 @@ export function ImageForm({ onSubmit, submitting }: FormProps) {
   const [error, setError] = React.useState("")
 
   const fillSample = () => {
-    setUrl("https://picsum.photos/800/600")
+    setUrl(SAMPLE_IMAGE_URL)
     setCaption("Sample image via WaSphere")
     setError("")
   }

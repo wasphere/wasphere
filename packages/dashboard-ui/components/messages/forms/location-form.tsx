@@ -4,6 +4,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SAMPLE_LATITUDE, SAMPLE_LONGITUDE, SAMPLE_LOCATION_NAME, SAMPLE_LOCATION_ADDRESS } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -19,10 +20,10 @@ export function LocationForm({ onSubmit, submitting }: FormProps) {
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
   const fillSample = () => {
-    setLatitude("33.6844")
-    setLongitude("73.0479")
-    setName("Islamabad")
-    setAddress("Capital Territory, Pakistan")
+    setLatitude(SAMPLE_LATITUDE)
+    setLongitude(SAMPLE_LONGITUDE)
+    setName(SAMPLE_LOCATION_NAME)
+    setAddress(SAMPLE_LOCATION_ADDRESS)
     setErrors({})
   }
 

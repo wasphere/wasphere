@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { SAMPLE_TEXT } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -21,7 +22,7 @@ export function TextForm({ onSubmit, submitting }: FormProps) {
   const [error, setError] = React.useState("")
 
   const fillSample = () => {
-    setText("Hello from WaSphere! This is a test message sent via the API 🎉")
+    setText(SAMPLE_TEXT)
     setError("")
   }
 

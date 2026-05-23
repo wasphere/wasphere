@@ -4,6 +4,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SAMPLE_REACTION_ID, SAMPLE_REACTION_EMOJI } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -17,8 +18,8 @@ export function ReactionForm({ onSubmit, submitting }: FormProps) {
   const [error, setError] = React.useState("")
 
   const fillSample = () => {
-    setMessageId("3EB0000000000000000000")
-    setEmoji("👍")
+    setMessageId(SAMPLE_REACTION_ID)
+    setEmoji(SAMPLE_REACTION_EMOJI)
     setError("")
   }
 

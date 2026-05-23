@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { MediaInput } from "@/components/messages/media-input"
+import { SAMPLE_AUDIO_URL } from "@/lib/message-samples"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
@@ -17,7 +18,7 @@ export function AudioForm({ onSubmit, submitting }: FormProps) {
   const [error, setError] = React.useState("")
 
   const fillSample = () => {
-    setUrl("https://www.w3schools.com/html/horse.mp3")
+    setUrl(SAMPLE_AUDIO_URL)
     setIsVoiceNote(false)
     setError("")
   }
