@@ -4,6 +4,8 @@ import {
   SessionsTable,
   type Session,
 } from "@/components/sessions/sessions-table"
+import { AntiBanControls } from "@/components/settings/anti-ban-controls"
+import { type SessionSummary } from "@/lib/session-config"
 
 const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
 
@@ -30,7 +32,7 @@ async function fetchSessions(
 ): Promise<Session[] | null> {
   try {
     const res = await fetch(
-      `${API_BASE}/workspaces/${workspaceId}/proxy/sessions`,
+      `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions`,
       {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
@@ -70,5 +72,10 @@ export default async function SessionsPage() {
     )
   }
 
-  return <SessionsTable initialSessions={sessions} />
+  return (
+    <div className="flex flex-col gap-8">
+      <SessionsTable initialSessions={sessions} />
+      <AntiBanControls sessions={sessions as SessionSummary[]} />
+    </div>
+  )
 }
