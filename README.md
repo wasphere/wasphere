@@ -1,73 +1,191 @@
 # WaSphere
 
-> Open-source WhatsApp automation platform — built for developers, businesses,
-> and hosting providers.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-green.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)
+![Node](https://img.shields.io/badge/Node.js-20+-brightgreen.svg)
 
-WaSphere is a self-hosted WhatsApp automation platform. It exposes the full Baileys
-API as a clean REST interface, with a Zender-style architecture: a standalone
-**WA Server** binary runs WhatsApp sessions, and a central **Dashboard** manages
-everything.
+> Self-hosted WhatsApp automation platform — REST API, multi-session management, and a built-in dashboard.
 
-**MIT Core. Pro Power.** — the engine and dashboard (v1) are fully open source;
-the Pro layer (automation builder, CRM, WHMCS, AI) ships in v2.
+<!-- hero GIF: replace with actual recording -->
 
 ---
 
-## Repository structure
+## Features
 
-```
-wasphere/
-├── packages/
-│   └── wa-server/        WA Server binary — NestJS + Baileys (MIT)
-├── docs/
-│   └── PRD.md            Full Product Requirements Document (v2.1)
-├── pnpm-workspace.yaml
-└── package.json
-```
-
-> `dashboard-api/` and `dashboard-ui/` are added during v1.0 development —
-> see `docs/PRD.md` Section 6.
+- **14 message types** — text, image, video, audio, document, sticker, GIF, location, contact, poll, reaction, buttons, list, view-once
+- **Multi-session** — manage multiple WhatsApp accounts from one server
+- **Built-in dashboard** — send messages, manage sessions, view stats, configure webhooks — all in-browser
+- **Per-session anti-ban controls** — configurable random send delay (ms range), auto-read toggle
+- **Proxy support** — per-session HTTP/HTTPS/SOCKS5 proxy
+- **Webhook delivery** — receive inbound events (messages, status updates) via configurable callback URL
+- **Audit log** — every API call logged with timestamp, status, session, endpoint
+- **Message statistics** — 7-day send history, by-type breakdown, 24h trend on the Overview page
+- **IP/CIDR allowlist** — restrict API access by IP
+- **Swagger docs** — full OpenAPI spec at `/api/docs`
 
 ---
 
-## Quick start (WA Server)
+## Architecture
+
+```
+packages/
+  wa-server/       NestJS + Baileys — WhatsApp gateway (port 3001)
+  dashboard-api/   NestJS + Prisma + PostgreSQL — workspace, auth, stats (port 3005)
+  dashboard-ui/    Next.js 15 (App Router) + ShadCN UI — browser dashboard (port 3004)
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- pnpm 9+
+- PostgreSQL 16
+- Redis 7+
+
+### 1. Clone & install
 
 ```bash
+git clone https://github.com/YOUR_ORG/wasphere.git
+cd wasphere
 pnpm install
-cd packages/wa-server
-npm run dev -- --port 3001 --token test123
 ```
 
-Then create a session and scan the QR with WhatsApp:
+### 2. Configure environment
+
+Copy `.env.example` files:
 
 ```bash
-curl -X POST http://localhost:3001/api/sessions \
-  -H "X-Api-Token: test123" \
-  -H "Content-Type: application/json" \
-  -d '{"id": "my-phone"}'
+cp packages/wa-server/.env.example packages/wa-server/.env
+cp packages/dashboard-api/.env.example packages/dashboard-api/.env
+cp packages/dashboard-ui/.env.example packages/dashboard-ui/.env
+```
 
-curl http://localhost:3001/api/sessions/my-phone -H "X-Api-Token: test123"
+Key variables:
+
+| Variable | Description |
+|---|---|
+| `WA_TOKEN` | WA Server API token (generate a random string) |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection string |
+| `JWT_SECRET` | Dashboard auth secret |
+| `ENCRYPTION_KEY` | 32-byte hex key for token encryption |
+
+### 3. Run database migrations
+
+```bash
+cd packages/dashboard-api
+npx prisma migrate deploy
+```
+
+### 4. Start all services
+
+```bash
+# From repo root — starts all three packages
+pnpm dev
+```
+
+Services:
+
+- WA Server: `http://localhost:3001`
+- Dashboard API: `http://localhost:3005`
+- Dashboard UI: `http://localhost:3004`
+
+---
+
+## Dashboard Pages
+
+| Page | Description |
+|---|---|
+| **Overview** | Live stats — sessions, 24h messages, 7-day chart, recent activity |
+| **Sessions** | Create, manage, QR-scan WhatsApp sessions |
+| **Messages** | In-browser message tester for all 14 types |
+| **Webhooks** | Configure inbound event callback URL |
+| **Developer** | API token, WA Server URL, Audit log browser |
+| **Settings** | WA Server configuration, workspace management |
+
+---
+
+## API Reference
+
+Full Swagger UI: `http://localhost:3001/api/docs` (WA Server)
+
+Quick examples:
+
+```bash
+# Send a text message
+curl -X POST http://localhost:3001/api/sessions/{sessionId}/messages/text \
+  -H "X-Api-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"to": "+923001234567", "text": "Hello from WaSphere!"}'
+
+# Send an image
+curl -X POST http://localhost:3001/api/sessions/{sessionId}/messages/image \
+  -H "X-Api-Token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"to": "+923001234567", "url": "https://example.com/image.jpg", "caption": "Check this out"}'
+
+# List sessions
+curl http://localhost:3001/api/sessions \
+  -H "X-Api-Token: YOUR_TOKEN"
 ```
 
 ---
 
-## Where to start
+## Roadmap
 
-Read `docs/PRD.md` — Section 12 ("Where to Start") has the day-by-day plan.
-The first real task is the **Baileys adapter refactor** (PRD Section 2.2).
+### v1.1
+
+- Inbox / chat UI — view and reply to incoming messages in the dashboard
+- Multi-language code snippets on Developer page (Python, PHP, Node.js)
+- Webhooks recent-events viewer
+- Native file upload in Message Tester
+
+### v1.5
+
+- SQLite + MySQL database support (in addition to PostgreSQL)
+- Real-time message log via wa-server (live stream view)
+- Workspace rename
+
+### v2.0
+
+- Team / multi-user workspaces
+- Role-based access control
+- Contact management
 
 ---
 
-## Important notes
+## Security
 
-- **Baileys is pinned to exact `6.7.21`** — never change to `^` or `latest`.
-  See PRD Section 9 for the update strategy.
-- The `sessions/` folder contains WhatsApp account credentials — it is gitignored
-  and must never be committed.
-- WaSphere is for legitimate customer communication. Users must comply with
-  WhatsApp's Business Policy. Do not spam.
+- WA Server token accepted only via `X-Api-Token` header (never query string)
+- Dashboard auth via httpOnly JWT cookie
+- WA server tokens encrypted at rest (AES-256)
+- SSRF protection on all media URL fetch operations
+- IP/CIDR allowlist middleware
+- Session credentials (`sessions/`) never committed — gitignored
+
+---
+
+## Contributing
+
+1. Fork → feature branch → PR
+2. Follow the NestJS module structure (module / controller / service)
+3. Keep files under 500 lines
+4. No mock tests for WhatsApp behaviour — tests run against real PostgreSQL
+
+---
 
 ## License
 
-MIT — see PRD Section 4 for the open-core model and the Baileys/libsignal
-licensing note.
+MIT — see [LICENSE](./LICENSE)
+
+---
+
+## Acknowledgments
+
+- [Baileys](https://github.com/WhiskeySockets/Baileys) — WhatsApp Web API library
+- [ShadCN UI](https://ui.shadcn.com/) — UI components
+- [Prisma](https://www.prisma.io/) — database ORM
