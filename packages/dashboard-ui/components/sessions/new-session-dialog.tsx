@@ -105,10 +105,11 @@ export function NewSessionDialog({
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="session-id">Session ID</Label>
+            <Label htmlFor="session-id" className="text-sm font-medium text-foreground">Session ID</Label>
             <Input
               id="session-id"
               placeholder="my-session-1"
+              className="placeholder:text-zinc-400 placeholder:font-light"
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
               autoFocus
@@ -120,15 +121,16 @@ export function NewSessionDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="proxy-url">
+            <Label htmlFor="proxy-url" className="text-sm font-medium text-foreground">
               Proxy URL{" "}
-              <span className="text-muted-foreground font-normal">
+              <span className="text-zinc-400 font-light">
                 (optional)
               </span>
             </Label>
             <Input
               id="proxy-url"
               placeholder="socks5://10.0.0.5:1080"
+              className="placeholder:text-zinc-400 placeholder:font-light"
               value={proxy}
               onChange={(e) => setProxy(e.target.value)}
             />

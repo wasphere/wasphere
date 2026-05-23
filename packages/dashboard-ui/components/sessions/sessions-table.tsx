@@ -134,25 +134,25 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Session ID</TableHead>
-              <TableHead>Phone Number</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Connected At</TableHead>
-              <TableHead>Proxy</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Session</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Phone</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Connected At</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Proxy</TableHead>
+              <TableHead className="text-right text-xs font-medium text-zinc-500 uppercase tracking-wider">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sessions.map((session) => (
-              <TableRow key={session.id} className="hover:bg-muted/50 transition-colors">
-                <TableCell className="font-mono text-xs">{session.id}</TableCell>
-                <TableCell>{session.phoneNumber ?? "—"}</TableCell>
+              <TableRow key={session.id} className="hover:bg-muted/40 transition-colors">
+                <TableCell className="text-sm font-medium text-foreground">{session.id}</TableCell>
+                <TableCell className="text-sm text-zinc-700 dark:text-zinc-300 tabular-nums">{session.phoneNumber ?? "—"}</TableCell>
                 <TableCell>
                   <Badge className={statusClassName(session.status)}>
                     {session.status}
                   </Badge>
                 </TableCell>
-                <TableCell>{formatDate(session.connectedAt)}</TableCell>
+                <TableCell className="text-xs text-zinc-400 font-light tabular-nums">{formatDate(session.connectedAt)}</TableCell>
                 <TableCell className="font-mono text-xs">
                   {session.proxy ?? "—"}
                 </TableCell>

@@ -55,7 +55,10 @@ export default async function SessionsPage() {
   if (!workspaceId) {
     return (
       <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Sessions</h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold text-foreground">Sessions</h1>
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">Manage WhatsApp sessions connected to this workspace.</p>
+        </div>
         <ApiError message="Could not load workspace. Please check your settings." />
       </div>
     )
@@ -66,7 +69,10 @@ export default async function SessionsPage() {
   if (sessions === null) {
     return (
       <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Sessions</h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold text-foreground">Sessions</h1>
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">Manage WhatsApp sessions connected to this workspace.</p>
+        </div>
         <ApiError message="Could not load sessions. Check your WA Server connection in Settings." />
       </div>
     )
@@ -74,6 +80,10 @@ export default async function SessionsPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold text-foreground">Sessions</h1>
+        <p className="text-sm text-zinc-700 dark:text-zinc-300">Manage WhatsApp sessions connected to this workspace.</p>
+      </div>
       <SessionsTable initialSessions={sessions} />
       <AntiBanControls sessions={sessions as SessionSummary[]} />
     </div>
