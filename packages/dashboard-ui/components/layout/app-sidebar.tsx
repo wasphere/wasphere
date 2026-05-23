@@ -73,8 +73,8 @@ function NavItem({
           collapsed
             ? "flex-col justify-center gap-1 h-auto py-2"
             : "flex-row gap-2",
-          // override default sidebar-accent active with primary green
-          "data-active:!bg-primary/10 data-active:!text-primary data-active:!font-medium",
+          // active: dark bg + black/white text, bold
+          "data-active:!bg-zinc-900 data-active:!text-zinc-50 dark:data-active:!bg-zinc-100 dark:data-active:!text-zinc-900 data-active:!font-semibold",
         ].join(" ")}
       >
         <Icon className="shrink-0" size={18} />
