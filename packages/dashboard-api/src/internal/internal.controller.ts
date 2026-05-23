@@ -6,10 +6,12 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { InternalSecretGuard } from './internal-secret.guard';
 import { InternalService } from './internal.service';
 import { AuditEventDto } from './dto/audit-event.dto';
 
+@ApiTags('Internal')
 @Controller('internal')
 @UseGuards(InternalSecretGuard)
 export class InternalController {

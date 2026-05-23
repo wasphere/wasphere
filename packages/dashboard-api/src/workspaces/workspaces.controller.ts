@@ -15,6 +15,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { WorkspacesService } from './workspaces.service';
@@ -27,6 +28,7 @@ interface AuthenticatedRequest extends Request {
   user: { userId: string; email: string };
 }
 
+@ApiTags('Workspaces')
 @Controller('workspaces')
 @UseGuards(JwtAuthGuard)
 export class WorkspacesController {

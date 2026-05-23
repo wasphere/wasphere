@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 function validateEnv(): void {
   const errors: string[] = [];
@@ -58,8 +59,10 @@ async function bootstrap(): Promise<void> {
   const { NestFactory } = await import('@nestjs/core');
   const { AppModule } = await import('./app.module');
   const { ValidationPipe } = await import('@nestjs/common');
+  const { DocumentBuilder, SwaggerModule } = await import('@nestjs/swagger');
+  const { apiReference } = await import('@scalar/nestjs-api-reference');
 
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
     bodyParser: false,
   });
@@ -93,6 +96,48 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+
+  // OpenAPI spec — generated from NestJS decorators, served as JSON and via Scalar UI
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('WaSphere API')
+    .setDescription('Self-hosted WhatsApp automation platform — Dashboard API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+
+  // Raw OpenAPI JSON — Scalar reads from this
+  app.use('/api/docs-json', (_req: unknown, res: { json: (d: unknown) => void }) => {
+    res.json(document);
+  });
+
+  // Scalar three-column API reference
+  app.use(
+    '/api/reference',
+    apiReference({
+      spec: { url: '/api/docs-json' },
+      metaData: {
+        title: 'WaSphere API Reference',
+        description: 'Self-hosted WhatsApp automation platform',
+      },
+      defaultHttpClient: { targetKey: 'shell', clientKey: 'curl' },
+      customCss: `
+        .light-mode {
+          --scalar-color-accent: #10b981;
+          --scalar-background-accent: #10b98120;
+        }
+        .dark-mode {
+          --scalar-color-accent: #34d399;
+          --scalar-background-accent: #34d39920;
+        }
+      `,
+    }),
+  );
+
+  // Redirect old Swagger URL so bookmarks don't 404
+  app.use('/api/docs', (_req: unknown, res: { redirect: (url: string) => void }) => {
+    res.redirect('/api/reference');
+  });
 
   const port = parseInt(process.env.DASHBOARD_PORT ?? '3000', 10);
   await app.listen(port, '0.0.0.0');
