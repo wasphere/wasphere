@@ -1,8 +1,6 @@
 import { cookies } from "next/headers"
 import { ApiError } from "@/components/ui/api-error"
 import { SettingsForm, type Workspace } from "@/components/settings/settings-form"
-import { AntiBanControls } from "@/components/settings/anti-ban-controls"
-import { type SessionSummary } from "@/lib/session-config"
 
 const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
 
@@ -32,29 +30,6 @@ async function fetchWorkspace(token: string): Promise<{ workspace: Workspace; wo
   }
 }
 
-async function fetchSessions(
-  token: string,
-  workspaceId: string
-): Promise<SessionSummary[]> {
-  try {
-    const res = await fetch(
-      `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      }
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    const list: SessionSummary[] = Array.isArray(data)
-      ? data
-      : (data.sessions ?? [])
-    return list
-  } catch {
-    return []
-  }
-}
-
 export default async function SettingsPage() {
   const cookieStore = await cookies()
   const token = cookieStore.get("wa_access")?.value ?? ""
@@ -70,14 +45,12 @@ export default async function SettingsPage() {
     )
   }
 
-  const { workspace, workspaceId } = result
-  const sessions = await fetchSessions(token, workspaceId)
+  const { workspace } = result
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
       <SettingsForm workspace={workspace} />
-      <AntiBanControls sessions={sessions} />
     </div>
   )
 }
