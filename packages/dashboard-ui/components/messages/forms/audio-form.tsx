@@ -17,7 +17,7 @@ export function AudioForm({ onSubmit, submitting }: FormProps) {
   const [error, setError] = React.useState("")
 
   const fillSample = () => {
-    setUrl("https://www.w3schools.com/html/horse.ogg")
+    setUrl("https://www.w3schools.com/html/horse.mp3")
     setIsVoiceNote(false)
     setError("")
   }
