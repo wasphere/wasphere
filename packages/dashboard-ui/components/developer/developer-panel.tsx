@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table"
 import { ApiError } from "@/components/ui/api-error"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ApiKeysTab } from "@/components/developer/api-keys-tab"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -406,21 +407,26 @@ interface DeveloperPanelProps {
 }
 
 export function DeveloperPanel({ waServerUrl }: DeveloperPanelProps) {
-  const [activeTab, setActiveTab] = React.useState<"api-reference" | "audit-log">(
-    "api-reference"
+  const [activeTab, setActiveTab] = React.useState<"api-keys" | "api-reference" | "audit-log">(
+    "api-keys"
   )
 
   return (
     <Tabs
       value={activeTab}
       onValueChange={(val) =>
-        setActiveTab(val as "api-reference" | "audit-log")
+        setActiveTab(val as "api-keys" | "api-reference" | "audit-log")
       }
     >
       <TabsList>
+        <TabsTrigger value="api-keys">API Keys</TabsTrigger>
         <TabsTrigger value="api-reference">API Reference</TabsTrigger>
         <TabsTrigger value="audit-log">Audit Log</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="api-keys" className="mt-4">
+        <ApiKeysTab />
+      </TabsContent>
 
       <TabsContent value="api-reference" className="mt-4">
         <ApiReferenceTab waServerUrl={waServerUrl} />
