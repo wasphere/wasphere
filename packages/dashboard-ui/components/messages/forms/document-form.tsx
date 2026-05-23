@@ -17,17 +17,47 @@ export function DocumentForm({ onSubmit, submitting }: FormProps) {
   const [mimetype, setMimetype] = React.useState("")
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
+  const EXT_MIME: Record<string, string> = {
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    txt: "text/plain",
+    csv: "text/csv",
+  }
+
+  const inferFromUrl = (u: string) => {
+    try {
+      const pathname = new URL(u).pathname
+      const ext = pathname.split(".").pop()?.toLowerCase() ?? ""
+      const name = pathname.split("/").filter(Boolean).pop() ?? ""
+      return { mime: EXT_MIME[ext] ?? "", name }
+    } catch { return { mime: "", name: "" } }
+  }
+
   const fillSample = () => {
-    setUrl("https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf")
+    setUrl("https://www.africau.edu/images/default/sample.pdf")
     setFileName("sample.pdf")
     setMimetype("application/pdf")
     setErrors({})
   }
 
+  const handleUrlChange = (u: string) => {
+    setUrl(u)
+    if (u.startsWith("http")) {
+      const { mime, name } = inferFromUrl(u)
+      if (mime) setMimetype(mime)
+      if (name && !fileName) setFileName(name)
+    }
+  }
+
   const handleFileSelected = (dataUri: string, name: string, type: string) => {
     setUrl(dataUri)
-    if (!fileName) setFileName(name)
-    if (!mimetype) setMimetype(type || "application/octet-stream")
+    setFileName(name)
+    setMimetype(type || "application/octet-stream")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,7 +81,7 @@ export function DocumentForm({ onSubmit, submitting }: FormProps) {
       </div>
       <MediaInput
         id="doc-url" label="Document" value={url}
-        onChange={setUrl}
+        onChange={handleUrlChange}
         onFileSelected={handleFileSelected}
         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,application/*,text/*"
         urlPlaceholder="https://example.com/document.pdf"

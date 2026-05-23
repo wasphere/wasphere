@@ -25,6 +25,12 @@ export function GifForm({ onSubmit, submitting }: FormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!url.trim()) { setError("GIF URL or file is required."); return }
+    const trimmed = url.trim()
+    const isGifExt = /\.gif(\?.*)?$/i.test(trimmed.split("#")[0])
+    if (isGifExt) {
+      setError("Raw .gif files won't animate on WhatsApp. Use an MP4 or WebM URL. Giphy offers MP4 versions — open the GIF on giphy.com, click Share → Copy Link, and replace /giphy.gif with /giphy.mp4")
+      return
+    }
     setError("")
     const body: Record<string, unknown> = { url: url.trim() }
     if (caption.trim()) body.caption = caption.trim()
