@@ -130,38 +130,38 @@
 }
 
 .dark {
-  /* Scalar-inspired navy/indigo-tinted dark palette */
-  --background: oklch(0.118 0.033 267);      /* #11131e — main page */
-  --foreground: oklch(0.960 0.006 255);      /* near-white with cool tint */
-  --card: oklch(0.163 0.039 264);            /* #1c2132 — surfaces */
-  --card-foreground: oklch(0.960 0.006 255);
-  --popover: oklch(0.192 0.037 263);         /* dialogs — between card & accent */
-  --popover-foreground: oklch(0.756 0.018 237); /* #b2bac2 — dialog body text */
-  --primary: oklch(0.650 0.165 155);         /* brighter emerald on dark */
+  /* Scalar-inspired navy/indigo palette — hex avoids oklch gamut clipping */
+  --background: #11131e;
+  --foreground: #f0f2ff;
+  --card: #1c2132;
+  --card-foreground: #f0f2ff;
+  --popover: #222840;
+  --popover-foreground: #b2bac2;
+  --primary: oklch(0.650 0.165 155);
   --primary-foreground: oklch(0.120 0.040 160);
-  --secondary: oklch(0.192 0.037 263);
-  --secondary-foreground: oklch(0.960 0.006 255);
-  --muted: oklch(0.185 0.033 265);
-  --muted-foreground: oklch(0.530 0.034 264); /* #6e748b — muted labels */
-  --accent: oklch(0.237 0.038 262);           /* #2f354a — hover states */
-  --accent-foreground: oklch(0.960 0.006 255);
+  --secondary: #222840;
+  --secondary-foreground: #f0f2ff;
+  --muted: #191e2e;
+  --muted-foreground: #6e748b;
+  --accent: #2f354a;
+  --accent-foreground: #f0f2ff;
   --destructive: oklch(0.480 0.150 25);
   --destructive-foreground: oklch(0.970 0 0);
-  --border: oklch(0.265 0.032 263);           /* visible but subtle border */
-  --input: oklch(0.192 0.037 263);
+  --border: #2e3549;
+  --input: #222840;
   --ring: oklch(0.750 0.185 155);
   --chart-1: oklch(0.750 0.185 155);
   --chart-2: oklch(0.7137 0.1434 254.6240);
   --chart-3: oklch(0.7090 0.1592 293.5412);
   --chart-4: oklch(0.8369 0.1644 84.4286);
   --chart-5: oklch(0.7845 0.1325 181.9120);
-  --sidebar: oklch(0.118 0.033 267);          /* same as background */
-  --sidebar-foreground: oklch(0.630 0.025 255);
+  --sidebar: #11131e;
+  --sidebar-foreground: #8892a4;
   --sidebar-primary: oklch(0.650 0.165 155);
   --sidebar-primary-foreground: oklch(0.120 0.040 160);
-  --sidebar-accent: oklch(0.237 0.038 262);
-  --sidebar-accent-foreground: oklch(0.960 0.006 255);
-  --sidebar-border: oklch(0.210 0.030 264);
+  --sidebar-accent: #2f354a;
+  --sidebar-accent-foreground: #f0f2ff;
+  --sidebar-border: #232a3e;
   --sidebar-ring: oklch(0.750 0.185 155);
   --radius: 0.35rem;
   --font-sans: Outfit, sans-serif;
