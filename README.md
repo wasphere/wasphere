@@ -22,7 +22,7 @@
 - **Audit log** — every API call logged with timestamp, status, session, endpoint
 - **Message statistics** — 7-day send history, by-type breakdown, 24h trend on the Overview page
 - **IP/CIDR allowlist** — restrict API access by IP
-- **Swagger docs** — full OpenAPI spec at `/api/docs`
+- **Interactive API docs** — Scalar three-column reference at `/api/reference` (WA Server) and `/api/reference` (Dashboard API)
 
 ---
 
@@ -111,7 +111,14 @@ Services:
 
 ## API Reference
 
-Full Swagger UI: `http://localhost:3001/api/docs` (WA Server)
+| Reference | URL | Audience |
+|---|---|---|
+| **WhatsApp API** | `http://localhost:3001/api/reference` | Developers using the API to send messages, manage sessions, configure webhooks |
+| **Admin API** | `http://localhost:3000/api/reference` | Tooling that manages workspaces, API keys, audit logs |
+
+Both use Scalar's three-column layout — sidebar navigation, endpoint docs, and live code samples (cURL, JavaScript, Python, PHP) on the right. Toggle dark mode in the top-right corner.
+
+> **Auth note:** Both doc UIs are publicly accessible by default. The spec includes `X-Api-Token` / Bearer auth schemas so you can try authenticated endpoints directly in the UI. To gate the docs UI behind auth, set `SWAGGER_ENABLED=false` and serve your own proxy.
 
 Quick examples:
 

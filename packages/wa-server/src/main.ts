@@ -7,6 +7,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SsrfExceptionFilter } from './common/ssrf-exception.filter';
 import { UriDecodeExceptionFilter } from './common/uri-decode-exception.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { apiReference } from '@scalar/nestjs-api-reference';
 
 // Parse CLI args: --port 3001 and validate docs env vars
 function validateDocsEnv(): void {
@@ -229,45 +230,39 @@ async function bootstrap() {
 
     const document = SwaggerModule.createDocument(app, config);
 
-    const basicUser = process.env.DOCS_BASIC_AUTH_USER;
-    const basicPass = process.env.DOCS_BASIC_AUTH_PASS;
-    const expressApp = app.getHttpAdapter().getInstance();
+    // Raw OpenAPI JSON — publicly accessible; Scalar reads from this.
+    // To gate docs behind auth, set SWAGGER_ENABLED=false and serve your own wrapper.
+    app.use('/api/docs-json', (_req: unknown, res: { json: (d: unknown) => void }) => {
+      res.json(document);
+    });
 
-    // SwaggerModule registers directly on Express (not NestJS router), so NestJS
-    // middleware consumer (AuthMiddleware) does not cover Swagger routes.
-    // We attach auth guards directly on the Express app BEFORE SwaggerModule.setup().
-    if (basicUser && basicPass) {
-      // Basic Auth mode: check Basic credentials on all /api/docs* paths.
-      const basicAuthGuard = (req: any, res: any, next: any) => {
-        const authHeader = req.headers['authorization'];
-        if (!authHeader || !authHeader.startsWith('Basic ')) {
-          res.setHeader('WWW-Authenticate', 'Basic realm="WaSphere Docs"');
-          return res.status(401).send('Unauthorized');
-        }
-        const [user, pass] = Buffer.from(authHeader.slice(6), 'base64').toString().split(':');
-        if (user !== basicUser || pass !== basicPass) {
-          res.setHeader('WWW-Authenticate', 'Basic realm="WaSphere Docs"');
-          return res.status(401).send('Unauthorized');
-        }
-        next();
-      };
-      expressApp.use(`/${swaggerPath}`, basicAuthGuard);
-      expressApp.use(`/${swaggerPath}-json`, basicAuthGuard);
-    } else {
-      // X-Api-Token fallback mode: reuse the same token check as the rest of the API.
-      const tokenGuard = (req: any, res: any, next: any) => {
-        const incoming = req.headers['x-api-token'];
-        if (!incoming || incoming !== token) {
-          return res.status(401).json({ message: 'Unauthorized', statusCode: 401 });
-        }
-        next();
-      };
-      expressApp.use(`/${swaggerPath}`, tokenGuard);
-      expressApp.use(`/${swaggerPath}-json`, tokenGuard);
-    }
+    // Scalar three-column API reference — publicly accessible
+    app.use(
+      '/api/reference',
+      apiReference({
+        spec: { url: '/api/docs-json' },
+        metaData: {
+          title: 'WaSphere API Reference',
+          description: 'WhatsApp automation REST API — sessions, messages, webhooks, contacts, groups',
+        },
+        defaultHttpClient: { targetKey: 'shell', clientKey: 'curl' },
+        customCss: `
+          .light-mode {
+            --scalar-color-accent: #10b981;
+            --scalar-background-accent: #10b98120;
+          }
+          .dark-mode {
+            --scalar-color-accent: #34d399;
+            --scalar-background-accent: #34d39920;
+          }
+        `,
+      }),
+    );
 
-    // SwaggerModule registers at /${swaggerPath} and /${swaggerPath}-json on Express directly.
-    SwaggerModule.setup(swaggerPath, app, document);
+    // Redirect old Swagger path so existing bookmarks still work
+    app.use(`/${swaggerPath}`, (_req: unknown, res: { redirect: (url: string) => void }) => {
+      res.redirect('/api/reference');
+    });
   }
 
   await app.listen(port);
