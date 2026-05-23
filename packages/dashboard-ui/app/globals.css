@@ -195,4 +195,9 @@
   html {
     @apply font-sans;
   }
+  ::placeholder {
+    opacity: 0.4;
+    font-weight: 300;
+    font-size: 0.8125rem;
+  }
 }
