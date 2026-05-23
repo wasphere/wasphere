@@ -60,6 +60,21 @@ function sanitiseReason(raw: string): string {
 // suggest WhatsApp has rotated its minimum accepted version.
 const WA_VERSION_FALLBACK: [number, number, number] = [2, 3000, 1015901307];
 
+async function resolveMediaBuffer(url: string, maxBytes: number): Promise<Buffer> {
+  if (url.startsWith('data:')) {
+    const commaIdx = url.indexOf(',');
+    if (commaIdx === -1 || !url.slice(0, commaIdx).endsWith(';base64')) {
+      throw new Error('Invalid data URI: must be base64-encoded');
+    }
+    const buf = Buffer.from(url.slice(commaIdx + 1), 'base64');
+    if (buf.length > maxBytes) {
+      throw new Error(`Data URI exceeds maximum size of ${Math.round(maxBytes / (1024 * 1024))} MiB`);
+    }
+    return buf;
+  }
+  return safeFetch(url, { maxBytes }).then((r) => r.buffer());
+}
+
 @Injectable()
 export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   private sessions = new Map<string, WASocket>();
@@ -721,7 +736,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
-    const imageBuffer = await safeFetch(imageUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
+    const imageBuffer = await resolveMediaBuffer(imageUrl, 10 * 1024 * 1024);
     const result = await sock.sendMessage(jid, {
       image: imageBuffer,
       caption: caption || '',
@@ -755,7 +770,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
-    const audioBuffer = await safeFetch(audioUrl, { maxBytes: 25 * 1024 * 1024 }).then((r) => r.buffer());
+    const audioBuffer = await resolveMediaBuffer(audioUrl, 25 * 1024 * 1024);
     const result = await sock.sendMessage(jid, {
       audio: audioBuffer,
       mimetype: this.audioMimetype(audioUrl, isVoiceNote),
@@ -787,7 +802,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
-    const stickerBuffer = await safeFetch(stickerUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
+    const stickerBuffer = await resolveMediaBuffer(stickerUrl, 10 * 1024 * 1024);
     const result = await sock.sendMessage(jid, {
       sticker: stickerBuffer,
     });
@@ -948,7 +963,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const sock = this.getSocket(sessionId);
     await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
-    const viewOnceBuffer = await safeFetch(imageUrl, { maxBytes: 10 * 1024 * 1024 }).then((r) => r.buffer());
+    const viewOnceBuffer = await resolveMediaBuffer(imageUrl, 10 * 1024 * 1024);
     const result = await sock.sendMessage(jid, {
       image: viewOnceBuffer,
       caption: caption || '',
