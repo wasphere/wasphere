@@ -29,22 +29,19 @@ interface SessionsTableProps {
   initialSessions: Session[]
 }
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
-
-function statusVariant(status: string): BadgeVariant {
+function statusClassName(status: string): string {
   switch (status) {
     case "connected":
-      return "default"
+      return "bg-green-500/10 text-green-700 dark:text-green-400 border-transparent"
     case "qr_ready":
     case "connecting":
-      return "secondary"
+      return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-transparent"
     case "failed":
     case "qr_expired":
-      return "destructive"
     case "disconnected":
     case "logged_out":
     default:
-      return "outline"
+      return "bg-red-500/10 text-red-700 dark:text-red-400 border-transparent"
   }
 }
 
@@ -133,6 +130,7 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
           description="Create a session to connect a WhatsApp account."
         />
       ) : (
+        <div className="rounded-xl border bg-card overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -146,11 +144,11 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
           </TableHeader>
           <TableBody>
             {sessions.map((session) => (
-              <TableRow key={session.id}>
+              <TableRow key={session.id} className="hover:bg-muted/50 transition-colors">
                 <TableCell className="font-mono text-xs">{session.id}</TableCell>
                 <TableCell>{session.phoneNumber ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge variant={statusVariant(session.status)}>
+                  <Badge className={statusClassName(session.status)}>
                     {session.status}
                   </Badge>
                 </TableCell>
@@ -182,6 +180,7 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
             ))}
           </TableBody>
         </Table>
+        </div>
       )}
 
       <NewSessionDialog
