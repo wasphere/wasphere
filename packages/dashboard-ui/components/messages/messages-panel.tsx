@@ -2,11 +2,10 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -14,6 +13,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { MessageTypeSelector } from "@/components/messages/message-type-selector"
+import { RecipientInput } from "@/components/messages/recipient-input"
+import { ResponsePanel } from "@/components/messages/response-panel"
+import { TextForm } from "@/components/messages/forms/text-form"
+import { ImageForm } from "@/components/messages/forms/image-form"
+import { VideoForm } from "@/components/messages/forms/video-form"
+import { AudioForm } from "@/components/messages/forms/audio-form"
+import { DocumentForm } from "@/components/messages/forms/document-form"
+import { StickerForm } from "@/components/messages/forms/sticker-form"
+import { GifForm } from "@/components/messages/forms/gif-form"
+import { LocationForm } from "@/components/messages/forms/location-form"
+import { ContactForm } from "@/components/messages/forms/contact-form"
+import { ButtonsForm } from "@/components/messages/forms/buttons-form"
+import { ListForm } from "@/components/messages/forms/list-form"
+import { PollForm } from "@/components/messages/forms/poll-form"
+import { ReactionForm } from "@/components/messages/forms/reaction-form"
+import { ViewOnceForm } from "@/components/messages/forms/view-once-form"
+import { type MessageType } from "@/lib/message-types"
 
 interface ConnectedSession {
   id: string
@@ -36,6 +53,45 @@ function sessionLabel(session: ConnectedSession): string {
   return session.name ?? session.phoneNumber ?? session.id
 }
 
+type ResponseState = "idle" | "loading" | "success" | "error"
+
+function renderForm(
+  type: MessageType,
+  onSubmit: (body: Record<string, unknown>) => Promise<void>,
+  submitting: boolean
+): React.ReactNode {
+  switch (type) {
+    case "text":
+      return <TextForm onSubmit={onSubmit} submitting={submitting} />
+    case "image":
+      return <ImageForm onSubmit={onSubmit} submitting={submitting} />
+    case "video":
+      return <VideoForm onSubmit={onSubmit} submitting={submitting} />
+    case "audio":
+      return <AudioForm onSubmit={onSubmit} submitting={submitting} />
+    case "document":
+      return <DocumentForm onSubmit={onSubmit} submitting={submitting} />
+    case "sticker":
+      return <StickerForm onSubmit={onSubmit} submitting={submitting} />
+    case "gif":
+      return <GifForm onSubmit={onSubmit} submitting={submitting} />
+    case "location":
+      return <LocationForm onSubmit={onSubmit} submitting={submitting} />
+    case "contact":
+      return <ContactForm onSubmit={onSubmit} submitting={submitting} />
+    case "buttons":
+      return <ButtonsForm onSubmit={onSubmit} submitting={submitting} />
+    case "list":
+      return <ListForm onSubmit={onSubmit} submitting={submitting} />
+    case "poll":
+      return <PollForm onSubmit={onSubmit} submitting={submitting} />
+    case "reaction":
+      return <ReactionForm onSubmit={onSubmit} submitting={submitting} />
+    case "view-once":
+      return <ViewOnceForm onSubmit={onSubmit} submitting={submitting} />
+  }
+}
+
 export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
   const [selectedSessionId, setSelectedSessionId] = React.useState<string>(
     connectedSessions[0]?.id ?? ""
@@ -43,15 +99,16 @@ export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
   const [activeTab, setActiveTab] = React.useState<"single" | "bulk">("single")
 
   // Single tab state
+  const [messageType, setMessageType] = React.useState<MessageType>("text")
   const [to, setTo] = React.useState("")
-  const [messageType, setMessageType] = React.useState<"text" | "image">("text")
-  const [singleText, setSingleText] = React.useState("")
-  const [imageUrl, setImageUrl] = React.useState("")
-  const [caption, setCaption] = React.useState("")
-  const [singleSubmitting, setSingleSubmitting] = React.useState(false)
-  const [singleErrors, setSingleErrors] = React.useState<
-    Partial<Record<"to" | "text" | "imageUrl", string>>
-  >({})
+  const [toError, setToError] = React.useState("")
+  const [submitting, setSubmitting] = React.useState(false)
+
+  // Response panel state
+  const [responseState, setResponseState] = React.useState<ResponseState>("idle")
+  const [responseStatusCode, setResponseStatusCode] = React.useState<number | undefined>()
+  const [responseTimestamp, setResponseTimestamp] = React.useState<string | undefined>()
+  const [responseData, setResponseData] = React.useState<unknown>(undefined)
 
   // Bulk tab state
   const [recipients, setRecipients] = React.useState("")
@@ -73,43 +130,40 @@ export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
     }
   }
 
-  const pollJob = React.useCallback(
-    async (jobId: string) => {
-      if (isFetchingRef.current) return
-      isFetchingRef.current = true
+  const pollJob = React.useCallback(async (jobId: string) => {
+    if (isFetchingRef.current) return
+    isFetchingRef.current = true
 
-      try {
-        const res = await fetch(`/api/messages/bulk/${jobId}`)
-        if (!res.ok) {
-          clearPoller()
-          setPollingJobId(null)
-          toast.error("Failed to fetch job status.")
-          isFetchingRef.current = false
-          return
-        }
-
-        const job: BulkJob = await res.json()
-        setBulkJob(job)
-
-        if (job.status === "completed") {
-          clearPoller()
-          setPollingJobId(null)
-          toast.success("Bulk send completed.")
-        } else if (job.status === "failed") {
-          clearPoller()
-          setPollingJobId(null)
-          toast.error("Bulk send failed.")
-        }
-      } catch {
+    try {
+      const res = await fetch(`/api/messages/bulk/${jobId}`)
+      if (!res.ok) {
         clearPoller()
         setPollingJobId(null)
-        toast.error("Could not reach the server.")
-      } finally {
+        toast.error("Failed to fetch job status.")
         isFetchingRef.current = false
+        return
       }
-    },
-    []
-  )
+
+      const job: BulkJob = (await res.json()) as BulkJob
+      setBulkJob(job)
+
+      if (job.status === "completed") {
+        clearPoller()
+        setPollingJobId(null)
+        toast.success("Bulk send completed.")
+      } else if (job.status === "failed") {
+        clearPoller()
+        setPollingJobId(null)
+        toast.error("Bulk send failed.")
+      }
+    } catch {
+      clearPoller()
+      setPollingJobId(null)
+      toast.error("Could not reach the server.")
+    } finally {
+      isFetchingRef.current = false
+    }
+  }, [])
 
   React.useEffect(() => {
     if (!pollingJobId) return
@@ -123,63 +177,37 @@ export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
     }
   }, [pollingJobId, pollJob])
 
-  const handleSingleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const errors: Partial<Record<"to" | "text" | "imageUrl", string>> = {}
-    if (!to.trim()) errors.to = "Recipient phone number is required."
-    if (messageType === "text" && !singleText.trim()) {
-      errors.text = "Message text is required."
-    }
-    if (messageType === "image" && !imageUrl.trim()) {
-      errors.imageUrl = "Image URL is required."
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setSingleErrors(errors)
+  const handleFormSubmit = async (body: Record<string, unknown>) => {
+    if (!to.trim()) {
+      setToError("Recipient is required.")
       return
     }
-
-    setSingleErrors({})
-    setSingleSubmitting(true)
+    setToError("")
+    setSubmitting(true)
+    setResponseState("loading")
 
     try {
-      const body: Record<string, string> = {
-        sessionId: selectedSessionId,
-        to: to.trim(),
-      }
-
-      if (messageType === "text") {
-        body.text = singleText.trim()
-      } else {
-        body.imageUrl = imageUrl.trim()
-        if (caption.trim()) {
-          body.caption = caption.trim()
-        }
-      }
-
-      const res = await fetch("/api/messages/send", {
+      const res = await fetch(`/api/messages/${messageType}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          sessionId: selectedSessionId,
+          to: to.trim(),
+          ...body,
+        }),
       })
-
-      const data = await res.json().catch(() => ({}))
-
-      if (!res.ok) {
-        toast.error(data.message ?? "Failed to send message.")
-        return
-      }
-
-      toast.success("Message sent.")
-      setTo("")
-      setSingleText("")
-      setImageUrl("")
-      setCaption("")
+      const data: unknown = await res.json().catch(() => ({}))
+      setResponseStatusCode(res.status)
+      setResponseTimestamp(new Date().toISOString())
+      setResponseData(data)
+      setResponseState(res.ok ? "success" : "error")
     } catch {
-      toast.error("Could not reach the server.")
+      setResponseState("error")
+      setResponseTimestamp(new Date().toISOString())
+      setResponseData({ message: "Connection Error" })
+      setResponseStatusCode(undefined)
     } finally {
-      setSingleSubmitting(false)
+      setSubmitting(false)
     }
   }
 
@@ -219,17 +247,27 @@ export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
         }),
       })
 
-      const data = await res.json().catch(() => ({}))
+      const data: Record<string, unknown> = (await res
+        .json()
+        .catch(() => ({}))) as Record<string, unknown>
 
       if (!res.ok) {
-        toast.error(data.message ?? "Failed to start bulk send.")
+        toast.error(
+          typeof data.message === "string" ? data.message : "Failed to start bulk send."
+        )
         return
       }
 
-      const jobId: string = data.jobId ?? data.id ?? ""
+      const jobId =
+        typeof data.jobId === "string"
+          ? data.jobId
+          : typeof data.id === "string"
+            ? data.id
+            : ""
+
       if (jobId) {
         setPollingJobId(jobId)
-        setBulkJob(data)
+        setBulkJob(data as BulkJob)
         toast.success("Bulk job started.")
       } else {
         toast.success("Bulk send initiated.")
@@ -242,203 +280,132 @@ export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Messages</h1>
-      </div>
+    <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
+      {/* Left: form area */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Messages</h1>
+        </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label>Session</Label>
-        <Select
-          value={selectedSessionId}
-          onValueChange={(val) => setSelectedSessionId(val as string)}
-        >
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Select a session" />
-          </SelectTrigger>
-          <SelectContent>
-            {connectedSessions.map((session) => (
-              <SelectItem key={session.id} value={session.id}>
-                {sessionLabel(session)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Tabs
-        value={activeTab}
-        onValueChange={(val) => setActiveTab(val as "single" | "bulk")}
-      >
-        <TabsList>
-          <TabsTrigger value="single">Single</TabsTrigger>
-          <TabsTrigger value="bulk">Bulk</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="single" className="mt-4">
-          <form
-            onSubmit={handleSingleSubmit}
-            className="flex flex-col gap-4 max-w-lg"
+        <div className="flex flex-col gap-1.5">
+          <Label>Session</Label>
+          <Select
+            value={selectedSessionId}
+            onValueChange={(val) => { if (val !== null) setSelectedSessionId(val) }}
           >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="single-to">Recipient</Label>
-              <Input
-                id="single-to"
-                placeholder="447911123456@s.whatsapp.net"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-              />
-              {singleErrors.to && (
-                <p className="text-xs text-destructive">{singleErrors.to}</p>
-              )}
-            </div>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Select a session" />
+            </SelectTrigger>
+            <SelectContent>
+              {connectedSessions.map((session) => (
+                <SelectItem key={session.id} value={session.id}>
+                  {sessionLabel(session)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={messageType === "text" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setMessageType("text")}
-              >
-                Text
-              </Button>
-              <Button
-                type="button"
-                variant={messageType === "image" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setMessageType("image")}
-              >
-                Image
-              </Button>
-            </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(val) => setActiveTab(val as "single" | "bulk")}
+        >
+          <TabsList>
+            <TabsTrigger value="single">Single Message</TabsTrigger>
+            <TabsTrigger value="bulk">Bulk</TabsTrigger>
+          </TabsList>
 
-            {messageType === "text" ? (
+          <TabsContent value="single" className="mt-4 flex flex-col gap-4">
+            <RecipientInput value={to} onChange={setTo} error={toError} />
+            <MessageTypeSelector value={messageType} onChange={setMessageType} />
+            <div className="rounded-xl border bg-card p-4">
+              {renderForm(messageType, handleFormSubmit, submitting)}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="bulk" className="mt-4">
+            <form onSubmit={handleBulkSubmit} className="flex flex-col gap-4 max-w-lg">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="single-text">Message</Label>
+                <Label htmlFor="bulk-recipients">
+                  Recipients{" "}
+                  <span className="text-muted-foreground font-normal">
+                    (one phone number per line)
+                  </span>
+                </Label>
                 <Textarea
-                  id="single-text"
+                  id="bulk-recipients"
+                  placeholder={
+                    "447911123456@s.whatsapp.net\n447911654321@s.whatsapp.net"
+                  }
+                  value={recipients}
+                  onChange={(e) => setRecipients(e.target.value)}
+                  rows={5}
+                />
+                {bulkErrors.recipients && (
+                  <p className="text-xs text-destructive">{bulkErrors.recipients}</p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="bulk-text">Message</Label>
+                <Textarea
+                  id="bulk-text"
                   placeholder="Type your message…"
-                  value={singleText}
-                  onChange={(e) => setSingleText(e.target.value)}
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
                   rows={4}
                 />
-                {singleErrors.text && (
-                  <p className="text-xs text-destructive">{singleErrors.text}</p>
+                {bulkErrors.text && (
+                  <p className="text-xs text-destructive">{bulkErrors.text}</p>
                 )}
               </div>
-            ) : (
-              <>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="image-url">Image URL</Label>
-                  <Input
-                    id="image-url"
-                    placeholder="https://example.com/image.jpg"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                  />
-                  {singleErrors.imageUrl && (
-                    <p className="text-xs text-destructive">
-                      {singleErrors.imageUrl}
+
+              <Button
+                type="submit"
+                disabled={bulkSubmitting || pollingJobId !== null}
+                className="w-fit"
+              >
+                {bulkSubmitting ? "Starting…" : "Send to All"}
+              </Button>
+
+              {bulkJob && (
+                <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+                  {bulkJob.status === "completed" ? (
+                    <p className="text-green-600 dark:text-green-400 font-medium">
+                      Completed
+                      {typeof bulkJob.sent === "number" &&
+                        typeof bulkJob.total === "number" &&
+                        ` — Sent: ${bulkJob.sent} / ${bulkJob.total}`}
                     </p>
+                  ) : bulkJob.status === "failed" ? (
+                    <p className="text-destructive font-medium">Failed</p>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
+                      <p className="text-muted-foreground">
+                        {typeof bulkJob.sent === "number" &&
+                        typeof bulkJob.total === "number"
+                          ? `Sending… ${bulkJob.sent} / ${bulkJob.total}`
+                          : `Status: ${bulkJob.status}`}
+                      </p>
+                    </div>
                   )}
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="image-caption">
-                    Caption{" "}
-                    <span className="text-muted-foreground font-normal">
-                      (optional)
-                    </span>
-                  </Label>
-                  <Textarea
-                    id="image-caption"
-                    placeholder="Image caption…"
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-              </>
-            )}
-
-            <Button type="submit" disabled={singleSubmitting} className="w-fit">
-              {singleSubmitting ? "Sending…" : "Send Message"}
-            </Button>
-          </form>
-        </TabsContent>
-
-        <TabsContent value="bulk" className="mt-4">
-          <form
-            onSubmit={handleBulkSubmit}
-            className="flex flex-col gap-4 max-w-lg"
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="bulk-recipients">
-                Recipients{" "}
-                <span className="text-muted-foreground font-normal">
-                  (one phone number per line)
-                </span>
-              </Label>
-              <Textarea
-                id="bulk-recipients"
-                placeholder={
-                  "447911123456@s.whatsapp.net\n447911654321@s.whatsapp.net"
-                }
-                value={recipients}
-                onChange={(e) => setRecipients(e.target.value)}
-                rows={5}
-              />
-              {bulkErrors.recipients && (
-                <p className="text-xs text-destructive">
-                  {bulkErrors.recipients}
-                </p>
               )}
-            </div>
+            </form>
+          </TabsContent>
+        </Tabs>
+      </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="bulk-text">Message</Label>
-              <Textarea
-                id="bulk-text"
-                placeholder="Type your message…"
-                value={bulkText}
-                onChange={(e) => setBulkText(e.target.value)}
-                rows={4}
-              />
-              {bulkErrors.text && (
-                <p className="text-xs text-destructive">{bulkErrors.text}</p>
-              )}
-            </div>
-
-            <Button type="submit" disabled={bulkSubmitting || pollingJobId !== null} className="w-fit">
-              {bulkSubmitting ? "Starting…" : "Send to All"}
-            </Button>
-
-            {bulkJob && (
-              <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-                {bulkJob.status === "completed" ? (
-                  <p className="text-green-600 dark:text-green-400 font-medium">
-                    Completed
-                    {typeof bulkJob.sent === "number" &&
-                      typeof bulkJob.total === "number" &&
-                      ` — Sent: ${bulkJob.sent} / ${bulkJob.total}`}
-                  </p>
-                ) : bulkJob.status === "failed" ? (
-                  <p className="text-destructive font-medium">Failed</p>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
-                    <p className="text-muted-foreground">
-                      {typeof bulkJob.sent === "number" &&
-                      typeof bulkJob.total === "number"
-                        ? `Sending… ${bulkJob.sent} / ${bulkJob.total}`
-                        : `Status: ${bulkJob.status}`}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </form>
-        </TabsContent>
-      </Tabs>
+      {/* Right: response panel */}
+      <div className="lg:sticky lg:top-4 h-fit">
+        <ResponsePanel
+          state={responseState}
+          statusCode={responseStatusCode}
+          timestamp={responseTimestamp}
+          data={responseData}
+        />
+      </div>
     </div>
   )
 }
