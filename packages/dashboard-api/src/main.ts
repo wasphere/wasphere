@@ -61,8 +61,19 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
-    rawBody: true,
+    bodyParser: false,
   });
+
+  const { json: expressJson, urlencoded: expressUrlEncoded } = await import('express');
+  app.use(
+    expressJson({
+      limit: '10mb',
+      verify: (req: import('http').IncomingMessage & { rawBody?: Buffer }, _res, buf) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
+  app.use(expressUrlEncoded({ extended: true, limit: '10mb' }));
 
   // Trust X-Forwarded-For for correct IP in throttler when behind a reverse proxy
   const expressApp = app.getHttpAdapter().getInstance() as {
