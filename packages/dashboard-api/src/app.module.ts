@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { InternalModule } from './internal/internal.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { InternalModule } from './internal/internal.module';
     AuthModule,
     WorkspacesModule,
     InternalModule,
+    ApiKeysModule,
   ],
   providers: [
     {

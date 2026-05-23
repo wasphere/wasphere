@@ -11,6 +11,10 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "paths": {
+      ".prisma/client": ["./node_modules/.prisma/client/index"],
+      ".prisma/client/*": ["./node_modules/.prisma/client/*"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
