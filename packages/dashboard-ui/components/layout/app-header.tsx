@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -63,32 +64,38 @@ export function AppHeader() {
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="flex flex-col gap-0.5 pb-2">
-              <span className="font-semibold text-sm">{displayName}</span>
-              <span className="text-xs text-muted-foreground font-normal">
-                {displayEmail}
-              </span>
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="flex flex-col gap-0.5 pb-2">
+                <span className="font-semibold text-sm">{displayName}</span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  {displayEmail}
+                </span>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground font-normal pb-1">
-              Theme
-            </DropdownMenuLabel>
-            <DropdownMenuItem className="gap-2" onClick={() => setTheme("light")}>
-              <Sun size={14} /> Light
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" onClick={() => setTheme("dark")}>
-              <Moon size={14} /> Dark
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" onClick={() => setTheme("system")}>
-              <Monitor size={14} /> System
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal pb-1">
+                Theme
+              </DropdownMenuLabel>
+              <DropdownMenuItem className="gap-2" onClick={() => setTheme("light")}>
+                <Sun size={14} /> Light
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onClick={() => setTheme("dark")}>
+                <Moon size={14} /> Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onClick={() => setTheme("system")}>
+                <Monitor size={14} /> System
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => void logout()}
-            >
-              Log out
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => void logout()}
+              >
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
