@@ -39,7 +39,7 @@ export function DocumentForm({ onSubmit, submitting }: FormProps) {
   }
 
   const fillSample = () => {
-    setUrl("https://www.africau.edu/images/default/sample.pdf")
+    setUrl("https://pdfobject.com/pdf/sample.pdf")
     setFileName("sample.pdf")
     setMimetype("application/pdf")
     setErrors({})
