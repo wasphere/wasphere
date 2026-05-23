@@ -17,8 +17,8 @@ export function GifForm({ onSubmit, submitting }: FormProps) {
   const [error, setError] = React.useState("")
 
   const fillSample = () => {
-    setUrl("https://media.giphy.com/media/ZVik7pIojeZ0I/giphy.gif")
-    setCaption("Sample GIF")
+    setUrl("https://www.w3schools.com/html/mov_bbb.mp4")
+    setCaption("Animated via WaSphere")
     setError("")
   }
 
@@ -44,7 +44,7 @@ export function GifForm({ onSubmit, submitting }: FormProps) {
         accept="video/mp4,image/gif"
         urlPlaceholder="https://example.com/animation.mp4" error={error}
       />
-      <p className="text-xs text-muted-foreground -mt-2">MP4 recommended for best compatibility</p>
+      <p className="text-xs text-muted-foreground -mt-2">Must be <strong>MP4 or WebM</strong> — raw .gif files will not animate on WhatsApp.</p>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="gif-caption">
           Caption <span className="text-muted-foreground font-normal">(optional)</span>
