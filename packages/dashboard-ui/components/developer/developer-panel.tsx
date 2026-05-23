@@ -98,10 +98,10 @@ function ApiReferenceTab({ waServerUrl }: ApiReferenceTabProps) {
     <div className="flex flex-col gap-6">
       {/* WA Server URL */}
       <div className="flex flex-col gap-1.5">
-        <Label>WA Server URL</Label>
+        <Label className="text-sm font-medium text-foreground">WA Server URL</Label>
         {waServerUrl ? (
           <div className="flex items-center gap-2">
-            <Input value={waServerUrl} readOnly className="font-mono text-sm" />
+            <Input value={waServerUrl} readOnly className="font-mono text-sm placeholder:text-zinc-400 placeholder:font-light" />
             <a
               href={`${waServerUrl}/api/docs`}
               target="_blank"
@@ -113,19 +113,19 @@ function ApiReferenceTab({ waServerUrl }: ApiReferenceTabProps) {
             </a>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Not configured</p>
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">Not configured</p>
         )}
       </div>
 
       {/* API Token */}
       <div className="flex flex-col gap-1.5">
-        <Label>API Token</Label>
+        <Label className="text-sm font-medium text-foreground">API Token</Label>
         {loading ? (
           <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
         ) : fetchError ? (
           <ApiError message="Could not load token." />
         ) : token === null ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">
             No token configured. Set one in{" "}
             <a
               href="/dashboard/settings"
@@ -140,7 +140,7 @@ function ApiReferenceTab({ waServerUrl }: ApiReferenceTabProps) {
             <Input
               value={revealed ? token : "••••••••••••"}
               readOnly
-              className="font-mono text-sm"
+              className="font-mono text-sm placeholder:text-zinc-400 placeholder:font-light"
               aria-label="API token"
             />
             <Button
@@ -248,7 +248,7 @@ function AuditLogTab() {
       {/* Filter bar */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <Label htmlFor="al-session">Session ID</Label>
+          <Label htmlFor="al-session" className="text-sm font-medium text-foreground">Session ID</Label>
           <Input
             id="al-session"
             placeholder="session-id"
@@ -256,12 +256,12 @@ function AuditLogTab() {
             onChange={(e) =>
               setPendingFilters((f) => ({ ...f, sessionId: e.target.value }))
             }
-            className="w-40"
+            className="w-40 placeholder:text-zinc-400 placeholder:font-light"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <Label htmlFor="al-status">Status Code</Label>
+          <Label htmlFor="al-status" className="text-sm font-medium text-foreground">Status Code</Label>
           <Input
             id="al-status"
             placeholder="200"
@@ -269,12 +269,12 @@ function AuditLogTab() {
             onChange={(e) =>
               setPendingFilters((f) => ({ ...f, statusCode: e.target.value }))
             }
-            className="w-24"
+            className="w-24 placeholder:text-zinc-400 placeholder:font-light"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <Label htmlFor="al-from">From</Label>
+          <Label htmlFor="al-from" className="text-sm font-medium text-foreground">From</Label>
           <Input
             id="al-from"
             type="datetime-local"
@@ -282,12 +282,12 @@ function AuditLogTab() {
             onChange={(e) =>
               setPendingFilters((f) => ({ ...f, from: e.target.value }))
             }
-            className="w-52"
+            className="w-52 placeholder:text-zinc-400 placeholder:font-light"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <Label htmlFor="al-to">To</Label>
+          <Label htmlFor="al-to" className="text-sm font-medium text-foreground">To</Label>
           <Input
             id="al-to"
             type="datetime-local"
@@ -295,7 +295,7 @@ function AuditLogTab() {
             onChange={(e) =>
               setPendingFilters((f) => ({ ...f, to: e.target.value }))
             }
-            className="w-52"
+            className="w-52 placeholder:text-zinc-400 placeholder:font-light"
           />
         </div>
 
@@ -322,29 +322,29 @@ function AuditLogTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Timestamp</TableHead>
-              <TableHead>Session ID</TableHead>
-              <TableHead>Method</TableHead>
-              <TableHead>Path</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Duration (ms)</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Timestamp</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Session ID</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Method</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Path</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</TableHead>
+              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Duration (ms)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map((log) => (
               <TableRow key={log.id}>
-                <TableCell className="text-xs tabular-nums">
+                <TableCell className="text-xs text-zinc-400 font-light tabular-nums">
                   {new Date(log.timestamp).toLocaleString()}
                 </TableCell>
-                <TableCell className="font-mono text-xs">
+                <TableCell className="font-mono text-sm text-zinc-700 dark:text-zinc-300">
                   {log.sessionId ?? "—"}
                 </TableCell>
                 <TableCell>
-                  <span className="font-mono text-xs font-medium">
+                  <span className="font-mono text-xs font-medium text-zinc-700 dark:text-zinc-300">
                     {log.method}
                   </span>
                 </TableCell>
-                <TableCell className="max-w-xs truncate font-mono text-xs">
+                <TableCell className="max-w-xs truncate font-mono text-sm text-zinc-700 dark:text-zinc-300">
                   {log.path}
                 </TableCell>
                 <TableCell>
@@ -360,7 +360,7 @@ function AuditLogTab() {
                     {log.statusCode}
                   </span>
                 </TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className="text-sm text-zinc-700 dark:text-zinc-300 tabular-nums">
                   {log.durationMs ?? "—"}
                 </TableCell>
               </TableRow>
@@ -371,7 +371,7 @@ function AuditLogTab() {
 
       {/* Pagination */}
       {!error && !isLoading && items.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex items-center justify-between text-sm text-zinc-700 dark:text-zinc-300">
           <span>
             Page {page} — {total} total
           </span>

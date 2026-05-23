@@ -77,14 +77,14 @@ export default async function WebhooksPage() {
         <h1 className="text-2xl font-semibold">Webhooks</h1>
         <Card>
           <CardHeader>
-            <CardTitle>WA Server not configured</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-base font-medium text-foreground">WA Server not configured</CardTitle>
+            <CardDescription className="text-sm font-normal text-zinc-700 dark:text-zinc-300">
               Configure your WA Server connection before setting a webhook
               callback URL.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">
               Go to{" "}
               <Link
                 href="/dashboard/settings"
@@ -109,8 +109,8 @@ export default async function WebhooksPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Callback URL</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-base font-medium text-foreground">Callback URL</CardTitle>
+          <CardDescription className="text-sm font-normal text-zinc-700 dark:text-zinc-300">
             The WA Server will POST inbound events (messages, status updates)
             to this URL. Only one callback URL is active at a time — saving
             replaces the previous.
