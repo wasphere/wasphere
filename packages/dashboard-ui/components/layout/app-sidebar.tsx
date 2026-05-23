@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Smartphone,
@@ -15,6 +16,9 @@ import {
   Sparkles,
   Plug,
   Lock,
+  ExternalLink,
+  BookOpen,
+  ShieldCheck,
 } from "lucide-react";
 
 import {
@@ -92,10 +96,63 @@ function NavItem({
   );
 }
 
+function ExternalNavItem({
+  label,
+  href,
+  icon: Icon,
+  collapsed,
+  disabled,
+  disabledReason,
+}: {
+  label: string;
+  href: string | null;
+  icon: React.ElementType;
+  collapsed: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
+}) {
+  const inner = (
+    <SidebarMenuButton
+      disabled={disabled}
+      tooltip={disabled ? disabledReason : label}
+      className={[
+        collapsed ? "flex-col justify-center gap-1 h-auto py-2" : "flex-row gap-2",
+        disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+      ].join(" ")}
+    >
+      <Icon className="shrink-0" size={18} />
+      <span className={collapsed ? "text-[10px] text-center leading-none" : "text-sm leading-none flex-1"}>
+        {label}
+      </span>
+      {!collapsed && !disabled && <ExternalLink size={12} className="shrink-0 ml-auto opacity-50" />}
+    </SidebarMenuButton>
+  );
+
+  if (disabled || !href) return <SidebarMenuItem className="mb-0.5">{inner}</SidebarMenuItem>;
+
+  return (
+    <SidebarMenuItem className="mb-0.5">
+      <a href={href} target="_blank" rel="noopener noreferrer" className="w-full">
+        {inner}
+      </a>
+    </SidebarMenuItem>
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const [waServerUrl, setWaServerUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/workspace")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.waServerUrl) setWaServerUrl(data.waServerUrl);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <Sidebar collapsible="icon">
@@ -125,6 +182,34 @@ export function AppSidebar() {
                   />
                 );
               })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          {!collapsed && (
+            <SidebarGroupLabel className="text-muted-foreground/60 text-xs uppercase tracking-wider px-2 mb-1">
+              API Docs
+            </SidebarGroupLabel>
+          )}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <ExternalNavItem
+                label="WhatsApp API"
+                href={waServerUrl ? `${waServerUrl}/api/reference` : null}
+                icon={BookOpen}
+                collapsed={collapsed}
+                disabled={!waServerUrl}
+                disabledReason="Configure WA Server URL in Settings first"
+              />
+              <ExternalNavItem
+                label="Admin API"
+                href="/api/reference"
+                icon={ShieldCheck}
+                collapsed={collapsed}
+              />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
