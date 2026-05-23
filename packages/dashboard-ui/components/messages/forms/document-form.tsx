@@ -17,6 +17,13 @@ export function DocumentForm({ onSubmit, submitting }: FormProps) {
   const [mimetype, setMimetype] = React.useState("")
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
+  const fillSample = () => {
+    setUrl("https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf")
+    setFileName("sample.pdf")
+    setMimetype("application/pdf")
+    setErrors({})
+  }
+
   const handleFileSelected = (dataUri: string, name: string, type: string) => {
     setUrl(dataUri)
     if (!fileName) setFileName(name)
@@ -36,6 +43,12 @@ export function DocumentForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <MediaInput
         id="doc-url" label="Document" value={url}
         onChange={setUrl}

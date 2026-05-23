@@ -16,6 +16,12 @@ export function VideoForm({ onSubmit, submitting }: FormProps) {
   const [caption, setCaption] = React.useState("")
   const [error, setError] = React.useState("")
 
+  const fillSample = () => {
+    setUrl("https://www.w3schools.com/html/mov_bbb.mp4")
+    setCaption("Sample video")
+    setError("")
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!url.trim()) { setError("Video URL or file is required."); return }
@@ -27,6 +33,12 @@ export function VideoForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <MediaInput
         id="video-url" label="Video" value={url} onChange={setUrl}
         accept="video/mp4,video/3gpp,video/quicktime"

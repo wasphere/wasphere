@@ -16,6 +16,12 @@ export function GifForm({ onSubmit, submitting }: FormProps) {
   const [caption, setCaption] = React.useState("")
   const [error, setError] = React.useState("")
 
+  const fillSample = () => {
+    setUrl("https://media.giphy.com/media/ZVik7pIojeZ0I/giphy.gif")
+    setCaption("Sample GIF")
+    setError("")
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!url.trim()) { setError("GIF URL or file is required."); return }
@@ -27,6 +33,12 @@ export function GifForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <MediaInput
         id="gif-url" label="GIF / Animation" value={url} onChange={setUrl}
         accept="video/mp4,image/gif"

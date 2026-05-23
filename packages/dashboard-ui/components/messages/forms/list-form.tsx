@@ -38,6 +38,22 @@ export function ListForm({ onSubmit, submitting }: FormProps) {
   const [sections, setSections] = React.useState<ListSection[]>([emptySection()])
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
+  const fillSample = () => {
+    setTitle("WaSphere Menu")
+    setText("Choose an option from the list below:")
+    setButtonText("View Options")
+    setSections([
+      {
+        title: "Options",
+        rows: [
+          { id: "row_1", title: "Send Message", description: "Test sending a message" },
+          { id: "row_2", title: "View Sessions", description: "Check connected sessions" },
+        ],
+      },
+    ])
+    setErrors({})
+  }
+
   const addSection = () => {
     if (sections.length < 10) setSections([...sections, emptySection()])
   }
@@ -120,6 +136,12 @@ export function ListForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-900/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
         WhatsApp has deprecated interactive list messages for personal accounts. Recipients on newer WhatsApp versions may see plain text instead.
       </div>

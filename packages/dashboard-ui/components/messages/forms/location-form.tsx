@@ -18,6 +18,14 @@ export function LocationForm({ onSubmit, submitting }: FormProps) {
   const [address, setAddress] = React.useState("")
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
+  const fillSample = () => {
+    setLatitude("33.6844")
+    setLongitude("73.0479")
+    setName("Islamabad")
+    setAddress("Capital Territory, Pakistan")
+    setErrors({})
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
@@ -42,6 +50,12 @@ export function LocationForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="loc-lat">Latitude</Label>

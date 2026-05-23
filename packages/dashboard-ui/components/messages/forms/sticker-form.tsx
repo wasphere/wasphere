@@ -13,6 +13,11 @@ export function StickerForm({ onSubmit, submitting }: FormProps) {
   const [url, setUrl] = React.useState("")
   const [error, setError] = React.useState("")
 
+  const fillSample = () => {
+    setUrl("https://picsum.photos/512/512")
+    setError("")
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!url.trim()) { setError("Sticker URL or file is required."); return }
@@ -22,6 +27,12 @@ export function StickerForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <MediaInput
         id="sticker-url" label="Sticker" value={url} onChange={setUrl}
         accept="image/webp,image/png,image/gif"

@@ -23,6 +23,17 @@ export function ButtonsForm({ onSubmit, submitting }: FormProps) {
   const [buttons, setButtons] = React.useState<ButtonItem[]>([{ id: "", text: "" }])
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
+  const fillSample = () => {
+    setText("Please choose an option below:")
+    setFooter("Powered by WaSphere")
+    setButtons([
+      { id: "opt_1", text: "Option A" },
+      { id: "opt_2", text: "Option B" },
+      { id: "opt_3", text: "Option C" },
+    ])
+    setErrors({})
+  }
+
   const addButton = () => {
     if (buttons.length < 3) {
       setButtons([...buttons, { id: "", text: "" }])
@@ -62,6 +73,12 @@ export function ButtonsForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-900/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
         WhatsApp has deprecated interactive buttons for personal accounts. Recipients on newer WhatsApp versions may see plain text instead.
       </div>
