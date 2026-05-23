@@ -32,10 +32,11 @@ import { ReactionForm } from "@/components/messages/forms/reaction-form"
 import { ViewOnceForm } from "@/components/messages/forms/view-once-form"
 import { type MessageType } from "@/lib/message-types"
 
-interface ConnectedSession {
+interface SessionItem {
   id: string
   phoneNumber?: string | null
   name?: string | null
+  status: string
 }
 
 interface BulkJob {
@@ -46,10 +47,10 @@ interface BulkJob {
 }
 
 interface MessagesPanelProps {
-  connectedSessions: ConnectedSession[]
+  sessions: SessionItem[]
 }
 
-function sessionLabel(session: ConnectedSession): string {
+function sessionLabel(session: SessionItem): string {
   return session.name ?? session.phoneNumber ?? session.id
 }
 
@@ -92,9 +93,10 @@ function renderForm(
   }
 }
 
-export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
+export function MessagesPanel({ sessions }: MessagesPanelProps) {
+  const connectedSessions = sessions.filter((s) => s.status === "connected")
   const [selectedSessionId, setSelectedSessionId] = React.useState<string>(
-    connectedSessions[0]?.id ?? ""
+    connectedSessions[0]?.id ?? sessions[0]?.id ?? ""
   )
   const [activeTab, setActiveTab] = React.useState<"single" | "bulk">("single")
 
@@ -279,6 +281,8 @@ export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
     }
   }
 
+  const noConnected = connectedSessions.length === 0
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
       {/* Left: form area */}
@@ -286,6 +290,16 @@ export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Messages</h1>
         </div>
+
+        {noConnected && (
+          <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+            No connected sessions. Go to{" "}
+            <a href="/dashboard/sessions" className="font-medium underline underline-offset-2">
+              Sessions
+            </a>{" "}
+            and connect a WhatsApp account before sending messages.
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <Label>Session</Label>
@@ -297,9 +311,12 @@ export function MessagesPanel({ connectedSessions }: MessagesPanelProps) {
               <SelectValue placeholder="Select a session" />
             </SelectTrigger>
             <SelectContent>
-              {connectedSessions.map((session) => (
+              {sessions.map((session) => (
                 <SelectItem key={session.id} value={session.id}>
                   {sessionLabel(session)}
+                  {session.status !== "connected" && (
+                    <span className="ml-1.5 text-xs text-muted-foreground">({session.status})</span>
+                  )}
                 </SelectItem>
               ))}
             </SelectContent>

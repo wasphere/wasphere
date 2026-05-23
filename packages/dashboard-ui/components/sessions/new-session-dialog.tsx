@@ -80,12 +80,10 @@ export function NewSessionDialog({
       const data = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        setServerError(
-          data.message ??
-            (Array.isArray(data.message)
-              ? data.message.join(", ")
-              : "Failed to create session.")
-        )
+        const msg = Array.isArray(data.message)
+          ? (data.message as string[]).join("\n")
+          : (data.message ?? "Failed to create session.")
+        setServerError(msg)
         return
       }
 
@@ -137,7 +135,7 @@ export function NewSessionDialog({
           </div>
 
           {serverError && (
-            <p className="text-xs text-destructive">{serverError}</p>
+            <p className="text-xs text-destructive whitespace-pre-line">{serverError}</p>
           )}
 
           <DialogFooter showCloseButton>

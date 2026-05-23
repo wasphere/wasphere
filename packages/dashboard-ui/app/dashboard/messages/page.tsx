@@ -1,6 +1,5 @@
 import { cookies } from "next/headers"
 import { ApiError } from "@/components/ui/api-error"
-import { EmptyState } from "@/components/ui/empty-state"
 import { MessagesPanel } from "@/components/messages/messages-panel"
 
 const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
@@ -36,7 +35,7 @@ async function fetchSessions(
 ): Promise<SessionRaw[] | null> {
   try {
     const res = await fetch(
-      `${API_BASE}/workspaces/${workspaceId}/proxy/sessions`,
+      `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions`,
       {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
@@ -76,21 +75,12 @@ export default async function MessagesPage() {
     )
   }
 
-  const connectedSessions = sessions
-    .filter((s) => s.status === "connected")
-    .map((s) => ({ id: s.id, phoneNumber: s.phoneNumber, name: s.name }))
+  const allSessions = sessions.map((s) => ({
+    id: s.id,
+    phoneNumber: s.phoneNumber,
+    name: s.name,
+    status: s.status,
+  }))
 
-  if (connectedSessions.length === 0) {
-    return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Messages</h1>
-        <EmptyState
-          message="No connected sessions."
-          description="Connect a WhatsApp account on the Sessions page first."
-        />
-      </div>
-    )
-  }
-
-  return <MessagesPanel connectedSessions={connectedSessions} />
+  return <MessagesPanel sessions={allSessions} />
 }
