@@ -35,6 +35,23 @@ const EVENT_GROUPS = [
 
 const ALL_EVENTS = EVENT_GROUPS.flatMap((g) => g.events)
 
+const EVENT_LABELS: Record<string, string> = {
+  "message.sent": "Message Sent",
+  "message.delivered": "Message Delivered",
+  "message.read": "Message Read",
+  "message.failed": "Message Failed",
+  "message.received": "Message Received",
+  "session.connected": "Session Connected",
+  "session.disconnected": "Session Disconnected",
+  "session.qr": "Session QR Code",
+  "session.failed": "Session Failed",
+  "webhook.test": "Test Event",
+}
+
+function eventLabel(ev: string): string {
+  return EVENT_LABELS[ev] ?? ev.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 // ─── Signing secret reveal ────────────────────────────────────────────────────
 
 function SecretDisplay({ secret, onDone }: { secret: string; onDone: () => void }) {
@@ -218,7 +235,7 @@ export function WebhookAddDialog({ open, onClose, onCreated }: WebhookAddDialogP
                             onCheckedChange={() => toggleEvent(ev)}
                             disabled={wildcard}
                           />
-                          <span className="text-xs text-zinc-700 dark:text-zinc-300 font-mono">{ev}</span>
+                          <span className="text-xs text-zinc-700 dark:text-zinc-300">{eventLabel(ev)}</span>
                         </label>
                       ))}
                     </div>

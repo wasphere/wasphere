@@ -37,6 +37,23 @@ type TestState = "loading" | TestResult
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const EVENT_LABELS: Record<string, string> = {
+  "message.sent": "Message Sent",
+  "message.delivered": "Message Delivered",
+  "message.read": "Message Read",
+  "message.failed": "Message Failed",
+  "message.received": "Message Received",
+  "session.connected": "Session Connected",
+  "session.disconnected": "Session Disconnected",
+  "session.qr": "Session QR Code",
+  "session.failed": "Session Failed",
+  "webhook.test": "Test Event",
+}
+
+function eventLabel(ev: string): string {
+  return EVENT_LABELS[ev] ?? ev.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—"
   try { return new Date(iso).toLocaleString() } catch { return iso }
@@ -48,13 +65,13 @@ function truncateUrl(url: string, max = 40): string {
 
 function EventChips({ events }: { events: string[] }) {
   if (events.length === 1 && events[0] === "*")
-    return <Badge variant="secondary" className="font-mono text-xs">all (*)</Badge>
+    return <Badge variant="secondary" className="text-xs">All Events</Badge>
   const visible = events.slice(0, 2)
   const rest = events.length - visible.length
   return (
     <div className="flex flex-wrap gap-1">
-      {visible.map((e) => <Badge key={e} variant="outline" className="font-mono text-xs">{e}</Badge>)}
-      {rest > 0 && <Badge variant="outline" className="text-xs">+{rest}</Badge>}
+      {visible.map((e) => <Badge key={e} variant="outline" className="text-xs">{eventLabel(e)}</Badge>)}
+      {rest > 0 && <Badge variant="outline" className="text-xs">+{rest} more</Badge>}
     </div>
   )
 }
