@@ -58,7 +58,7 @@ export function WebhooksForm({ initialUrl }: WebhooksFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="callback-url">Callback URL</Label>
+        <Label htmlFor="callback-url" className="text-sm font-medium text-foreground">Callback URL</Label>
         <Input
           id="callback-url"
           type="url"
@@ -66,8 +66,9 @@ export function WebhooksForm({ initialUrl }: WebhooksFormProps) {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           required
+          className="placeholder:text-zinc-400 placeholder:font-light"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-zinc-400 font-light">
           In development mode the WA Server only accepts{" "}
           <code>localhost</code> / <code>127.0.0.1</code> URLs. Set{" "}
           <code>NODE_ENV=production</code> on the WA Server to allow external

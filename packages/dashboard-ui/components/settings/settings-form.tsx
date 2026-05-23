@@ -101,23 +101,24 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
       {/* Section 1 — WA Server Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">WA Server Configuration</CardTitle>
+          <CardTitle className="text-base font-medium text-foreground">WA Server Configuration</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleConfigSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="wa-server-url">Server URL</Label>
+              <Label htmlFor="wa-server-url" className="text-sm font-medium text-foreground">Server URL</Label>
               <Input
                 id="wa-server-url"
                 type="url"
                 placeholder="http://localhost:3001"
                 value={waServerUrl}
                 onChange={(e) => setWaServerUrl(e.target.value)}
+                className="placeholder:text-zinc-400 placeholder:font-light"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="wa-server-token">API Token</Label>
+              <Label htmlFor="wa-server-token" className="text-sm font-medium text-foreground">API Token</Label>
               <div className="flex gap-2">
                 <Input
                   id="wa-server-token"
@@ -125,7 +126,7 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
                   placeholder="Enter token"
                   value={waServerToken}
                   onChange={(e) => setWaServerToken(e.target.value)}
-                  className="flex-1"
+                  className="flex-1 placeholder:text-zinc-400 placeholder:font-light"
                 />
                 <Button
                   type="button"
@@ -155,12 +156,12 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
       {/* Section 2 — Workspace Name */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Workspace Name</CardTitle>
+          <CardTitle className="text-base font-medium text-foreground">Workspace Name</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleNameSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="workspace-name">Name</Label>
+              <Label htmlFor="workspace-name" className="text-sm font-medium text-foreground">Name</Label>
               <Input
                 id="workspace-name"
                 type="text"
@@ -168,6 +169,7 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                className="placeholder:text-zinc-400 placeholder:font-light"
               />
             </div>
 
