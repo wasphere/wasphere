@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { InternalModule } from './internal/internal.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
     WorkspacesModule,
     InternalModule,
     ApiKeysModule,
+    WebhooksModule,
   ],
   providers: [
     {
