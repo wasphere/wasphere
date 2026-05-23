@@ -110,6 +110,9 @@ export class WorkspacesController {
     @Param('id') id: string,
     @Param('0') wildcardPath: string,
   ) {
-    await this.proxyService.proxy(req.user.userId, id, wildcardPath, req, res);
+    const apiKeyPermissions = req.user.permissions as
+      | import('../lib/permissions').PermissionScope[]
+      | undefined;
+    await this.proxyService.proxy(req.user.userId, id, wildcardPath, req, res, apiKeyPermissions);
   }
 }

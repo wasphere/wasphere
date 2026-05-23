@@ -148,6 +148,65 @@ S8_NEW=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/workspaces/$WS_ID" \
   -H "Authorization: Bearer $NEW_KEY")
 check_http "S8b: new key accepted after rotate" "200" "$S8_NEW"
 
+# ── B.6: Proxy permission enforcement ────────────────────────────────────────
+echo ""
+echo "=== B.6: Proxy scope enforcement ==="
+
+MSG_KEY_JSON=$(curl -s -X POST "$BASE/workspaces/$WS_ID/api-keys" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"smoke-msg-proxy","permissions":["messages:send"]}')
+MSG_KEY=$(echo "$MSG_KEY_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('key',''))" 2>/dev/null || echo "")
+
+WILD_JSON=$(curl -s -X POST "$BASE/workspaces/$WS_ID/api-keys" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"smoke-wild-proxy","permissions":["*"]}')
+WILD_KEY=$(echo "$WILD_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('key',''))" 2>/dev/null || echo "")
+
+SID="smoke-test-session"
+
+# S9: messages:send key cannot GET /sessions/:sid (requires sessions:read)
+S9=$(curl -s -o /dev/null -w "%{http_code}" \
+  "$BASE/workspaces/$WS_ID/proxy/sessions/$SID" \
+  -H "Authorization: Bearer $MSG_KEY")
+check_http "S9: messages:send key blocked on GET /proxy/sessions/:sid" "403" "$S9"
+
+# S10: messages:send key can POST /sessions/:sid/messages/text (guard passes, proxy error OK)
+S10=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  "$BASE/workspaces/$WS_ID/proxy/sessions/$SID/messages/text" \
+  -H "Authorization: Bearer $MSG_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to":"1234","text":"smoke"}')
+[ "$S10" != "403" ] && pass "S10: messages:send key passes guard on POST /proxy/messages/text (HTTP $S10)" \
+                     || fail "S10: guard should not block messages:send key on POST /messages/text" "got 403"
+
+# S11: messages:send key cannot DELETE /sessions/:sid (requires sessions:delete)
+S11=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+  "$BASE/workspaces/$WS_ID/proxy/sessions/$SID" \
+  -H "Authorization: Bearer $MSG_KEY")
+check_http "S11: messages:send key blocked on DELETE /proxy/sessions/:sid" "403" "$S11"
+
+# S12: wildcard key passes on all proxy paths
+S12=$(curl -s -o /dev/null -w "%{http_code}" \
+  "$BASE/workspaces/$WS_ID/proxy/sessions/$SID" \
+  -H "Authorization: Bearer $WILD_KEY")
+[ "$S12" != "403" ] && pass "S12: wildcard key passes guard on GET /proxy/sessions/:sid (HTTP $S12)" \
+                      || fail "S12: wildcard key should pass guard" "got 403"
+
+# S13: JWT bypasses proxy scope check
+S13=$(curl -s -o /dev/null -w "%{http_code}" \
+  "$BASE/workspaces/$WS_ID/proxy/sessions/$SID" \
+  -H "Authorization: Bearer $JWT")
+[ "$S13" != "403" ] && pass "S13: JWT user bypasses proxy scope check (HTTP $S13)" \
+                      || fail "S13: JWT should bypass scope check" "got 403"
+
+# S14: unmapped path → fail closed (403) for API key
+S14=$(curl -s -o /dev/null -w "%{http_code}" \
+  "$BASE/workspaces/$WS_ID/proxy/unknown-resource" \
+  -H "Authorization: Bearer $MSG_KEY")
+check_http "S14: unmapped proxy path fails closed for API key" "403" "$S14"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "────────────────────────────────────────"

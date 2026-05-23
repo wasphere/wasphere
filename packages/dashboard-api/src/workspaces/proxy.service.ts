@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ForbiddenException,
   GatewayTimeoutException,
   HttpException,
   HttpStatus,
@@ -12,6 +13,8 @@ import * as https from 'https';
 import { IncomingMessage, ServerResponse } from 'http';
 import { Request, Response } from 'express';
 import { WorkspacesService } from './workspaces.service';
+import { proxyPermission } from '../lib/proxy-permissions';
+import { hasPermission, PermissionScope, WILDCARD_PERMISSION } from '../lib/permissions';
 
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -43,6 +46,7 @@ export class ProxyService {
     wildcardPath: string,
     req: Request,
     res: Response,
+    apiKeyPermissions?: (PermissionScope | typeof WILDCARD_PERMISSION)[],
   ): Promise<void> {
     const method = req.method.toUpperCase();
 
@@ -60,6 +64,17 @@ export class ProxyService {
 
     if (decodedPath.includes('..')) {
       throw new BadRequestException('Path traversal not allowed');
+    }
+
+    // API key scope enforcement: JWT users (apiKeyPermissions undefined) bypass.
+    if (apiKeyPermissions !== undefined) {
+      const required = proxyPermission(method, decodedPath);
+      if (required === null) {
+        throw new ForbiddenException('API key cannot access this proxy path');
+      }
+      if (!hasPermission(apiKeyPermissions, required)) {
+        throw new ForbiddenException(`API key missing required permission: ${required}`);
+      }
     }
 
     let waServerUrl: string;
