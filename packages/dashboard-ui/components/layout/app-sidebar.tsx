@@ -141,7 +141,7 @@ function ExternalNavItem({
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { state } = useSidebar();
+  const { state, setOpen } = useSidebar();
   const collapsed = state === "collapsed";
   const [waServerUrl, setWaServerUrl] = useState<string | null>(null);
 
@@ -155,7 +155,11 @@ export function AppSidebar() {
   }, []);
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar
+      collapsible="icon"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
       <SidebarHeader className="px-4 py-3">
         {collapsed ? (
           <span className="text-primary font-bold text-lg flex justify-center">W</span>
