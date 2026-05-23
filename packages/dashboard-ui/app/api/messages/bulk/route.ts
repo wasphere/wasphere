@@ -19,6 +19,7 @@ interface BulkSendBody {
   sessionId: string
   recipients: string[]
   text: string
+  delayMs?: number
 }
 
 export async function POST(request: Request) {
@@ -30,14 +31,14 @@ export async function POST(request: Request) {
 
   let body: BulkSendBody
   try {
-    body = await request.json()
+    body = (await request.json()) as BulkSendBody
   } catch {
     return Response.json({ message: "Invalid request body" }, { status: 400 })
   }
 
-  const { sessionId, recipients, text } = body
+  const { sessionId, recipients, text, delayMs } = body
 
-  if (!sessionId || !recipients || !text) {
+  if (!sessionId || !recipients?.length || !text?.trim()) {
     return Response.json(
       { message: "sessionId, recipients, and text are required" },
       { status: 400 }
@@ -49,15 +50,22 @@ export async function POST(request: Request) {
     return Response.json({ message: "No workspace found" }, { status: 404 })
   }
 
+  // wa-server BulkMessageDto: { recipients, message: { text }, delayMs }
+  const waBody: Record<string, unknown> = {
+    recipients,
+    message: { text: text.trim() },
+    delayMs: delayMs ?? 1000,
+  }
+
   const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/api/bulk/send-text`,
+    `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}/messages/bulk`,
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ sessionId, recipients, text }),
+      body: JSON.stringify(waBody),
     }
   )
 

@@ -4,11 +4,18 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+interface RequestInfo {
+  method: string
+  url: string
+  body: unknown
+}
+
 interface ResponsePanelProps {
   state: "idle" | "loading" | "success" | "error"
   statusCode?: number
   timestamp?: string
   data?: unknown
+  request?: RequestInfo
 }
 
 function getStatusBadgeClass(code: number | undefined): string {
@@ -47,9 +54,11 @@ export function ResponsePanel({
   statusCode,
   timestamp,
   data,
+  request,
 }: ResponsePanelProps) {
   const [copied, setCopied] = React.useState(false)
   const [copiedId, setCopiedId] = React.useState(false)
+  const [copiedCurl, setCopiedCurl] = React.useState(false)
 
   const copyResponse = async () => {
     const text = JSON.stringify(data, null, 2)
@@ -64,17 +73,43 @@ export function ResponsePanel({
     setTimeout(() => setCopiedId(false), 2000)
   }
 
+  const copyCurl = async () => {
+    if (!request) return
+    const bodyJson = JSON.stringify(request.body, null, 2)
+    const curl = `curl -X ${request.method} '${window.location.origin}${request.url}' \\\n  -H 'Content-Type: application/json' \\\n  -d '${bodyJson}'`
+    await navigator.clipboard.writeText(curl).catch(() => null)
+    setCopiedCurl(true)
+    setTimeout(() => setCopiedCurl(false), 2000)
+  }
+
   const messageId = data ? extractMessageId(data) : null
 
   return (
     <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
       <h2 className="text-sm font-semibold text-foreground">API Response</h2>
 
-      {state === "idle" && (
+      {request && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground font-medium">Request</p>
+            <Button type="button" size="xs" variant="outline" onClick={copyCurl}>
+              {copiedCurl ? "Copied!" : "Copy as curl"}
+            </Button>
+          </div>
+          <pre className="bg-zinc-900 text-zinc-100 rounded-md p-3 overflow-auto text-xs font-mono max-h-40 whitespace-pre-wrap break-all">
+            <span className="text-blue-400">{request.method}</span>{" "}
+            <span className="text-green-400">{request.url}</span>{"\n"}
+            {JSON.stringify(request.body, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {state === "idle" && !request && (
         <p className="text-sm text-muted-foreground py-8 text-center">
           Send a message to see the response
         </p>
       )}
+      {state === "idle" && request && null}
 
       {state === "loading" && (
         <div className="flex items-center justify-center py-8">
