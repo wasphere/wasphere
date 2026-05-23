@@ -2,14 +2,13 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { MediaInput } from "@/components/messages/media-input"
 
 interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
   submitting: boolean
-  onClear?: () => void
 }
 
 export function ImageForm({ onSubmit, submitting }: FormProps) {
@@ -19,10 +18,7 @@ export function ImageForm({ onSubmit, submitting }: FormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!url.trim()) {
-      setError("Image URL is required.")
-      return
-    }
+    if (!url.trim()) { setError("Image URL or file is required."); return }
     setError("")
     const body: Record<string, unknown> = { url: url.trim() }
     if (caption.trim()) body.caption = caption.trim()
@@ -31,32 +27,18 @@ export function ImageForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="image-url">Image URL</Label>
-        <Input
-          id="image-url"
-          placeholder="https://example.com/image.jpg"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        {error && <p className="text-xs text-destructive">{error}</p>}
-      </div>
-
+      <MediaInput
+        id="image-url" label="Image" value={url} onChange={setUrl}
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        urlPlaceholder="https://example.com/image.jpg" error={error}
+      />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="image-caption">
-          Caption{" "}
-          <span className="text-muted-foreground font-normal">(optional)</span>
+          Caption <span className="text-muted-foreground font-normal">(optional)</span>
         </Label>
-        <Textarea
-          id="image-caption"
-          placeholder="Image caption…"
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          maxLength={1024}
-          rows={2}
-        />
+        <Textarea id="image-caption" placeholder="Image caption…" value={caption}
+          onChange={(e) => setCaption(e.target.value)} maxLength={1024} rows={2} />
       </div>
-
       <Button type="submit" disabled={submitting} className="w-fit">
         {submitting ? "Sending…" : "Send Message"}
       </Button>
