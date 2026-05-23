@@ -2,7 +2,7 @@ import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, MaxLength } from 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SendLocationDto {
-  @ApiProperty({ description: 'Recipient JID (phone number or group JID)', example: '14155552671' })
+  @ApiProperty({ description: 'Recipient phone number with country code (e.g. 923001234567) or full WhatsApp JID (e.g. 923001234567@s.whatsapp.net). Both formats are accepted.', example: '923001234567' })
   @IsString() @IsNotEmpty() @MaxLength(40) to: string;
 
   @ApiProperty({ description: 'Latitude in decimal degrees (-90 to 90)', example: 37.7749 })

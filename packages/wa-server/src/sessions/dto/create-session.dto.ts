@@ -26,26 +26,38 @@ export class CreateSessionDto {
   })
   proxy?: string;
 
-  @ApiPropertyOptional({ example: 2000 })
+  @ApiPropertyOptional({
+    description: 'Minimum anti-ban delay in milliseconds added before each outgoing message (0 = disabled). Combine with random_delay_max_ms for a randomised range, e.g. 1000–3000 ms mimics human typing pace.',
+    example: 1000,
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(60000)
   random_delay_min_ms?: number;
 
-  @ApiPropertyOptional({ example: 5000 })
+  @ApiPropertyOptional({
+    description: 'Maximum anti-ban delay in milliseconds. The server picks a random value between random_delay_min_ms and this value before sending. Set both to 0 to disable delay entirely.',
+    example: 3000,
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(60000)
   random_delay_max_ms?: number;
 
-  @ApiPropertyOptional({ default: false })
+  @ApiPropertyOptional({
+    description: 'When true, incoming messages are automatically marked as read as soon as they are received. Useful for bot sessions; leave false for human-operated sessions.',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   auto_read_on_receive?: boolean;
 
-  @ApiPropertyOptional({ default: true })
+  @ApiPropertyOptional({
+    description: 'When false, the session will not emit incoming message events to your webhook. Useful for send-only sessions to reduce webhook noise.',
+    default: true,
+  })
   @IsOptional()
   @IsBoolean()
   receive_enabled?: boolean;
