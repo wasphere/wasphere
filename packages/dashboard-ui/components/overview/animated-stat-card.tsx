@@ -69,7 +69,7 @@ interface AnimatedStatCardProps {
   suffix?: string
   sub?: string
   trend?: "up" | "down" | "neutral"
-  icon?: React.ElementType
+  icon?: React.ReactNode
   sparkline?: number[]
 }
 
@@ -80,7 +80,7 @@ export function AnimatedStatCard({
   suffix = "",
   sub,
   trend,
-  icon: Icon,
+  icon,
   sparkline,
 }: AnimatedStatCardProps) {
   const counted = useCountUp(targetCount ?? 0)
@@ -95,9 +95,9 @@ export function AnimatedStatCard({
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest leading-none">
             {title}
           </p>
-          {Icon && (
+          {icon && (
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20 shadow-sm dark:shadow-[0_0_18px_rgba(34,197,94,0.22)]">
-              <Icon size={18} className="text-primary" />
+              {icon}
             </div>
           )}
         </div>

@@ -1,6 +1,8 @@
 import { cookies } from "next/headers"
 import Link from "next/link"
 import { Smartphone, MessageSquare, ShieldCheck, Zap, BarChart2, ActivitySquare } from "lucide-react"
+
+const ICON_CLASS = "size-[18px] text-primary"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApiError } from "@/components/ui/api-error"
 import { cn } from "@/lib/utils"
@@ -232,7 +234,7 @@ export default async function OverviewPage() {
           value={`${connected} / ${total}`}
           sub={`${qrPending} pending · ${offline} offline`}
           trend="neutral"
-          icon={Smartphone}
+          icon={<Smartphone className={ICON_CLASS} />}
         />
         <AnimatedStatCard
           title="Messages (24h)"
@@ -240,7 +242,7 @@ export default async function OverviewPage() {
           targetCount={stats?.messages24h.count}
           sub={stats ? trendLabel : undefined}
           trend={stats ? trend24h : undefined}
-          icon={MessageSquare}
+          icon={<MessageSquare className={ICON_CLASS} />}
           sparkline={sparkline7d.length >= 2 ? sparkline7d : undefined}
         />
         <AnimatedStatCard
@@ -258,7 +260,7 @@ export default async function OverviewPage() {
                   : "neutral"
               : undefined
           }
-          icon={ShieldCheck}
+          icon={<ShieldCheck className={ICON_CLASS} />}
         />
         <AnimatedStatCard
           title="Events Today"
@@ -270,7 +272,7 @@ export default async function OverviewPage() {
               : undefined
           }
           trend="neutral"
-          icon={Zap}
+          icon={<Zap className={ICON_CLASS} />}
         />
       </div>
 
