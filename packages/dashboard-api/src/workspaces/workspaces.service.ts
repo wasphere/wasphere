@@ -163,66 +163,113 @@ export class WorkspacesService {
     if (!membership) throw new ForbiddenException('Not a member of this workspace');
 
     const MESSAGE_PATTERN = /\/messages\/([^/?]+)/;
-
-    // Last 7 full UTC days + today
     const now = new Date();
-    const dayStart = (daysAgo: number): Date => {
-      const d = new Date(now);
-      d.setUTCHours(0, 0, 0, 0);
-      d.setUTCDate(d.getUTCDate() - daysAgo);
-      return d;
-    };
 
-    const since7 = dayStart(6); // 7 days including today
+    // Time boundaries
+    const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const since48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    const since7d = new Date(now);
+    since7d.setUTCHours(0, 0, 0, 0);
+    since7d.setUTCDate(since7d.getUTCDate() - 6);
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(0, 0, 0, 0);
 
-    const [allTimeLogs, recentLogs] = await Promise.all([
-      this.prisma.auditLog.findMany({
+    const [
+      count24hSuccess,
+      countPrev24hSuccess,
+      count24hFailed,
+      recentMsgLogs,
+      recentAll,
+    ] = await Promise.all([
+      // Messages last 24h, 2xx
+      this.prisma.auditLog.count({
         where: {
           endpoint: { contains: '/messages/' },
           method: 'POST',
           statusCode: { gte: 200, lt: 300 },
+          timestamp: { gte: since24h },
         },
-        select: { endpoint: true },
       }),
+      // Messages 24-48h ago, 2xx (for trend)
+      this.prisma.auditLog.count({
+        where: {
+          endpoint: { contains: '/messages/' },
+          method: 'POST',
+          statusCode: { gte: 200, lt: 300 },
+          timestamp: { gte: since48h, lt: since24h },
+        },
+      }),
+      // Failed message sends last 24h
+      this.prisma.auditLog.count({
+        where: {
+          endpoint: { contains: '/messages/' },
+          method: 'POST',
+          statusCode: { gte: 400 },
+          timestamp: { gte: since24h },
+        },
+      }),
+      // Successful message logs last 7 days (for day buckets + type breakdown)
       this.prisma.auditLog.findMany({
         where: {
           endpoint: { contains: '/messages/' },
           method: 'POST',
           statusCode: { gte: 200, lt: 300 },
-          timestamp: { gte: since7 },
+          timestamp: { gte: since7d },
         },
         select: { endpoint: true, timestamp: true },
       }),
+      // Recent 8 audit entries (all methods) for activity feed
+      this.prisma.auditLog.findMany({
+        orderBy: { timestamp: 'desc' },
+        take: 8,
+        select: { id: true, method: true, endpoint: true, statusCode: true, timestamp: true, sessionId: true },
+      }),
     ]);
 
-    // Total & by-type from all time
-    const byType: Record<string, number> = {};
-    for (const log of allTimeLogs) {
-      const m = MESSAGE_PATTERN.exec(log.endpoint);
-      const type = m?.[1] ?? 'unknown';
-      byType[type] = (byType[type] ?? 0) + 1;
-    }
-
-    // Per-day buckets for last 7 days
+    // messages7d — 7-day buckets
     const buckets: Record<string, number> = {};
     for (let i = 6; i >= 0; i--) {
-      const d = dayStart(i);
+      const d = new Date(now);
+      d.setUTCHours(0, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() - i);
       buckets[d.toISOString().slice(0, 10)] = 0;
     }
-    for (const log of recentLogs) {
+    for (const log of recentMsgLogs) {
       const key = new Date(log.timestamp).toISOString().slice(0, 10);
       if (key in buckets) buckets[key]++;
     }
 
-    const last7Days = Object.entries(buckets).map(([date, count]) => ({ date, count }));
+    // eventsToday — type breakdown from today's message logs
+    const todayMsgLogs = recentMsgLogs.filter(
+      (l) => new Date(l.timestamp) >= todayStart,
+    );
+    const byTypeRaw: Record<string, number> = {};
+    for (const log of todayMsgLogs) {
+      const m = MESSAGE_PATTERN.exec(log.endpoint);
+      const type = m?.[1] ?? 'other';
+      byTypeRaw[type] = (byTypeRaw[type] ?? 0) + 1;
+    }
+
+    // successRate
+    const total24h = count24hSuccess + count24hFailed;
+    const successPct = total24h > 0 ? Math.round((count24hSuccess / total24h) * 100) : 100;
 
     return {
-      totalMessages: allTimeLogs.length,
-      last7Days,
-      byType: Object.entries(byType)
-        .map(([type, count]) => ({ type, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 8),
+      messages24h: { count: count24hSuccess, previousDayCount: countPrev24hSuccess },
+      successRate24h: { percentage: successPct, failed: count24hFailed },
+      eventsToday: {
+        count: todayMsgLogs.length,
+        byType: byTypeRaw,
+      },
+      messages7d: Object.entries(buckets).map(([date, count]) => ({ date, count })),
+      recentActivity: recentAll.map((log) => ({
+        id: log.id,
+        method: log.method,
+        endpoint: log.endpoint,
+        statusCode: log.statusCode,
+        sessionId: log.sessionId ?? null,
+        createdAt: log.timestamp,
+      })),
     };
   }
 
