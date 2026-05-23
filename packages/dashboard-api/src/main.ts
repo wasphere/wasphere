@@ -61,6 +61,7 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
+    rawBody: true,
   });
 
   // Trust X-Forwarded-For for correct IP in throttler when behind a reverse proxy
