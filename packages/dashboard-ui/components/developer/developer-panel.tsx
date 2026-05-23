@@ -123,7 +123,7 @@ function ApiReferenceTab({ waServerUrl }: ApiReferenceTabProps) {
       <div className="flex flex-col gap-1.5">
         <Label className="text-sm font-medium text-foreground">API Token</Label>
         {loading ? (
-          <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+          <div className="h-9 w-full animate-shimmer-mint rounded-md" />
         ) : fetchError ? (
           <ApiError message="Could not load token." />
         ) : token === null ? (
@@ -315,7 +315,7 @@ function AuditLogTab() {
       ) : isLoading ? (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-10 w-full animate-pulse rounded-md bg-muted" />
+            <div key={i} className="h-10 w-full animate-shimmer-mint rounded-md" />
           ))}
         </div>
       ) : items.length === 0 ? (
@@ -334,7 +334,7 @@ function AuditLogTab() {
           </TableHeader>
           <TableBody>
             {items.map((log) => (
-              <TableRow key={log.id}>
+              <TableRow key={log.id} className="hover:bg-muted/40 hover:-translate-y-px hover:shadow-sm transition-all duration-150 ease-out">
                 <TableCell className="text-xs text-zinc-400 font-light tabular-nums">
                   {new Date(log.timestamp).toLocaleString()}
                 </TableCell>

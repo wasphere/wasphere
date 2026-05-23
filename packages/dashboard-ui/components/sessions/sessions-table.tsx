@@ -13,6 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EmptyState } from "@/components/ui/empty-state"
+import { StatusDot } from "@/components/ui/status-dot"
+import { SessionsIllustration } from "@/components/empty-states"
 import { NewSessionDialog } from "@/components/sessions/new-session-dialog"
 import { QrDialog } from "@/components/sessions/qr-dialog"
 
@@ -126,6 +128,7 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
 
       {sessions.length === 0 ? (
         <EmptyState
+          illustration={<SessionsIllustration />}
           message="No sessions yet."
           description="Create a session to connect a WhatsApp account."
         />
@@ -144,11 +147,12 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
           </TableHeader>
           <TableBody>
             {sessions.map((session) => (
-              <TableRow key={session.id} className="hover:bg-muted/40 transition-colors">
+              <TableRow key={session.id} className="hover:bg-muted/40 hover:-translate-y-px hover:shadow-sm transition-all duration-150 ease-out">
                 <TableCell className="text-sm font-medium text-foreground">{session.id}</TableCell>
                 <TableCell className="text-sm text-zinc-700 dark:text-zinc-300 tabular-nums">{session.phoneNumber ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge className={statusClassName(session.status)}>
+                  <Badge className={`${statusClassName(session.status)} flex items-center gap-1.5`}>
+                    <StatusDot status={session.status} />
                     {session.status}
                   </Badge>
                 </TableCell>
