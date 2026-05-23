@@ -184,29 +184,44 @@ export function AntiBanControls({ sessions }: AntiBanControlsProps) {
           </Select>
         </div>
 
-        {/* Loading state */}
+        {/* Loading state — skeleton placeholders */}
         {loading && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <svg
-              className="h-4 w-4 animate-spin"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v8H4z"
-              />
-            </svg>
-            Loading session config…
+          <div className="flex flex-col gap-6">
+            {/* Random delay skeleton */}
+            <div className="flex flex-col gap-2">
+              <div className="h-4 w-36 rounded bg-muted animate-pulse" />
+              <div className="h-3 w-64 rounded bg-muted animate-pulse" />
+              <div className="grid grid-cols-2 gap-4 max-w-sm mt-1">
+                <div className="flex flex-col gap-1.5">
+                  <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                  <div className="h-9 w-full rounded-md bg-muted animate-pulse" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                  <div className="h-9 w-full rounded-md bg-muted animate-pulse" />
+                </div>
+              </div>
+            </div>
+            {/* Auto-read toggle skeleton */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-10 rounded-full bg-muted animate-pulse" />
+                <div className="h-4 w-44 rounded bg-muted animate-pulse" />
+              </div>
+              <div className="h-3 w-72 rounded bg-muted animate-pulse" />
+            </div>
+            {/* Receive enabled toggle skeleton */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-10 rounded-full bg-muted animate-pulse" />
+                <div className="h-4 w-44 rounded bg-muted animate-pulse" />
+              </div>
+              <div className="h-3 w-72 rounded bg-muted animate-pulse" />
+            </div>
+            {/* Save button skeleton */}
+            <div>
+              <div className="h-9 w-44 rounded-md bg-muted animate-pulse" />
+            </div>
           </div>
         )}
 

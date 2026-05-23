@@ -25,7 +25,10 @@ export function RecipientInput({ value, onChange, error }: RecipientInputProps) 
           type="button"
           size="sm"
           variant={recipientType === "personal" ? "default" : "ghost"}
-          onClick={() => setRecipientType("personal")}
+          onClick={() => {
+            setRecipientType("personal")
+            if (!value) onChange("+")
+          }}
           className="text-xs"
         >
           Personal
@@ -47,7 +50,20 @@ export function RecipientInput({ value, onChange, error }: RecipientInputProps) 
             : "XXXXXXXXXX-XXXXXXXXXX@g.us"
         }
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          const raw = e.target.value
+          let formatted = raw
+          if (
+            recipientType === "personal" &&
+            raw &&
+            !raw.startsWith("+") &&
+            !raw.includes("@") &&
+            /^\d/.test(raw)
+          ) {
+            formatted = "+" + raw
+          }
+          onChange(formatted)
+        }}
         className={cn(error && "border-destructive")}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
