@@ -16,6 +16,12 @@ export function AudioForm({ onSubmit, submitting }: FormProps) {
   const [isVoiceNote, setIsVoiceNote] = React.useState(false)
   const [error, setError] = React.useState("")
 
+  const fillSample = () => {
+    setUrl("https://upload.wikimedia.org/wikipedia/commons/4/4e/BWV_543-fugue.ogg")
+    setIsVoiceNote(false)
+    setError("")
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!url.trim()) { setError("Audio URL or file is required."); return }
@@ -25,6 +31,12 @@ export function AudioForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <MediaInput
         id="audio-url" label="Audio" value={url} onChange={setUrl}
         accept="audio/mpeg,audio/ogg,audio/wav,audio/aac,audio/mp4"

@@ -16,6 +16,12 @@ export function ReactionForm({ onSubmit, submitting }: FormProps) {
   const [emoji, setEmoji] = React.useState("")
   const [error, setError] = React.useState("")
 
+  const fillSample = () => {
+    setMessageId("3EB0000000000000000000")
+    setEmoji("👍")
+    setError("")
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!messageId.trim()) {
@@ -31,6 +37,12 @@ export function ReactionForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="reaction-msgid">Message ID</Label>
         <Input

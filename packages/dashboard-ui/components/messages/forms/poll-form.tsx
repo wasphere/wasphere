@@ -18,6 +18,12 @@ export function PollForm({ onSubmit, submitting }: FormProps) {
   const [selectableCount, setSelectableCount] = React.useState("1")
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
+  const fillSample = () => {
+    setName("Which WhatsApp feature do you use most?")
+    setOptions(["Messaging", "Voice Calls", "Video Calls", "Status Updates"])
+    setErrors({})
+  }
+
   const addOption = () => {
     if (options.length < 12) setOptions([...options, ""])
   }
@@ -54,6 +60,12 @@ export function PollForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="poll-name">Poll Question</Label>

@@ -16,6 +16,12 @@ export function ContactForm({ onSubmit, submitting }: FormProps) {
   const [phoneNumber, setPhoneNumber] = React.useState("")
   const [errors, setErrors] = React.useState<Record<string, string>>({})
 
+  const fillSample = () => {
+    setDisplayName("John Doe")
+    setPhoneNumber("+923000000000")
+    setErrors({})
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
@@ -34,6 +40,12 @@ export function ContactForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs text-muted-foreground">Fill in the fields below</span>
+        <Button type="button" size="xs" variant="outline" onClick={fillSample}>
+          Fill Sample
+        </Button>
+      </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="contact-name">Display Name</Label>
         <Input
