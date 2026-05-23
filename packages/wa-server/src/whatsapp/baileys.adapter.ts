@@ -945,9 +945,9 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     await this.applyRandomDelay(sessionId);
     const jid = this.toJid(to);
     // WhatsApp doesn't support .gif — send as mp4 with gifPlayback flag
-    const gifResponse = await safeFetch(gifUrl, { maxBytes: 100 * 1024 * 1024 });
+    const gifBuffer = await resolveMediaBuffer(gifUrl, 100 * 1024 * 1024);
     const result = await sock.sendMessage(jid, {
-      video: { stream: gifResponse.stream() },
+      video: gifBuffer,
       caption: caption || '',
       gifPlayback: true,
     });
