@@ -99,8 +99,45 @@ async function bootstrap(): Promise<void> {
 
   // OpenAPI spec — generated from NestJS decorators, served as JSON and via Scalar UI
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('WaSphere API')
-    .setDescription('Self-hosted WhatsApp automation platform — Dashboard API')
+    .setTitle('WaSphere — Admin API')
+    .setDescription(`
+WaSphere is a self-hosted WhatsApp automation platform. This Admin API manages the dashboard layer — workspaces, authentication, audit logs, and statistics.
+
+> **Looking for the WhatsApp API?** That lives on the WA Server (port 3001). Use it to send messages, manage sessions, configure webhooks, and interact with contacts and groups.
+
+## Authentication
+
+All endpoints except \`/auth/register\`, \`/auth/login\`, \`/auth/refresh\`, \`/auth/forgot-password\`, and \`/auth/reset-password\` require a **Bearer token**.
+
+\`\`\`bash
+# 1. Login to get a token
+curl -X POST http://your-dashboard:3000/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"email": "you@example.com", "password": "yourpassword"}'
+
+# 2. Use the token on protected endpoints
+curl http://your-dashboard:3000/workspaces \\
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+\`\`\`
+
+Tokens are short-lived JWTs. Use \`POST /auth/refresh\` with your refresh token to get a new access token.
+
+## Base URL
+
+\`\`\`
+http://your-dashboard:3000
+\`\`\`
+
+## Workspaces
+
+A **workspace** is the top-level container for your WaSphere setup. It holds your WA Server connection config (URL + token) and scopes all sessions, messages, and audit data.
+
+Most endpoints are scoped under \`/workspaces/{id}\`. Fetch your workspace ID from \`GET /workspaces\`.
+
+## Proxy
+
+\`ALL /workspaces/{id}/proxy/*\` transparently forwards requests to your configured WA Server, injecting auth automatically. This is how the dashboard UI talks to the WhatsApp API without exposing your WA Server token to the browser.
+    `.trim())
     .setVersion('1.0')
     .addBearerAuth()
     .build();

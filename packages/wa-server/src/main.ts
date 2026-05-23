@@ -221,8 +221,61 @@ async function bootstrap() {
     const { version } = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 
     const config = new DocumentBuilder()
-      .setTitle('WaSphere WA Server')
-      .setDescription('REST API for managing WhatsApp sessions, messages, groups, contacts, and webhooks.')
+      .setTitle('WaSphere — WhatsApp API')
+      .setDescription(`
+WaSphere is a self-hosted WhatsApp automation platform. This API lets you manage WhatsApp sessions, send all message types, configure webhooks, and interact with contacts and groups — all over a simple REST interface.
+
+## Authentication
+
+Every request must include your API token in the \`X-Api-Token\` header. Set this token via the \`WA_TOKEN\` environment variable when starting the server.
+
+\`\`\`bash
+curl http://your-server:3001/api/sessions \\
+  -H "X-Api-Token: YOUR_TOKEN"
+\`\`\`
+
+## Base URL
+
+\`\`\`
+http://your-server:3001/api
+\`\`\`
+
+## How Sessions Work
+
+A **session** represents one linked WhatsApp account.
+
+1. **Create** a session → \`POST /sessions/{sessionId}\`
+2. **Fetch the QR code** → \`GET /sessions/{sessionId}/qr\`
+3. **Scan** the QR with WhatsApp on your phone (Linked Devices → Link a Device)
+4. **Wait for status \`open\`** → \`GET /sessions/{sessionId}/status\`
+5. **Start sending** using \`sessionId\` in all message, contact, and group endpoints
+
+Sessions persist across server restarts. One server supports multiple concurrent sessions.
+
+## Message Types
+
+| Type | Endpoint |
+|------|----------|
+| Text | \`POST /sessions/{sessionId}/messages/text\` |
+| Image | \`POST /sessions/{sessionId}/messages/image\` |
+| Video | \`POST /sessions/{sessionId}/messages/video\` |
+| Audio | \`POST /sessions/{sessionId}/messages/audio\` |
+| Document | \`POST /sessions/{sessionId}/messages/document\` |
+| Location | \`POST /sessions/{sessionId}/messages/location\` |
+| Poll | \`POST /sessions/{sessionId}/messages/poll\` |
+| Buttons | \`POST /sessions/{sessionId}/messages/buttons\` |
+| List | \`POST /sessions/{sessionId}/messages/list\` |
+| Reaction | \`POST /sessions/{sessionId}/messages/reaction\` |
+| Sticker | \`POST /sessions/{sessionId}/messages/sticker\` |
+
+## Rate Limiting
+
+Default: **100 requests / minute** per IP. Configurable via \`RATE_LIMIT_MAX\` and \`RATE_LIMIT_WINDOW_MS\` environment variables.
+
+## IP Allowlist
+
+Optionally restrict API access to specific IPs or CIDR ranges via the \`ALLOWED_IPS\` environment variable.
+      `.trim())
       .setVersion(version)
       .addApiKey({ type: 'apiKey', in: 'header', name: 'X-Api-Token' }, 'X-Api-Token')
       .addSecurityRequirements('X-Api-Token')
