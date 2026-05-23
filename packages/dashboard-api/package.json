@@ -22,6 +22,7 @@
     "@nestjs/swagger": "8.1.1",
     "@nestjs/throttler": "^6.2.1",
     "@prisma/client": "^6.9.0",
+    "@scalar/nestjs-api-reference": "^1.1.19",
     "argon2": "^0.31.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
