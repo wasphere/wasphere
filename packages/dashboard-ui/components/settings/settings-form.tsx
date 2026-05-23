@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { toast } from "sonner"
-import { Globe, KeyRound, Eye, EyeOff, Building2, CheckCircle2, Server } from "lucide-react"
+import { Globe, KeyRound, Eye, EyeOff, Building2, CheckCircle2, Server, ShieldCheck, Bell, Lock, AlertTriangle, Copy, Check, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export interface Workspace {
@@ -30,6 +32,39 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
   const [name, setName] = React.useState(workspace.name)
   const [nameError, setNameError] = React.useState<string | null>(null)
   const [nameSubmitting, setNameSubmitting] = React.useState(false)
+
+  const [rotateLoading, setRotateLoading] = React.useState(false)
+  const [rotatedKey, setRotatedKey] = React.useState<string | null>(null)
+  const [rotateCopied, setRotateCopied] = React.useState(false)
+  const [rotateError, setRotateError] = React.useState<string | null>(null)
+
+  const handleRotate = async () => {
+    setRotateLoading(true)
+    setRotateError(null)
+    setRotatedKey(null)
+    try {
+      // Step 1: find the primary key ID
+      const keysRes = await fetch("/api/developer/api-keys")
+      if (!keysRes.ok) { setRotateError("Could not load API keys."); return }
+      const keys = await keysRes.json()
+      const primaryKey = Array.isArray(keys) ? keys[0] : null
+      if (!primaryKey?.id) { setRotateError("No API key found."); return }
+      // Step 2: rotate it
+      const rotateRes = await fetch(`/api/developer/api-keys/${primaryKey.id}/rotate`, { method: "POST" })
+      const data = await rotateRes.json().catch(() => ({}))
+      if (!rotateRes.ok) { setRotateError(data.message ?? "Rotation failed."); return }
+      setRotatedKey(data.key ?? data.plaintext ?? null)
+      toast.success("API key rotated.")
+    } catch { setRotateError("Could not reach the server.") }
+    finally { setRotateLoading(false) }
+  }
+
+  const copyRotated = async () => {
+    if (!rotatedKey) return
+    await navigator.clipboard.writeText(rotatedKey).catch(() => null)
+    setRotateCopied(true)
+    setTimeout(() => setRotateCopied(false), 2000)
+  }
 
   const handleConfigSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -200,6 +235,90 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Security */}
+      <Card className="border-primary/20 [background-image:radial-gradient(hsl(var(--primary)/0.04)_1px,transparent_1px)] [background-size:20px_20px]">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+              <ShieldCheck size={16} className="text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-semibold text-foreground">Security</CardTitle>
+              <CardDescription className="text-xs text-zinc-400 font-light mt-0.5">
+                API token management and audit access
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="bg-background/60 rounded-b-xl pt-4 border-t border-primary/10 flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <p className="text-sm font-medium text-foreground">Rotate API Token</p>
+            <p className="text-xs text-zinc-400 font-light">Generates a new token and immediately invalidates the old one.</p>
+            <div>
+              <Button size="sm" variant="outline" onClick={handleRotate} disabled={rotateLoading}>
+                {rotateLoading ? "Rotating…" : "Rotate Token"}
+              </Button>
+            </div>
+            {rotateError && <p className="text-xs text-destructive">{rotateError}</p>}
+            {rotatedKey && (
+              <div className="flex flex-col gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                  <AlertTriangle size={13} />
+                  Save this token now — it won&apos;t be shown again.
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input value={rotatedKey} readOnly className="font-mono text-xs" aria-label="New API token" />
+                  <Button variant="outline" size="icon" onClick={copyRotated} className="shrink-0 h-9 w-9" aria-label={rotateCopied ? "Copied" : "Copy"}>
+                    {rotateCopied ? <Check size={15} className="text-green-600" /> : <Copy size={15} />}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium text-foreground">Audit Log</p>
+            <p className="text-xs text-zinc-400 font-light mt-0.5">View all API requests made in your workspace.</p>
+            <Link href="/dashboard/developer" className="inline-flex items-center gap-1.5 mt-2 text-sm text-primary underline underline-offset-2 font-medium">
+              Open Audit Log <ExternalLink size={12} />
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notifications */}
+      <Card className="border-primary/20 opacity-70">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+              <Bell size={16} className="text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-semibold text-foreground">Notifications</CardTitle>
+              <CardDescription className="text-xs text-zinc-400 font-light mt-0.5">
+                Alert preferences — coming in Pro
+              </CardDescription>
+            </div>
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-500">
+              <Lock size={10} /> Pro
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="bg-background/60 rounded-b-xl pt-4 border-t border-primary/10 flex flex-col gap-3">
+          {[
+            { label: "Email alert on session disconnect", desc: "Get notified when a WhatsApp session drops." },
+            { label: "SMS alerts", desc: "Critical alerts sent to your phone." },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center justify-between gap-4 opacity-50 cursor-not-allowed">
+              <div>
+                <p className="text-sm font-medium text-foreground">{item.label}</p>
+                <p className="text-xs text-zinc-400 font-light">{item.desc}</p>
+              </div>
+              <Switch disabled checked={false} />
+            </div>
+          ))}
         </CardContent>
       </Card>
     </div>
