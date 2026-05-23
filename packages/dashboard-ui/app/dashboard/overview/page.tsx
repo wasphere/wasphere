@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApiError } from "@/components/ui/api-error"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { Smartphone, MessageSquare, ShieldCheck, Zap, TrendingUp, TrendingDown, Minus, ActivitySquare, BarChart2 } from "lucide-react"
+import { Smartphone, MessageSquare, ShieldCheck, Zap, TrendingUp, TrendingDown, ActivitySquare, BarChart2 } from "lucide-react"
 
 const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
 
@@ -111,31 +111,37 @@ function StatCard({
   trend?: "up" | "down" | "neutral"
   icon?: React.ElementType
 }) {
-  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus
   return (
-    <Card className="border-primary/20 [background-image:radial-gradient(hsl(var(--primary)/0.045)_1px,transparent_1px)] [background-size:20px_20px] overflow-hidden">
-      <CardHeader className="pb-1 pt-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+    <Card className="relative border-primary/20 overflow-hidden">
+      {/* Mint top-edge accent */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+      <CardHeader className="pb-0 pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest leading-none">
             {title}
-          </CardTitle>
+          </p>
           {Icon && (
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-              <Icon size={14} className="text-primary" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20 shadow-sm dark:shadow-[0_0_18px_rgba(34,197,94,0.22)]">
+              <Icon size={18} className="text-primary" />
             </div>
           )}
         </div>
       </CardHeader>
-      <CardContent className="pb-4">
-        <p className="text-3xl font-bold text-foreground tabular-nums">{value}</p>
+      <CardContent className="pb-5 pt-2">
+        <p className="text-[2rem] font-bold tracking-tight tabular-nums text-foreground leading-none">
+          {value}
+        </p>
         {sub && (
           <p className={cn(
-            "text-xs font-light mt-1 flex items-center gap-1",
-            trend === "up" ? "text-green-600 dark:text-green-400"
-              : trend === "down" ? "text-red-500"
-              : "text-zinc-400",
+            "text-xs mt-2 flex items-center gap-1",
+            trend === "up"
+              ? "text-green-500 dark:text-green-400 font-medium"
+              : trend === "down"
+                ? "text-red-500 dark:text-red-400 font-medium"
+                : "text-muted-foreground/60",
           )}>
-            {trend && trend !== "neutral" && <TrendIcon size={11} />}
+            {trend === "up" && <TrendingUp size={11} />}
+            {trend === "down" && <TrendingDown size={11} />}
             {sub}
           </p>
         )}
@@ -147,22 +153,29 @@ function StatCard({
 function BarChart({ data }: { data: Array<{ date: string; count: number }> }) {
   const max = Math.max(...data.map((d) => d.count), 1)
   return (
-    <div className="flex items-end gap-1.5 h-28 w-full">
+    <div className="flex items-end gap-2 h-32 w-full">
       {data.map((d) => {
-        const pct = d.count > 0 ? Math.max((d.count / max) * 100, 4) : 0
+        const pct = d.count > 0 ? Math.max((d.count / max) * 100, 5) : 0
         const label = d.date.slice(5) // MM-DD
         return (
-          <div key={d.date} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-            <span className="text-[10px] text-zinc-400 tabular-nums leading-none">
+          <div key={d.date} className="flex flex-col items-center gap-1.5 flex-1 min-w-0 group/bar">
+            <span className="text-[10px] text-muted-foreground/50 tabular-nums leading-none transition-colors group-hover/bar:text-muted-foreground">
               {d.count > 0 ? d.count : ""}
             </span>
-            <div className="w-full flex items-end" style={{ height: "72px" }}>
-              <div
-                className="w-full bg-primary/60 rounded-t-sm transition-all"
-                style={{ height: `${pct}%` }}
-              />
+            <div className="w-full flex items-end rounded-sm overflow-hidden" style={{ height: "76px" }}>
+              {pct > 0 ? (
+                <div
+                  className="w-full rounded-t-sm transition-all duration-300 group-hover/bar:opacity-90"
+                  style={{
+                    height: `${pct}%`,
+                    background: "linear-gradient(to top, color-mix(in srgb, var(--primary) 40%, transparent), color-mix(in srgb, var(--primary) 80%, transparent))",
+                  }}
+                />
+              ) : (
+                <div className="w-full rounded-t-sm bg-muted/30" style={{ height: "4px" }} />
+              )}
             </div>
-            <span className="text-[9px] text-zinc-400 tabular-nums truncate w-full text-center">
+            <span className="text-[9px] text-muted-foreground/40 tabular-nums truncate w-full text-center">
               {label}
             </span>
           </div>
@@ -175,19 +188,26 @@ function BarChart({ data }: { data: Array<{ date: string; count: number }> }) {
 function TypeBars({ data }: { data: Array<{ type: string; count: number }> }) {
   const max = Math.max(...data.map((d) => d.count), 1)
   return (
-    <div className="flex flex-col gap-2.5">
-      {data.map((d) => (
-        <div key={d.type} className="flex items-center gap-2">
-          <span className="text-xs text-zinc-500 w-20 shrink-0 capitalize truncate">{d.type}</span>
-          <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
-            <div
-              className="h-full bg-primary/60 rounded-full transition-all"
-              style={{ width: `${(d.count / max) * 100}%` }}
-            />
+    <div className="flex flex-col gap-3">
+      {data.map((d, i) => {
+        const pct = (d.count / max) * 100
+        return (
+          <div key={d.type} className="flex items-center gap-3 group/bar">
+            <span className="text-xs text-muted-foreground w-20 shrink-0 capitalize truncate">{d.type}</span>
+            <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${pct}%`,
+                  transitionDelay: `${i * 40}ms`,
+                  background: "linear-gradient(to right, color-mix(in srgb, var(--primary) 55%, transparent), var(--primary))",
+                }}
+              />
+            </div>
+            <span className="text-xs tabular-nums text-muted-foreground/60 w-6 text-right font-medium">{d.count}</span>
           </div>
-          <span className="text-xs tabular-nums text-zinc-400 w-6 text-right">{d.count}</span>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -350,7 +370,9 @@ export default async function OverviewPage() {
             <span
               className={cn(
                 "size-1.5 rounded-full",
-                serverOnline ? "bg-green-500" : "bg-red-500",
+                serverOnline
+                  ? "bg-green-500 animate-status-connected"
+                  : "bg-red-500",
               )}
             />
             WA Server: {serverOnline ? "Online" : "Offline"}

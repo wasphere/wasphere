@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import { EmptyState } from "@/components/ui/empty-state"
+import { WebhooksIllustration } from "@/components/empty-states"
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip"
@@ -80,7 +81,7 @@ function TableSkeleton() {
   return (
     <div className="flex flex-col gap-2">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="h-12 w-full animate-pulse rounded-md bg-muted" />
+        <div key={i} className="h-12 w-full animate-shimmer-mint rounded-md" />
       ))}
     </div>
   )
@@ -219,6 +220,7 @@ export function WebhooksTab() {
           <p className="text-sm text-destructive">{fetchError}</p>
         ) : webhooks.length === 0 ? (
           <EmptyState
+            illustration={<WebhooksIllustration />}
             message="No webhooks yet."
             description="Add one to start receiving WhatsApp events at your endpoint."
           />
@@ -239,7 +241,7 @@ export function WebhooksTab() {
                 </TableHeader>
                 <TableBody>
                   {webhooks.map((wh) => (
-                    <TableRow key={wh.id} className="hover:bg-muted/40 transition-colors">
+                    <TableRow key={wh.id} className="hover:bg-muted/40 hover:-translate-y-px hover:shadow-sm transition-all duration-150 ease-out">
                       <TableCell className="text-sm font-medium text-foreground">{wh.name}</TableCell>
                       <TableCell className="font-mono text-xs text-zinc-700 dark:text-zinc-300 max-w-[180px]">
                         <Tooltip>

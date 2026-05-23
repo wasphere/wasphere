@@ -27,7 +27,7 @@ export function AppHeader() {
   const avatarInitial = (user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase();
 
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b bg-background px-3 gap-2">
+    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border/60 bg-background/85 backdrop-blur-md px-3 gap-2 sticky top-0 z-20">
       {/* Left — trigger + logo + badge */}
       <div className="flex items-center gap-2">
         <SidebarTrigger className="-ml-1 h-7 w-7" />

@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ApiKeysIllustration } from "@/components/empty-states"
 import {
   Tooltip,
   TooltipContent,
@@ -206,7 +207,7 @@ function TableSkeleton() {
   return (
     <div className="flex flex-col gap-2">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="h-12 w-full animate-pulse rounded-md bg-muted" />
+        <div key={i} className="h-12 w-full animate-shimmer-mint rounded-md" />
       ))}
     </div>
   )
@@ -259,6 +260,7 @@ export function ApiKeysTab() {
           <p className="text-sm text-destructive">{fetchError}</p>
         ) : keys.length === 0 ? (
           <EmptyState
+            illustration={<ApiKeysIllustration />}
             message="No API keys yet."
             description="Create one to start using the API."
           />
@@ -279,7 +281,7 @@ export function ApiKeysTab() {
               </TableHeader>
               <TableBody>
                 {keys.map((key) => (
-                  <TableRow key={key.id} className="hover:bg-muted/40 transition-colors">
+                  <TableRow key={key.id} className="hover:bg-muted/40 hover:-translate-y-px hover:shadow-sm transition-all duration-150 ease-out">
                     <TableCell className="text-sm font-medium text-foreground">{key.name}</TableCell>
                     <TableCell className="font-mono text-xs text-zinc-700 dark:text-zinc-300">{key.keyPrefix}…</TableCell>
                     <TableCell><PermissionChips perms={key.permissions} /></TableCell>
