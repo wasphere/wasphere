@@ -68,10 +68,10 @@ export default async function MessagesPage() {
 
   if (sessions === null) {
     return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Messages</h1>
-        <ApiError message="Could not load sessions. Check your WA Server connection." />
-      </div>
+      <MessagesPanel
+        sessions={[]}
+        sessionsError="Could not load sessions. Check your WA Server connection in Settings."
+      />
     )
   }
 
