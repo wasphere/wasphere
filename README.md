@@ -66,13 +66,28 @@ cp packages/dashboard-ui/.env.example packages/dashboard-ui/.env
 
 Key variables:
 
-| Variable | Description |
-|---|---|
-| `WA_TOKEN` | WA Server API token (generate a random string) |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection string |
-| `JWT_SECRET` | Dashboard auth secret |
-| `ENCRYPTION_KEY` | 32-byte hex key for token encryption |
+| Variable | Package | Description |
+|---|---|---|
+| `WA_TOKEN` | wa-server | WA Server API token (generate a random string) |
+| `DATABASE_URL` | dashboard-api | PostgreSQL connection string |
+| `REDIS_URL` | dashboard-api | Redis connection string |
+| `JWT_SECRET` | dashboard-api | Dashboard auth secret |
+| `ENCRYPTION_KEY` | dashboard-api | 32-byte hex key for token encryption |
+| `INTERNAL_WEBHOOK_SECRET` | both | Shared secret for wa-server → dashboard-api internal calls (min 32 chars) |
+| `WEBHOOK_SIGNING_SECRET` | wa-server | HMAC secret for signing wa-server outbound event payloads |
+| `DASHBOARD_WEBHOOK_URL` | wa-server | Dashboard endpoint that receives WhatsApp events — see note below |
+
+> **Deployment note — `DASHBOARD_WEBHOOK_URL` (v1.0):**
+> WaSphere v1.0 is designed for **one wa-server deployment per workspace**.
+> Set this variable to include your workspace UUID:
+> ```
+> DASHBOARD_WEBHOOK_URL=https://your-dashboard/internal/webhook-event/<workspace-uuid>
+> ```
+> The workspace UUID is shown in the dashboard Settings page.
+> Multi-workspace deployments sharing a single wa-server instance are not supported in v1.0.
+> The dashboard then fans out to all webhooks registered for that workspace.
+> Runtime override via `POST /api/webhooks/callback` is available for testing but not
+> recommended in production — prefer the environment variable.
 
 ### 3. Run database migrations
 
