@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApiError } from "@/components/ui/api-error"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { Smartphone, MessageSquare, ShieldCheck, Zap, TrendingUp, TrendingDown, Minus, ActivitySquare, BarChart2 } from "lucide-react"
 
 const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
 
@@ -102,32 +103,39 @@ function StatCard({
   value,
   sub,
   trend,
+  icon: Icon,
 }: {
   title: string
   value: string | number
   sub?: string
   trend?: "up" | "down" | "neutral"
+  icon?: React.ElementType
 }) {
+  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus
   return (
-    <Card>
-      <CardHeader className="pb-1">
-        <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-          {title}
-        </CardTitle>
+    <Card className="border-primary/20 [background-image:radial-gradient(hsl(var(--primary)/0.045)_1px,transparent_1px)] [background-size:20px_20px] overflow-hidden">
+      <CardHeader className="pb-1 pt-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+            {title}
+          </CardTitle>
+          {Icon && (
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+              <Icon size={14} className="text-primary" />
+            </div>
+          )}
+        </div>
       </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-bold text-foreground">{value}</p>
+      <CardContent className="pb-4">
+        <p className="text-3xl font-bold text-foreground tabular-nums">{value}</p>
         {sub && (
-          <p
-            className={cn(
-              "text-xs font-light mt-0.5",
-              trend === "up"
-                ? "text-green-600 dark:text-green-400"
-                : trend === "down"
-                  ? "text-red-500"
-                  : "text-zinc-400",
-            )}
-          >
+          <p className={cn(
+            "text-xs font-light mt-1 flex items-center gap-1",
+            trend === "up" ? "text-green-600 dark:text-green-400"
+              : trend === "down" ? "text-red-500"
+              : "text-zinc-400",
+          )}>
+            {trend && trend !== "neutral" && <TrendIcon size={11} />}
             {sub}
           </p>
         )}
@@ -371,36 +379,38 @@ export default async function OverviewPage() {
       {/* Row 1 — 4 metric cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
-          title="Sessions Connected"
+          title="Sessions"
           value={`${connected} / ${total}`}
           sub={`${qrPending} pending · ${offline} offline`}
           trend="neutral"
+          icon={Smartphone}
         />
         <StatCard
           title="Messages (24h)"
           value={stats ? stats.messages24h.count.toLocaleString() : "—"}
           sub={stats ? trendLabel : undefined}
           trend={stats ? trend : undefined}
+          icon={MessageSquare}
         />
         <StatCard
           title="Success Rate"
           value={stats ? `${stats.successRate24h.percentage}%` : "—"}
-          sub={stats ? `${stats.successRate24h.failed} failed in 24h` : undefined}
+          sub={stats ? `${stats.successRate24h.failed} failed today` : undefined}
           trend={
             stats
-              ? stats.successRate24h.percentage >= 95
-                ? "up"
-                : stats.successRate24h.percentage < 80
-                  ? "down"
-                  : "neutral"
+              ? stats.successRate24h.percentage >= 95 ? "up"
+                : stats.successRate24h.percentage < 80 ? "down"
+                : "neutral"
               : undefined
           }
+          icon={ShieldCheck}
         />
         <StatCard
           title="Events Today"
           value={stats ? stats.eventsToday.count.toLocaleString() : "—"}
-          sub={stats ? "events logged today" : undefined}
+          sub={stats ? `across ${Object.keys(stats.eventsToday.byType).length} types` : undefined}
           trend="neutral"
+          icon={Zap}
         />
       </div>
 
@@ -426,12 +436,15 @@ export default async function OverviewPage() {
 
       {/* Row 2 — Messages last 7 days */}
       {stats && stats.messages7d.length > 0 && !allZero && (
-        <Card>
+        <Card className="border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium text-foreground">
-              Messages — Last 7 Days
-            </CardTitle>
-            <p className="text-xs text-zinc-500">Daily message volume</p>
+            <div className="flex items-center gap-2">
+              <BarChart2 size={16} className="text-primary" />
+              <CardTitle className="text-base font-medium text-foreground">
+                Messages — Last 7 Days
+              </CardTitle>
+            </div>
+            <p className="text-xs text-zinc-400 font-light">Daily message volume</p>
           </CardHeader>
           <CardContent>
             <BarChart data={stats.messages7d} />
@@ -443,12 +456,15 @@ export default async function OverviewPage() {
       {stats && !allZero && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* By Message Type */}
-          <Card>
+          <Card className="border-primary/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium text-foreground">
-                By Message Type
-              </CardTitle>
-              <p className="text-xs text-zinc-500">Top 6 types sent today</p>
+              <div className="flex items-center gap-2">
+                <ActivitySquare size={16} className="text-primary" />
+                <CardTitle className="text-base font-medium text-foreground">
+                  By Message Type
+                </CardTitle>
+              </div>
+              <p className="text-xs text-zinc-400 font-light">Top 6 types sent today</p>
             </CardHeader>
             <CardContent>
               {byTypeEntries.length > 0 ? (
@@ -462,12 +478,15 @@ export default async function OverviewPage() {
           </Card>
 
           {/* Recent Activity */}
-          <Card>
+          <Card className="border-primary/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium text-foreground">
-                Recent Activity
-              </CardTitle>
-              <p className="text-xs text-zinc-500">Last 8 API requests</p>
+              <div className="flex items-center gap-2">
+                <Zap size={16} className="text-primary" />
+                <CardTitle className="text-base font-medium text-foreground">
+                  Recent Activity
+                </CardTitle>
+              </div>
+              <p className="text-xs text-zinc-400 font-light">Last 8 API requests</p>
             </CardHeader>
             <CardContent className="pb-2">
               <ActivityList items={recentActivity} />
