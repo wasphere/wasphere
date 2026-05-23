@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { normalizePhone } from "@/lib/phone-format"
 
 interface RecipientInputProps {
   value: string
@@ -65,6 +66,10 @@ export function RecipientInput({ value, onChange, error }: RecipientInputProps) 
           onChange(formatted)
         }}
         className={cn(error && "border-destructive")}
+        onBlur={() => {
+          const normalized = normalizePhone(value)
+          if (normalized !== value) onChange(normalized)
+        }}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

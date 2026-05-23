@@ -48,6 +48,7 @@ interface BulkJob {
 
 interface MessagesPanelProps {
   sessions: SessionItem[]
+  sessionsError?: string
 }
 
 function sessionLabel(session: SessionItem): string {
@@ -93,7 +94,7 @@ function renderForm(
   }
 }
 
-export function MessagesPanel({ sessions }: MessagesPanelProps) {
+export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
   const connectedSessions = sessions.filter((s) => s.status === "connected")
   const [selectedSessionId, setSelectedSessionId] = React.useState<string>(
     connectedSessions[0]?.id ?? sessions[0]?.id ?? ""
@@ -291,10 +292,28 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
       {/* Left: form area */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Messages</h1>
+          <div>
+            <h1 className="text-2xl font-semibold">Messages</h1>
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">Test and send WhatsApp messages.</p>
+          </div>
         </div>
 
-        {noConnected && (
+        {sessionsError && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {sessionsError}
+          </div>
+        )}
+
+        {sessions.length === 0 && !sessionsError && (
+          <div className="rounded-md border bg-muted/40 px-4 py-6 text-center">
+            <p className="text-sm font-medium text-foreground">No sessions yet</p>
+            <p className="text-xs text-zinc-400 mt-1">
+              <a href="/dashboard/sessions" className="underline underline-offset-2">Create a session</a> to start sending messages.
+            </p>
+          </div>
+        )}
+
+        {noConnected && sessions.length > 0 && (
           <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
             No connected sessions. Go to{" "}
             <a href="/dashboard/sessions" className="font-medium underline underline-offset-2">
@@ -305,7 +324,7 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
         )}
 
         <div className="flex flex-col gap-1.5">
-          <Label>Session</Label>
+          <Label className="text-sm font-medium text-foreground">Session</Label>
           <Select
             value={selectedSessionId}
             onValueChange={(val) => { if (val !== null) setSelectedSessionId(val) }}
@@ -400,7 +419,7 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
                   onChange={(e) => setBulkDelayMs(Number(e.target.value))}
                   className="w-full accent-primary"
                 />
-                <p className="text-xs text-muted-foreground">Recommended 2–5s to avoid rate limits</p>
+                <p className="text-xs text-zinc-700 dark:text-zinc-300">Recommended 2–5s to avoid rate limits</p>
               </div>
 
               <Button
