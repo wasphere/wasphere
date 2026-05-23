@@ -120,6 +120,9 @@ export function ListForm({ onSubmit, submitting }: FormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-900/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+        WhatsApp has deprecated interactive list messages for personal accounts. Recipients on newer WhatsApp versions may see plain text instead.
+      </div>
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="list-title">Title</Label>

@@ -111,10 +111,12 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
   const [responseStatusCode, setResponseStatusCode] = React.useState<number | undefined>()
   const [responseTimestamp, setResponseTimestamp] = React.useState<string | undefined>()
   const [responseData, setResponseData] = React.useState<unknown>(undefined)
+  const [lastRequest, setLastRequest] = React.useState<{ method: string; url: string; body: unknown } | undefined>()
 
   // Bulk tab state
   const [recipients, setRecipients] = React.useState("")
   const [bulkText, setBulkText] = React.useState("")
+  const [bulkDelayMs, setBulkDelayMs] = React.useState(1000)
   const [bulkSubmitting, setBulkSubmitting] = React.useState(false)
   const [bulkErrors, setBulkErrors] = React.useState<
     Partial<Record<"recipients" | "text", string>>
@@ -188,15 +190,15 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
     setSubmitting(true)
     setResponseState("loading")
 
+    const requestBody = { sessionId: selectedSessionId, to: to.trim(), ...body }
+    const requestUrl = `/api/messages/${messageType}`
+    setLastRequest({ method: "POST", url: requestUrl, body: requestBody })
+
     try {
-      const res = await fetch(`/api/messages/${messageType}`, {
+      const res = await fetch(requestUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: selectedSessionId,
-          to: to.trim(),
-          ...body,
-        }),
+        body: JSON.stringify(requestBody),
       })
       const data: unknown = await res.json().catch(() => ({}))
       setResponseStatusCode(res.status)
@@ -246,6 +248,7 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
           sessionId: selectedSessionId,
           recipients: recipientList,
           text: bulkText.trim(),
+          delayMs: bulkDelayMs,
         }),
       })
 
@@ -342,18 +345,20 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
 
           <TabsContent value="bulk" className="mt-4">
             <form onSubmit={handleBulkSubmit} className="flex flex-col gap-4 max-w-lg">
+              <div className="rounded-lg border border-blue-400/40 bg-blue-50/60 dark:bg-blue-900/10 px-3 py-2 text-xs text-blue-800 dark:text-blue-300">
+                Bulk send supports <strong>text messages</strong> only. Up to 50 recipients per job.
+              </div>
+
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="bulk-recipients">
                   Recipients{" "}
                   <span className="text-muted-foreground font-normal">
-                    (one phone number per line)
+                    (one WhatsApp JID per line, max 50)
                   </span>
                 </Label>
                 <Textarea
                   id="bulk-recipients"
-                  placeholder={
-                    "447911123456@s.whatsapp.net\n447911654321@s.whatsapp.net"
-                  }
+                  placeholder={"447911123456@s.whatsapp.net\n447911654321@s.whatsapp.net"}
                   value={recipients}
                   onChange={(e) => setRecipients(e.target.value)}
                   rows={5}
@@ -364,7 +369,10 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="bulk-text">Message</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="bulk-text">Message</Label>
+                  <span className="text-xs text-muted-foreground">{bulkText.length}/65536</span>
+                </div>
                 <Textarea
                   id="bulk-text"
                   placeholder="Type your message…"
@@ -375,6 +383,24 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
                 {bulkErrors.text && (
                   <p className="text-xs text-destructive">{bulkErrors.text}</p>
                 )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="bulk-delay">Delay Between Sends</Label>
+                  <span className="text-xs text-muted-foreground">{(bulkDelayMs / 1000).toFixed(1)}s</span>
+                </div>
+                <input
+                  id="bulk-delay"
+                  type="range"
+                  min={1000}
+                  max={10000}
+                  step={500}
+                  value={bulkDelayMs}
+                  onChange={(e) => setBulkDelayMs(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <p className="text-xs text-muted-foreground">Recommended 2–5s to avoid rate limits</p>
               </div>
 
               <Button
@@ -421,6 +447,7 @@ export function MessagesPanel({ sessions }: MessagesPanelProps) {
           statusCode={responseStatusCode}
           timestamp={responseTimestamp}
           data={responseData}
+          request={lastRequest}
         />
       </div>
     </div>

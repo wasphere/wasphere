@@ -59,9 +59,23 @@ async function bootstrap(): Promise<void> {
   const { AppModule } = await import('./app.module');
   const { ValidationPipe } = await import('@nestjs/common');
 
+  // rawBody: false so we control body parsing below; we add the rawBody manually
+  // to get both: 10 MB limit for media uploads and raw buffer access for ProxyService
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
+    bodyParser: false,
   });
+
+  const { json: expressJson, urlencoded: expressUrlEncoded } = await import('express');
+  app.use(
+    expressJson({
+      limit: '10mb',
+      verify: (req: import('http').IncomingMessage & { rawBody?: Buffer }, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
+  app.use(expressUrlEncoded({ extended: true, limit: '10mb' }));
 
   // Trust X-Forwarded-For for correct IP in throttler when behind a reverse proxy
   const expressApp = app.getHttpAdapter().getInstance() as {

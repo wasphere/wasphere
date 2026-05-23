@@ -175,7 +175,13 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
+    bodyParser: false,
   });
+
+  // 10 MB body limit — allows base64-encoded media uploads; must come before route handlers
+  const { json: expressJson, urlencoded: expressUrlEncoded } = await import('express');
+  app.use(expressJson({ limit: '10mb' }));
+  app.use(expressUrlEncoded({ extended: true, limit: '10mb' }));
 
   // Raw Express middleware — must run before NestJS routing so it catches all requests
   // including those whose URLs are normalized away by Express route matching
