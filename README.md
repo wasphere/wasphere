@@ -1,202 +1,165 @@
 # WaSphere
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.0.0-green.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)
-![Node](https://img.shields.io/badge/Node.js-20+-brightgreen.svg)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](./CHANGELOG.md)
+[![Node](https://img.shields.io/badge/Node.js-20+-brightgreen.svg)](https://nodejs.org)
 
-> Self-hosted WhatsApp automation platform — REST API, multi-session management, and a built-in dashboard.
+Self-hosted WhatsApp API platform — multi-session, multi-webhook, with developer-first dashboard. Built for WHMCS, billing systems, and custom integrations.
 
-<!-- hero GIF: replace with actual recording -->
+<!-- screenshot: hero -->
 
 ---
 
 ## Features
 
-- **14 message types** — text, image, video, audio, document, sticker, GIF, location, contact, poll, reaction, buttons, list, view-once
-- **Multi-session** — manage multiple WhatsApp accounts from one server
-- **Built-in dashboard** — send messages, manage sessions, view stats, configure webhooks — all in-browser
-- **Per-session anti-ban controls** — configurable random send delay (ms range), auto-read toggle
-- **Proxy support** — per-session HTTP/HTTPS/SOCKS5 proxy
-- **Webhook delivery** — receive inbound events (messages, status updates) via configurable callback URL
-- **Audit log** — every API call logged with timestamp, status, session, endpoint
-- **Message statistics** — 7-day send history, by-type breakdown, 24h trend on the Overview page
-- **IP/CIDR allowlist** — restrict API access by IP
-- **Interactive API docs** — Scalar three-column reference at `/api/reference` (WA Server) and `/api/reference` (Dashboard API)
+- **Multi-session WhatsApp connections** — manage multiple WhatsApp accounts from a single deployment
+- **14 message types** — text, image, video, audio, document, sticker, GIF, location, contact, buttons, list, poll, reaction, view-once
+- **Multi-API-key authentication** — up to N keys per workspace, each with 12 scoped permissions (messages, sessions, webhooks, workspace, audit, wildcard)
+- **Multi-webhook delivery** — per-webhook HMAC-SHA256 signing secrets, exponential backoff retry, auto-deactivation on failure, test-fire button
+- **Built-in API docs** — Scalar three-column reference at `/api/reference` on both WA Server and Dashboard API
+- **Anti-ban controls** — per-session configurable min/max send delay (ms), auto-read toggle, receive toggle
+- **Audit log** — every API request logged with timestamp, method, path, status, duration; filterable by session, date range, status code; 90-day retention
+- **Dark mode + WCAG AA** — full dark mode parity, status pulse animations, accessible colour contrast throughout
 
 ---
 
-## Architecture
+## Install
 
+### Docker (recommended)
+
+```bash
+git clone https://github.com/YOUR_ORG/wasphere.git
+cd wasphere
+cp packages/wa-server/.env.example packages/wa-server/.env
+cp packages/dashboard-api/.env.example packages/dashboard-api/.env
+cp packages/dashboard-ui/.env.example packages/dashboard-ui/.env
+# Fill in required variables (see First-Time Setup below)
+docker compose up -d
 ```
-packages/
-  wa-server/       NestJS + Baileys — WhatsApp gateway (port 3001)
-  dashboard-api/   NestJS + Prisma + PostgreSQL — workspace, auth, stats (port 3005)
-  dashboard-ui/    Next.js 15 (App Router) + ShadCN UI — browser dashboard (port 3004)
-```
 
----
+### Manual (Node + pnpm)
 
-## Quick Start
-
-### Prerequisites
-
-- Node.js 20+
-- pnpm 9+
-- PostgreSQL 16
-- Redis 7+
-
-### 1. Clone & install
+**Requirements:** Node ≥ 20, PostgreSQL ≥ 14, Redis ≥ 7, pnpm
 
 ```bash
 git clone https://github.com/YOUR_ORG/wasphere.git
 cd wasphere
 pnpm install
+# Configure .env files (see First-Time Setup below)
+pnpm prisma:migrate          # runs prisma migrate deploy in dashboard-api
+pnpm dev                     # starts all three packages concurrently
 ```
 
-### 2. Configure environment
+Services start on:
 
-Copy `.env.example` files:
+| Service | URL |
+|---|---|
+| WA Server | `http://localhost:3001` |
+| Dashboard API | `http://localhost:3005` |
+| Dashboard UI | `http://localhost:3004` |
 
-```bash
-cp packages/wa-server/.env.example packages/wa-server/.env
-cp packages/dashboard-api/.env.example packages/dashboard-api/.env
-cp packages/dashboard-ui/.env.example packages/dashboard-ui/.env
-```
+---
 
-Key variables:
+## First-Time Setup
+
+**Step 1 — Configure `.env` files**
+
+Key variables across packages:
 
 | Variable | Package | Description |
 |---|---|---|
-| `WA_TOKEN` | wa-server | WA Server API token (generate a random string) |
+| `WA_TOKEN` | wa-server | API token (generate a random 32+ char string) |
 | `DATABASE_URL` | dashboard-api | PostgreSQL connection string |
 | `REDIS_URL` | dashboard-api | Redis connection string |
-| `JWT_SECRET` | dashboard-api | Dashboard auth secret |
+| `JWT_SECRET` | dashboard-api | Dashboard auth secret (random 64 chars) |
 | `ENCRYPTION_KEY` | dashboard-api | 32-byte hex key for token encryption |
-| `INTERNAL_WEBHOOK_SECRET` | both | Shared secret for wa-server → dashboard-api internal calls (min 32 chars) |
-| `WEBHOOK_SIGNING_SECRET` | wa-server | HMAC secret for signing wa-server outbound event payloads |
-| `DASHBOARD_WEBHOOK_URL` | wa-server | Dashboard endpoint that receives WhatsApp events — see note below |
+| `INTERNAL_WEBHOOK_SECRET` | both | Shared secret for wa-server → dashboard-api events (min 32 chars) |
+| `DASHBOARD_WEBHOOK_URL` | wa-server | `https://your-dashboard/internal/webhook-event/<workspace-uuid>` |
 
-> **Deployment note — `DASHBOARD_WEBHOOK_URL` (v1.0):**
-> WaSphere v1.0 is designed for **one wa-server deployment per workspace**.
-> Set this variable to include your workspace UUID:
-> ```
-> DASHBOARD_WEBHOOK_URL=https://your-dashboard/internal/webhook-event/<workspace-uuid>
-> ```
-> The workspace UUID is shown in the dashboard Settings page.
-> Multi-workspace deployments sharing a single wa-server instance are not supported in v1.0.
-> The dashboard then fans out to all webhooks registered for that workspace.
-> Runtime override via `POST /api/webhooks/callback` is available for testing but not
-> recommended in production — prefer the environment variable.
+> **`DASHBOARD_WEBHOOK_URL` note (v1.0):** WaSphere v1.0 is one wa-server per workspace.
+> Set this to include your workspace UUID, shown on the Settings page after first login.
 
-### 3. Run database migrations
+**Step 2 — Run database migrations**
 
 ```bash
 cd packages/dashboard-api
 npx prisma migrate deploy
 ```
 
-### 4. Start all services
+**Step 3 — Start services**
 
 ```bash
-# From repo root — starts all three packages
+# From repo root
 pnpm dev
+# or: docker compose up -d
 ```
 
-Services:
+**Step 4 — Open the dashboard**
 
-- WA Server: `http://localhost:3001`
-- Dashboard API: `http://localhost:3005`
-- Dashboard UI: `http://localhost:3004`
+Navigate to `http://localhost:3004` and register an account.
 
----
+**Step 5 — Send your first message**
 
-## Dashboard Pages
-
-| Page | Description |
-|---|---|
-| **Overview** | Live stats — sessions, 24h messages, 7-day chart, recent activity |
-| **Sessions** | Create, manage, QR-scan WhatsApp sessions |
-| **Messages** | In-browser message tester for all 14 types |
-| **Webhooks** | Configure inbound event callback URL |
-| **Developer** | API token, WA Server URL, Audit log browser |
-| **Settings** | WA Server configuration, workspace management |
+1. Go to **Settings** → enter your WA Server URL and API token → Save
+2. Go to **Sessions** → New Session → scan the QR code
+3. Go to **Messages** → select your session → send a Text message
 
 ---
 
-## API Reference
+## Screenshots
 
-| Reference | URL | Audience |
-|---|---|---|
-| **WhatsApp API** | `http://localhost:3001/api/reference` | Developers using the API to send messages, manage sessions, configure webhooks |
-| **Admin API** | `http://localhost:3000/api/reference` | Tooling that manages workspaces, API keys, audit logs |
+<!-- screenshot: overview-dashboard -->
+<!-- gif: create-session-flow -->
+<!-- gif: send-message -->
+<!-- gif: webhook-test-fire -->
+<!-- screenshot: api-keys-page -->
 
-Both use Scalar's three-column layout — sidebar navigation, endpoint docs, and live code samples (cURL, JavaScript, Python, PHP) on the right. Toggle dark mode in the top-right corner.
+---
 
-> **Auth note:** Both doc UIs are publicly accessible by default. The spec includes `X-Api-Token` / Bearer auth schemas so you can try authenticated endpoints directly in the UI. To gate the docs UI behind auth, set `SWAGGER_ENABLED=false` and serve your own proxy.
+## API Documentation
 
-Quick examples:
+Interactive Scalar API reference is available at:
+
+- **WhatsApp API** — `http://localhost:3001/api/reference` (send messages, manage sessions, configure webhooks)
+- **Admin API** — `http://localhost:3005/api/reference` (workspaces, API keys, audit logs)
+
+Both include live cURL / JavaScript / Python / PHP code examples and support authenticated requests directly in the browser. Toggle dark mode in the top-right corner.
+
+Quick example:
 
 ```bash
 # Send a text message
 curl -X POST http://localhost:3001/api/sessions/{sessionId}/messages/text \
   -H "X-Api-Token: YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"to": "+923001234567", "text": "Hello from WaSphere!"}'
-
-# Send an image
-curl -X POST http://localhost:3001/api/sessions/{sessionId}/messages/image \
-  -H "X-Api-Token: YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"to": "+923001234567", "url": "https://example.com/image.jpg", "caption": "Check this out"}'
-
-# List sessions
-curl http://localhost:3001/api/sessions \
-  -H "X-Api-Token: YOUR_TOKEN"
+  -d '{"to": "+12345678901", "text": "Hello from WaSphere!"}'
 ```
 
 ---
 
 ## Roadmap
 
-### v1.1
+### v1.1 (next release)
 
-- Inbox / chat UI — view and reply to incoming messages in the dashboard
-- Multi-language code snippets on Developer page (Python, PHP, Node.js)
-- Webhooks recent-events viewer
-- Native file upload in Message Tester
+- Inbox UI — receive messages and view threads in the dashboard
+- Rich phone preview per message type
+- Webhook recent-events log per webhook
+- Custom signing secret input for webhooks
+- Onboarding checklist for new workspaces
+- Real-time event ticker on Overview page
+- Sidebar logo SVG mark
 
 ### v1.5
 
-- SQLite + MySQL database support (in addition to PostgreSQL)
-- Real-time message log via wa-server (live stream view)
+- MySQL / SQLite support (currently PostgreSQL only)
+- Full message log with search and filter
 - Workspace rename
+- Real-time WebSocket events
+- Multi-workspace support per deployment
 
-### v2.0
+### v2.0 (future)
 
-- Team / multi-user workspaces
-- Role-based access control
-- Contact management
-
----
-
-## Security
-
-- WA Server token accepted only via `X-Api-Token` header (never query string)
-- Dashboard auth via httpOnly JWT cookie
-- WA server tokens encrypted at rest (AES-256)
-- SSRF protection on all media URL fetch operations
-- IP/CIDR allowlist middleware
-- Session credentials (`sessions/`) never committed — gitignored
-
----
-
-## Contributing
-
-1. Fork → feature branch → PR
-2. Follow the NestJS module structure (module / controller / service)
-3. Keep files under 500 lines
-4. No mock tests for WhatsApp behaviour — tests run against real PostgreSQL
+- WaSphere Pro — email/SMS notifications, multi-language SDK snippets, Campaigns, Automations, CRM & Inbox, AI Replies, WHMCS integration, premium support
 
 ---
 
@@ -206,8 +169,14 @@ MIT — see [LICENSE](./LICENSE)
 
 ---
 
-## Acknowledgments
+## Contributing
 
-- [Baileys](https://github.com/WhiskeySockets/Baileys) — WhatsApp Web API library
-- [ShadCN UI](https://ui.shadcn.com/) — UI components
-- [Prisma](https://www.prisma.io/) — database ORM
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions, branch naming, commit format, and PR guidelines.
+
+---
+
+## Support
+
+- **Bug reports / feature requests** — [GitHub Issues](https://github.com/YOUR_ORG/wasphere/issues)
+- **Discussions** — [GitHub Discussions](https://github.com/YOUR_ORG/wasphere/discussions)
+- **Twitter** — [@WaSphereHQ](#) _(placeholder)_
