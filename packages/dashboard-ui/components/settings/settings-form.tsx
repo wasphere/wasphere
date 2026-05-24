@@ -324,7 +324,7 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
             <div>
               <CardTitle className="text-base font-semibold text-foreground">Notifications</CardTitle>
               <CardDescription className="text-xs text-zinc-400 font-light mt-0.5">
-                Alert preferences — coming in Pro
+                Available in WaSphere Pro — coming soon
               </CardDescription>
             </div>
             <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-500 shrink-0">
