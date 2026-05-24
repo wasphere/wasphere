@@ -2,7 +2,7 @@ import { cookies } from "next/headers"
 import { ApiError } from "@/components/ui/api-error"
 import { DeveloperPanel } from "@/components/developer/developer-panel"
 
-const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
+import { serverGet } from "@/lib/server-fetch"
 
 interface Workspace {
   id: string
@@ -12,30 +12,14 @@ interface Workspace {
 }
 
 async function fetchWorkspace(token: string): Promise<Workspace | null> {
-  try {
-    // Fetch the list first to get the workspace id.
-    const listRes = await fetch(`${API_BASE}/workspaces`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-    if (!listRes.ok) return null
-    const listData = await listRes.json()
-    const list: Array<{ id: string }> = Array.isArray(listData)
-      ? listData
-      : (listData.workspaces ?? [])
-    const workspaceId = list[0]?.id
-    if (!workspaceId) return null
+  const list = await serverGet<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>("/workspaces", token)
+  if (!list.ok || !list.data) return null
+  const workspaces = Array.isArray(list.data) ? list.data : (list.data.workspaces ?? [])
+  const workspaceId = workspaces[0]?.id
+  if (!workspaceId) return null
 
-    // Fetch the detail endpoint which includes waServerUrl.
-    const detailRes = await fetch(`${API_BASE}/workspaces/${workspaceId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-    if (!detailRes.ok) return null
-    return await detailRes.json()
-  } catch {
-    return null
-  }
+  const detail = await serverGet<Workspace>(`/workspaces/${workspaceId}`, token)
+  return detail.ok ? detail.data : null
 }
 
 export default async function DeveloperPage() {

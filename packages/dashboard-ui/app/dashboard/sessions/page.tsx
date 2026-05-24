@@ -7,43 +7,24 @@ import {
 import { AntiBanControls } from "@/components/settings/anti-ban-controls"
 import { type SessionSummary } from "@/lib/session-config"
 
-const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
+import { serverGet } from "@/lib/server-fetch"
 
 async function fetchWorkspaceId(token: string): Promise<string | null> {
-  try {
-    const res = await fetch(`${API_BASE}/workspaces`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    const list: Array<{ id: string }> = Array.isArray(data)
-      ? data
-      : (data.workspaces ?? [])
-    return list[0]?.id ?? null
-  } catch {
-    return null
-  }
+  const { ok, data } = await serverGet<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>("/workspaces", token)
+  if (!ok || !data) return null
+  const list = Array.isArray(data) ? data : (data.workspaces ?? [])
+  return list[0]?.id ?? null
 }
 
 async function fetchSessions(
   workspaceId: string,
   token: string
 ): Promise<Session[] | null> {
-  try {
-    const res = await fetch(
-      `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      }
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    return Array.isArray(data) ? data : (data.sessions ?? [])
-  } catch {
-    return null
-  }
+  const { ok, data } = await serverGet<Session[] | { sessions: Session[] }>(
+    `/workspaces/${workspaceId}/proxy/api/sessions`, token
+  )
+  if (!ok || !data) return null
+  return Array.isArray(data) ? data : (data.sessions ?? [])
 }
 
 export default async function SessionsPage() {

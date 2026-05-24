@@ -11,7 +11,7 @@ import { AnimatedBarChart } from "@/components/overview/animated-bar-chart"
 import { DonutChart } from "@/components/overview/donut-chart"
 import { ActivityFeed, type ActivityItem } from "@/components/overview/activity-feed"
 
-const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
+import { serverGet } from "@/lib/server-fetch"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -39,56 +39,27 @@ interface Stats {
 // ─── Data fetching ───────────────────────────────────────────────────────────
 
 async function fetchWorkspaces(token: string): Promise<Workspace[] | null> {
-  try {
-    const res = await fetch(`${API_BASE}/workspaces`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return Array.isArray(data) ? data : (data.workspaces ?? [])
-  } catch {
-    return null
-  }
+  const { ok, data } = await serverGet<Workspace[] | { workspaces: Workspace[] }>("/workspaces", token)
+  if (!ok || !data) return null
+  return Array.isArray(data) ? data : (data.workspaces ?? [])
 }
 
 async function fetchSessions(workspaceId: string, token: string): Promise<Session[] | null> {
-  try {
-    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return Array.isArray(data) ? data : (data.sessions ?? [])
-  } catch {
-    return null
-  }
+  const { ok, data } = await serverGet<Session[] | { sessions: Session[] }>(
+    `/workspaces/${workspaceId}/proxy/api/sessions`, token
+  )
+  if (!ok || !data) return null
+  return Array.isArray(data) ? data : (data.sessions ?? [])
 }
 
 async function fetchHealthOk(workspaceId: string, token: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/proxy/api/health`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-    return res.ok
-  } catch {
-    return false
-  }
+  const { ok } = await serverGet(`/workspaces/${workspaceId}/proxy/api/health`, token)
+  return ok
 }
 
 async function fetchStats(workspaceId: string, token: string): Promise<Stats | null> {
-  try {
-    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/stats`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-    if (!res.ok) return null
-    return res.json()
-  } catch {
-    return null
-  }
+  const { ok, data } = await serverGet<Stats>(`/workspaces/${workspaceId}/stats`, token)
+  return ok ? data : null
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
