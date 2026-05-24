@@ -245,7 +245,7 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
     ? Math.round((bulkJob.sent / bulkJob.total) * 100) : null
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="no-card-dots flex flex-col gap-4">
       {/* Page header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20 shadow-sm dark:shadow-[0_0_18px_rgba(34,197,94,0.22)]">
