@@ -280,9 +280,9 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
       )}
 
       {/* ── Config + recipient bar — single compact card ── */}
-      <Card>
-        <CardContent className="px-4 py-2.5">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <Card className="py-0">
+        <CardContent className="px-4 py-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             {/* Session */}
             <div className="flex items-center gap-2">
               <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">

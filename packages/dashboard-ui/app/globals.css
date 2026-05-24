@@ -202,15 +202,6 @@
     font-size: 0.8125rem;
   }
 
-  /* Subtle dotted grid on card headers only */
-  [data-slot="card-header"] {
-    background-image: radial-gradient(circle, rgba(0, 0, 0, 0.07) 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
-  .dark [data-slot="card-header"] {
-    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
   .dark [data-slot="card"] {
     /* Elevation: deep drop shadow + top-edge hairline highlight */
     box-shadow:
