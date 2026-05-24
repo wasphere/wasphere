@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ApiError } from "@/components/ui/api-error"
 import { StatusDot } from "@/components/ui/status-dot"
 import { SessionsIllustration } from "@/components/empty-states"
 import { NewSessionDialog } from "@/components/sessions/new-session-dialog"
@@ -58,20 +59,25 @@ function formatDate(iso: string | null | undefined): string {
 
 export function SessionsTable({ initialSessions }: SessionsTableProps) {
   const [sessions, setSessions] = React.useState<Session[]>(initialSessions)
+  const [fetchError, setFetchError] = React.useState<string | null>(null)
   const [newDialogOpen, setNewDialogOpen] = React.useState(false)
   const [qrSessionId, setQrSessionId] = React.useState<string | null>(null)
 
   const refreshSessions = async () => {
     try {
       const res = await fetch("/api/sessions")
-      if (!res.ok) return
+      if (!res.ok) {
+        setFetchError("Could not load sessions. Check your connection and try again.")
+        return
+      }
+      setFetchError(null)
       const data = await res.json()
       const list: Session[] = Array.isArray(data)
         ? data
         : (data.sessions ?? [])
       setSessions(list)
     } catch {
-      // Best-effort; table keeps existing data.
+      setFetchError("Could not load sessions. Check your connection and try again.")
     }
   }
 
@@ -126,13 +132,20 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
         <Button onClick={() => setNewDialogOpen(true)}>New Session</Button>
       </div>
 
-      {sessions.length === 0 ? (
+      {fetchError && (
+        <ApiError
+          message={fetchError}
+          onRetry={() => void refreshSessions()}
+        />
+      )}
+
+      {!fetchError && sessions.length === 0 ? (
         <EmptyState
           illustration={<SessionsIllustration />}
           message="No sessions yet."
           description="Create a session to connect a WhatsApp account."
         />
-      ) : (
+      ) : !fetchError && (
         <div className="rounded-xl border bg-card overflow-hidden">
         <Table>
           <TableHeader>
