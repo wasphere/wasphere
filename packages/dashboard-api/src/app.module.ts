@@ -8,6 +8,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 import { InternalModule } from './internal/internal.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     InternalModule,
     ApiKeysModule,
     WebhooksModule,
+    HealthModule,
   ],
   providers: [
     {
