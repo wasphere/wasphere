@@ -17,11 +17,23 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { logout } from "@/lib/api";
 import { useTheme } from "next-themes";
+import { usePathname } from "next/navigation";
+
+const ROUTE_LABELS: Record<string, string> = {
+  "/dashboard/overview": "Overview",
+  "/dashboard/sessions": "Sessions",
+  "/dashboard/messages": "Messages",
+  "/dashboard/webhooks": "Webhooks",
+  "/dashboard/developer": "Developer",
+  "/dashboard/settings": "Settings",
+}
 
 export function AppHeader() {
   const { user } = useAuth();
   const { setTheme } = useTheme();
+  const pathname = usePathname();
 
+  const routeLabel = ROUTE_LABELS[pathname] ?? null;
   const displayName = user?.name ?? user?.email ?? "…";
   const displayEmail = user?.email ?? "";
   const avatarInitial = (user?.name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase();
@@ -33,6 +45,12 @@ export function AppHeader() {
         <SidebarTrigger className="-ml-1 h-7 w-7" />
         <span className="text-muted-foreground/40 text-sm select-none">/</span>
         <span className="text-sm font-medium">WaSphere</span>
+        {routeLabel && (
+          <>
+            <span className="text-muted-foreground/40 text-sm select-none">/</span>
+            <span className="text-sm text-muted-foreground">{routeLabel}</span>
+          </>
+        )}
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 rounded-sm font-medium">
           v1.0
         </Badge>
