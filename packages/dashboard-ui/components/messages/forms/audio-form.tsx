@@ -47,7 +47,7 @@ export function AudioForm({ onSubmit, submitting }: FormProps) {
         <Switch checked={isVoiceNote} onCheckedChange={(v) => setIsVoiceNote(v === true)} id="voice-note" />
         <Label htmlFor="voice-note" className="cursor-pointer font-normal">Send as Voice Note</Label>
       </div>
-      <Button type="submit" disabled={submitting} className="w-fit">
+      <Button type="submit" disabled={submitting} className="w-full">
         {submitting ? "Sending…" : "Send Message"}
       </Button>
     </form>
