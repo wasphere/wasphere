@@ -52,7 +52,7 @@ export function ImageForm({ onSubmit, submitting }: FormProps) {
         <Textarea id="image-caption" placeholder="Image caption…" value={caption}
           onChange={(e) => setCaption(e.target.value)} maxLength={1024} rows={2} />
       </div>
-      <Button type="submit" disabled={submitting} className="w-fit">
+      <Button type="submit" disabled={submitting} className="w-full">
         {submitting ? "Sending…" : "Send Message"}
       </Button>
     </form>

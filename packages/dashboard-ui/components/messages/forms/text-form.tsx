@@ -93,7 +93,7 @@ export function TextForm({ onSubmit, submitting, onTextChange }: FormProps) {
         </div>
       )}
 
-      <Button type="submit" disabled={submitting} className="w-fit">
+      <Button type="submit" disabled={submitting} className="w-full">
         {submitting ? "Sending…" : "Send Message"}
       </Button>
     </form>

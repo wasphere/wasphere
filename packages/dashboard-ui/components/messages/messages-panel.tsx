@@ -279,7 +279,7 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
         </div>
       )}
 
-      {/* ── Config bar — single compact line ── */}
+      {/* ── Config + recipient bar — single compact card ── */}
       <Card>
         <CardContent className="px-4 py-2.5">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -289,7 +289,7 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
                 Session
               </Label>
               <Select value={selectedSessionId} onValueChange={(v) => { if (v) setSelectedSessionId(v) }}>
-                <SelectTrigger className="h-7 w-48 text-xs">
+                <SelectTrigger className="h-7 w-40 text-xs">
                   <SelectValue placeholder="Select session" />
                 </SelectTrigger>
                 <SelectContent>
@@ -324,12 +324,56 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
                       activeTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {tab === "single" ? "Single Message" : "Bulk"}
+                    {tab === "single" ? "Single" : "Bulk"}
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* Recipient — only in single mode */}
+            {activeTab === "single" && (
+              <>
+                <div className="h-4 w-px bg-border hidden sm:block" />
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
+                    To
+                  </Label>
+                  <div className="flex gap-0.5 p-0.5 bg-muted rounded-md shrink-0">
+                    {(["personal", "group"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setRecipientType(t)}
+                        className={cn(
+                          "px-2.5 py-0.5 text-xs font-medium rounded transition-all duration-150 cursor-pointer capitalize",
+                          recipientType === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <Input
+                    placeholder={recipientType === "personal" ? "+923XXXXXXXXX" : "XXXXXXXXXX@g.us"}
+                    value={to}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      let formatted = raw
+                      if (recipientType === "personal" && raw && !raw.startsWith("+") && !raw.includes("@") && /^\d/.test(raw)) {
+                        formatted = "+" + raw
+                      }
+                      setTo(formatted)
+                    }}
+                    onBlur={() => { const n = normalizePhone(to); if (n !== to) setTo(n) }}
+                    className={cn("flex-1 h-7 text-xs min-w-[120px]", toError && "border-destructive")}
+                  />
+                </div>
+              </>
+            )}
           </div>
+          {toError && activeTab === "single" && (
+            <p className="text-xs text-destructive mt-1.5">{toError}</p>
+          )}
         </CardContent>
       </Card>
 
@@ -342,51 +386,9 @@ export function MessagesPanel({ sessions, sessionsError }: MessagesPanelProps) {
           {/* Single mode */}
           {activeTab === "single" && (
             <>
-              {/* Compact recipient row */}
-              <Card>
-                <CardContent className="px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
-                      To
-                    </Label>
-                    {/* Personal / Group toggle */}
-                    <div className="flex gap-0.5 p-0.5 bg-muted rounded-md shrink-0">
-                      {(["personal", "group"] as const).map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setRecipientType(t)}
-                          className={cn(
-                            "px-2.5 py-0.5 text-xs font-medium rounded transition-all duration-150 cursor-pointer capitalize",
-                            recipientType === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                          )}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                    <Input
-                      placeholder={recipientType === "personal" ? "+923XXXXXXXXX or JID" : "XXXXXXXXXX@g.us"}
-                      value={to}
-                      onChange={(e) => {
-                        const raw = e.target.value
-                        let formatted = raw
-                        if (recipientType === "personal" && raw && !raw.startsWith("+") && !raw.includes("@") && /^\d/.test(raw)) {
-                          formatted = "+" + raw
-                        }
-                        setTo(formatted)
-                      }}
-                      onBlur={() => { const n = normalizePhone(to); if (n !== to) setTo(n) }}
-                      className={cn("flex-1 h-8 text-sm", toError && "border-destructive")}
-                    />
-                  </div>
-                  {toError && <p className="text-xs text-destructive mt-1.5">{toError}</p>}
-                </CardContent>
-              </Card>
-
               {/* Compose card */}
               <Card>
-                <CardHeader className="px-4 pt-3.5 pb-2.5 border-b border-border/60">
+                <CardHeader className="px-4 py-2 border-b border-border/60">
                   <CardTitle className="text-sm font-semibold text-foreground">Compose</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 flex flex-col gap-3">

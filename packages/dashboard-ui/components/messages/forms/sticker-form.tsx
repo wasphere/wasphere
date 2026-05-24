@@ -40,7 +40,7 @@ export function StickerForm({ onSubmit, submitting }: FormProps) {
         urlPlaceholder="https://example.com/sticker.webp" error={error}
       />
       <p className="text-xs text-muted-foreground -mt-2">Server converts to WebP automatically</p>
-      <Button type="submit" disabled={submitting} className="w-fit">
+      <Button type="submit" disabled={submitting} className="w-full">
         {submitting ? "Sending…" : "Send Message"}
       </Button>
     </form>

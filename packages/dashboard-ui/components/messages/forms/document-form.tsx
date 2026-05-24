@@ -102,7 +102,7 @@ export function DocumentForm({ onSubmit, submitting }: FormProps) {
           {errors.mimetype && <p className="text-xs text-destructive">{errors.mimetype}</p>}
         </div>
       </div>
-      <Button type="submit" disabled={submitting} className="w-fit">
+      <Button type="submit" disabled={submitting} className="w-full">
         {submitting ? "Sending…" : "Send Message"}
       </Button>
     </form>

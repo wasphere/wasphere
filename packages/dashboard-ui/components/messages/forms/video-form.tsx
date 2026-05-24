@@ -52,7 +52,7 @@ export function VideoForm({ onSubmit, submitting }: FormProps) {
         <Textarea id="video-caption" placeholder="Video caption…" value={caption}
           onChange={(e) => setCaption(e.target.value)} rows={2} />
       </div>
-      <Button type="submit" disabled={submitting} className="w-fit">
+      <Button type="submit" disabled={submitting} className="w-full">
         {submitting ? "Sending…" : "Send Message"}
       </Button>
     </form>
