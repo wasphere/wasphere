@@ -116,13 +116,35 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
 
   const handleSessionCreated = (newSession: Session) => {
     setSessions((prev) => {
-      // Replace if already exists (unlikely) or prepend.
       const exists = prev.some((s) => s.id === newSession.id)
       return exists
         ? prev.map((s) => (s.id === newSession.id ? newSession : s))
         : [newSession, ...prev]
     })
     setQrSessionId(newSession.id)
+  }
+
+  const handleRelink = async (sessionId: string) => {
+    try {
+      await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" })
+      const res = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: sessionId }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.message ?? "Failed to restart session.")
+        return
+      }
+      const updated: Session = await res.json()
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, ...updated } : s))
+      )
+      setQrSessionId(sessionId)
+    } catch {
+      toast.error("Could not reach the server.")
+    }
   }
 
   return (
@@ -175,6 +197,24 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
+                    {(session.status === "qr_ready" || session.status === "connecting") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQrSessionId(session.id)}
+                      >
+                        View QR
+                      </Button>
+                    )}
+                    {(session.status === "failed" || session.status === "disconnected" || session.status === "logged_out" || session.status === "qr_expired") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRelink(session.id)}
+                      >
+                        Relink
+                      </Button>
+                    )}
                     {session.status === "connected" && (
                       <Button
                         variant="outline"
