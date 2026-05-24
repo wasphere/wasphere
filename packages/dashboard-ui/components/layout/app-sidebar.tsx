@@ -258,7 +258,10 @@ export function AppSidebar() {
                       {!collapsed && <Lock size={12} className="shrink-0 ml-auto" />}
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      Available in Pro v2.0
+                      <span className="flex items-center gap-1.5">
+                        <Lock size={12} />
+                        Available in WaSphere Pro — coming soon
+                      </span>
                     </TooltipContent>
                   </Tooltip>
                 </SidebarMenuItem>
