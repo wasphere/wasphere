@@ -28,6 +28,14 @@ function SessionNotice() {
     );
   }
 
+  if (reason === "registration_locked") {
+    return (
+      <p className="mb-4 rounded-md border border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">
+        Registration is closed for this instance.
+      </p>
+    );
+  }
+
   return null;
 }
 

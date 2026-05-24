@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -22,6 +23,12 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Get('register-available')
+  @HttpCode(HttpStatus.OK)
+  registerAvailable() {
+    return this.authService.registerAvailable();
+  }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
