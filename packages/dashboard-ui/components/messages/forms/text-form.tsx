@@ -11,11 +11,12 @@ interface FormProps {
   onSubmit: (body: Record<string, unknown>) => Promise<void>
   submitting: boolean
   onClear?: () => void
+  onTextChange?: (text: string) => void
 }
 
 const MAX_TEXT = 4096
 
-export function TextForm({ onSubmit, submitting }: FormProps) {
+export function TextForm({ onSubmit, submitting, onTextChange }: FormProps) {
   const [text, setText] = React.useState("")
   const [showReply, setShowReply] = React.useState(false)
   const [quotedId, setQuotedId] = React.useState("")
@@ -23,6 +24,7 @@ export function TextForm({ onSubmit, submitting }: FormProps) {
 
   const fillSample = () => {
     setText(SAMPLE_TEXT)
+    onTextChange?.(SAMPLE_TEXT)
     setError("")
   }
 
@@ -59,9 +61,9 @@ export function TextForm({ onSubmit, submitting }: FormProps) {
           id="text-body"
           placeholder="Type your message…"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value); onTextChange?.(e.target.value) }}
           maxLength={MAX_TEXT}
-          rows={4}
+          rows={3}
         />
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
