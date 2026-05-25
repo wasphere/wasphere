@@ -25,16 +25,43 @@ export class WorkspacesService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    // wa-server starts after dashboard-api (depends on its healthcheck), so we
+    // schedule registration in the background with retries rather than blocking startup.
+    setTimeout(() => this.bootstrapCallbacks(), 5_000);
+  }
+
+  private async bootstrapCallbacks(): Promise<void> {
     const workspaces = await this.prisma.workspace.findMany({
       where: { waServerUrl: { not: null }, waServerToken: { not: null } },
       select: { id: true, waServerUrl: true, waServerToken: true, waServerTokenIv: true },
     });
+
     for (const w of workspaces) {
+      const token = this.encryption.decrypt(w.waServerToken!, w.waServerTokenIv!);
+      await this.registerCallbackWithRetry(w.id, w.waServerUrl!, token);
+    }
+  }
+
+  private async registerCallbackWithRetry(
+    workspaceId: string,
+    waServerUrl: string,
+    token: string,
+    maxAttempts = 5,
+    delayMs = 8_000,
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const token = this.encryption.decrypt(w.waServerToken!, w.waServerTokenIv!);
-        await this.registerCallback(w.id, w.waServerUrl!, token);
+        await this.registerCallback(workspaceId, waServerUrl, token);
+        this.logger.log(`[Bootstrap] Callback registered for workspace ${workspaceId} (attempt ${attempt})`);
+        return;
       } catch (err) {
-        this.logger.warn(`[Bootstrap] Failed to register callback for workspace ${w.id}: ${(err as Error).message}`);
+        const msg = (err as Error).message;
+        if (attempt < maxAttempts) {
+          this.logger.warn(`[Bootstrap] Attempt ${attempt}/${maxAttempts} failed for workspace ${workspaceId}: ${msg} — retrying in ${delayMs / 1000}s`);
+          await new Promise((r) => setTimeout(r, delayMs));
+        } else {
+          this.logger.warn(`[Bootstrap] All ${maxAttempts} attempts failed for workspace ${workspaceId}: ${msg}`);
+        }
       }
     }
   }
