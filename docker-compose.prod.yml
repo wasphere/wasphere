@@ -1,0 +1,123 @@
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - wa-postgres:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Dashboard API ───────────────────────────────────────────────────────────
+  dashboard-api:
+    build:
+      context: .
+      dockerfile: packages/dashboard-api/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET}
+      CORS_ORIGIN: ${DASHBOARD_UI_URL}
+      DASHBOARD_PORT: "3000"
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+      - dokploy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wasphere-api.rule=Host(`${DASHBOARD_API_DOMAIN}`)
+      - traefik.http.routers.wasphere-api.entrypoints=websecure
+      - traefik.http.routers.wasphere-api.tls.certresolver=letsencrypt
+      - traefik.http.services.wasphere-api.loadbalancer.server.port=3000
+
+  # ── WA Server ───────────────────────────────────────────────────────────────
+  wa-server:
+    build:
+      context: .
+      dockerfile: packages/wa-server/Dockerfile
+    restart: unless-stopped
+    environment:
+      WA_TOKEN: ${WA_TOKEN}
+      PORT: "3001"
+      CORS_ORIGIN: ${DASHBOARD_UI_URL}
+      DASHBOARD_WEBHOOK_URL: ${DASHBOARD_WEBHOOK_URL}
+      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET}
+      AUDIT_DASHBOARD_URL: http://dashboard-api:3000/internal/audit
+      INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET}
+      NODE_ENV: production
+    volumes:
+      - wa-sessions:/app/sessions
+    depends_on:
+      dashboard-api:
+        condition: service_healthy
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Dashboard UI ─────────────────────────────────────────────────────────────
+  dashboard-ui:
+    build:
+      context: .
+      dockerfile: packages/dashboard-ui/Dockerfile
+    restart: unless-stopped
+    environment:
+      DASHBOARD_API_URL: http://dashboard-api:3000
+      WA_SERVER_INTERNAL_URL: http://wa-server:3001
+      NODE_ENV: production
+    depends_on:
+      dashboard-api:
+        condition: service_healthy
+    networks:
+      - internal
+      - dokploy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3004/login || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wasphere-ui.rule=Host(`${DASHBOARD_UI_DOMAIN}`)
+      - traefik.http.routers.wasphere-ui.entrypoints=websecure
+      - traefik.http.routers.wasphere-ui.tls.certresolver=letsencrypt
+      - traefik.http.services.wasphere-ui.loadbalancer.server.port=3004
+
+volumes:
+  wa-postgres:
+    driver: local
+  wa-sessions:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
+  dokploy-network:
+    external: true

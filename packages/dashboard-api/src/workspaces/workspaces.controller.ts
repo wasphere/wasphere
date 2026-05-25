@@ -14,9 +14,12 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { Request, Response } from 'express';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CombinedAuthGuard } from '../auth/combined-auth.guard';
+import { ApiKeyPermissionGuard } from '../auth/api-key-permission.guard';
+import { RequiresPermission } from '../auth/requires-permission.decorator';
 import { WorkspacesService } from './workspaces.service';
 import { ProxyService } from './proxy.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -24,11 +27,13 @@ import { SetWaServerDto } from './dto/set-wa-server.dto';
 import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
 
 interface AuthenticatedRequest extends Request {
-  user: { userId: string; email: string };
+  user: { userId: string; email?: string; workspaceId?: string; permissions?: string[] };
 }
 
+@ApiTags('Workspaces')
+@ApiBearerAuth()
 @Controller('workspaces')
-@UseGuards(JwtAuthGuard)
+@UseGuards(CombinedAuthGuard, ApiKeyPermissionGuard)
 export class WorkspacesController {
   constructor(
     private readonly workspacesService: WorkspacesService,
@@ -36,22 +41,43 @@ export class WorkspacesController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: 'List all workspaces the current user belongs to' })
+  @ApiResponse({ status: 200, description: 'Array of workspace objects' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   list(@Req() req: AuthenticatedRequest) {
     return this.workspacesService.listForUser(req.user.userId);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new workspace' })
+  @ApiResponse({ status: 201, description: 'Created workspace' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateWorkspaceDto) {
     return this.workspacesService.create(req.user.userId, dto);
   }
 
   @Get(':id')
+  @RequiresPermission('workspace:read')
+  @ApiOperation({ summary: 'Get a single workspace by ID' })
+  @ApiParam({ name: 'id', description: 'Workspace UUID' })
+  @ApiResponse({ status: 200, description: 'Workspace detail including waServerConfigured flag' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not a member of this workspace' })
+  @ApiResponse({ status: 404, description: 'Workspace not found' })
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.workspacesService.getOne(req.user.userId, id);
   }
 
   @Patch(':id/wa-server')
+  @RequiresPermission('workspace:write')
+  @ApiOperation({ summary: 'Configure the WA Server URL and API token for a workspace' })
+  @ApiParam({ name: 'id', description: 'Workspace UUID' })
+  @ApiResponse({ status: 200, description: 'Updated workspace' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not a member or insufficient permissions' })
   setWaServer(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -62,11 +88,28 @@ export class WorkspacesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequiresPermission('workspace:write')
+  @ApiOperation({ summary: 'Permanently delete a workspace and all its data' })
+  @ApiParam({ name: 'id', description: 'Workspace UUID' })
+  @ApiResponse({ status: 200, description: 'Workspace deleted' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not a member or insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Workspace not found' })
   deleteWorkspace(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.workspacesService.deleteWorkspace(req.user.userId, id);
   }
 
+  @Get(':id/stats')
+  @RequiresPermission('workspace:read')
+  @ApiTags('workspaces')
+  @ApiOperation({ summary: 'Message statistics for a workspace (last 7 days + totals)' })
+  @ApiResponse({ status: 200, description: 'Stats object' })
+  getStats(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.workspacesService.getStats(id, req.user.userId);
+  }
+
   @Get(':id/audit-logs')
+  @RequiresPermission('audit:read')
   @ApiTags('workspaces')
   @ApiOperation({ summary: 'List audit logs for a workspace' })
   @ApiResponse({ status: 200, description: 'Paginated audit log list' })
@@ -87,12 +130,16 @@ export class WorkspacesController {
   }
 
   @All(':id/proxy/*')
+  @ApiExcludeEndpoint()
   async proxyRequest(
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Param('id') id: string,
     @Param('0') wildcardPath: string,
   ) {
-    await this.proxyService.proxy(req.user.userId, id, wildcardPath, req, res);
+    const apiKeyPermissions = req.user.permissions as
+      | import('../lib/permissions').PermissionScope[]
+      | undefined;
+    await this.proxyService.proxy(req.user.userId, id, wildcardPath, req, res, apiKeyPermissions);
   }
 }

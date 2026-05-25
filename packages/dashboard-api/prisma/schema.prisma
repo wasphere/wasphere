@@ -42,6 +42,7 @@ model User {
   ownedWorkspaces     Workspace[]
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  createdApiKeys      ApiKey[]
 
   @@map("users")
 }
@@ -63,6 +64,8 @@ model Workspace {
 
   owner   User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   members WorkspaceMember[]
+  apiKeys ApiKey[]
+  webhooks Webhook[]
 
   @@index([ownerId])
   @@map("workspaces")
@@ -108,6 +111,63 @@ model RefreshToken {
   @@index([userId])
   @@index([tokenHash])
   @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// api_keys — dashboard API keys with permission scopes and optional session scope
+// ---------------------------------------------------------------------------
+model ApiKey {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  name        String
+  // First 12 chars of the raw key (e.g. "wsk_aB3kF9Pq") — safe to display
+  keyPrefix   String    @unique @map("key_prefix")
+  // argon2id hash of the full key. Never expose.
+  keyHash     String    @map("key_hash")
+  // Array of permission scope strings (e.g. ["messages:send","sessions:read"]) or ["*"] for wildcard
+  permissions Json      @default("[]")
+  // NULL = all sessions in workspace; non-null = scoped to this session id
+  sessionId   String?   @map("session_id")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  lastUsedAt  DateTime? @map("last_used_at") @db.Timestamptz()
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz()
+  createdById String?   @map("created_by") @db.Uuid
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([keyPrefix])
+  @@index([workspaceId, isActive])
+  @@map("api_keys")
+}
+
+// ---------------------------------------------------------------------------
+// webhooks — per-workspace webhook endpoints with event filtering
+// ---------------------------------------------------------------------------
+model Webhook {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  name            String
+  url             String
+  // Array of event type strings (e.g. ["message.sent","session.connected"]) or ["*"] for all
+  events          Json      @default("[]")
+  // HMAC-SHA256 signing secret, 64 hex chars. Never expose in list endpoints.
+  signingSecret   String    @map("signing_secret")
+  isActive        Boolean   @default(true) @map("is_active")
+  retryMax        Int       @default(3) @map("retry_max")
+  // Consecutive failures; auto-deactivate at 50
+  failureCount    Int       @default(0) @map("failure_count")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  lastDeliveredAt DateTime? @map("last_delivered_at") @db.Timestamptz()
+  lastFailedAt    DateTime? @map("last_failed_at") @db.Timestamptz()
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, isActive])
+  @@map("webhooks")
 }
 
 // ---------------------------------------------------------------------------

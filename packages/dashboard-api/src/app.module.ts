@@ -6,6 +6,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { InternalModule } from './internal/internal.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { InternalModule } from './internal/internal.module';
     AuthModule,
     WorkspacesModule,
     InternalModule,
+    ApiKeysModule,
+    WebhooksModule,
+    HealthModule,
   ],
   providers: [
     {

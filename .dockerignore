@@ -1,0 +1,21 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.next
+**/.next
+.git
+.gitignore
+
+# Env files — never bake into images
+.env
+.env.*
+!.env.prod.example
+
+# Session credentials — mounted as a volume at runtime
+packages/wa-server/sessions
+
+# Dev artifacts
+**/*.log
+**/coverage
+**/.turbo

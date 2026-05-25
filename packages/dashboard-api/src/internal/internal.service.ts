@@ -1,13 +1,31 @@
+import { createHmac, randomBytes } from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
+import { eventMatchesFilter, WebhookEvent } from '../lib/webhook-events';
 import { AuditEventDto } from './dto/audit-event.dto';
+import { WebhookEventDto } from './dto/webhook-event.dto';
+
+const RETRY_DELAYS_MS = [1_000, 5_000, 30_000]; // delays before attempt 2, 3, 4
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function sign(secret: string, timestamp: number, rawBody: string): string {
+  const signed = `${timestamp}.${rawBody}`;
+  return `v1,sha256=${createHmac('sha256', secret).update(signed).digest('hex')}`;
+}
 
 @Injectable()
 export class InternalService {
   private readonly logger = new Logger(InternalService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly webhooks: WebhooksService,
+  ) {}
 
   async ingestAudit(dto: AuditEventDto): Promise<void> {
     await this.prisma.auditLog.create({
@@ -21,6 +39,104 @@ export class InternalService {
         ipAddress: dto.ipAddress,
       },
     });
+  }
+
+  // Returns immediately — fanout runs in the background.
+  // Design: workspaceId comes from the URL path, so wa-server code is unchanged;
+  // each workspace's DASHBOARD_WEBHOOK_URL is configured to include its own UUID.
+  fanoutWebhookEvent(workspaceId: string, dto: WebhookEventDto): void {
+    this.runFanout(workspaceId, dto).catch((err: unknown) => {
+      this.logger.error(
+        `[Fanout] Unexpected top-level error for workspace ${workspaceId}: ${String(err)}`,
+      );
+    });
+  }
+
+  private async runFanout(workspaceId: string, dto: WebhookEventDto): Promise<void> {
+    const webhooks = await this.prisma.webhook.findMany({
+      where: { workspaceId, isActive: true },
+      select: { id: true, url: true, signingSecret: true, retryMax: true, events: true },
+    });
+
+    const matching = webhooks.filter((wh) =>
+      eventMatchesFilter(wh.events as (WebhookEvent | '*')[], dto.event),
+    );
+
+    if (matching.length === 0) return;
+
+    await Promise.allSettled(
+      matching.map((wh) => this.deliverWithRetry(wh, dto, 1)),
+    );
+  }
+
+  private async deliverWithRetry(
+    wh: { id: string; url: string; signingSecret: string; retryMax: number },
+    dto: WebhookEventDto,
+    attempt: number,
+  ): Promise<void> {
+    if (attempt > 1) {
+      await sleep(RETRY_DELAYS_MS[attempt - 2] ?? 30_000);
+    }
+
+    const deliveryId = randomBytes(16).toString('hex');
+    const timestamp = Math.floor(Date.now() / 1000);
+    const rawBody = JSON.stringify({
+      event: dto.event,
+      sessionId: dto.sessionId,
+      timestamp: dto.timestamp,
+      deliveryId,
+      data: dto.data,
+    });
+    const signature = sign(wh.signingSecret, timestamp, rawBody);
+    const start = Date.now();
+
+    let statusCode: number | null = null;
+    let succeeded = false;
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      const resp = await fetch(wh.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WaSphere-Event': dto.event,
+          'X-WaSphere-Signature': signature,
+          'X-WaSphere-Timestamp': String(timestamp),
+          'X-WaSphere-Delivery-Id': deliveryId,
+        },
+        body: rawBody,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      statusCode = resp.status;
+      succeeded = resp.ok;
+    } catch (err) {
+      this.logger.warn(
+        `[Fanout] webhook=${wh.id} attempt=${attempt} error=${String(err)}`,
+      );
+    }
+
+    const latencyMs = Date.now() - start;
+
+    if (succeeded) {
+      this.logger.log(
+        `[Fanout] webhook.delivered id=${wh.id} event=${dto.event} status=${statusCode} latency=${latencyMs}ms`,
+      );
+      await this.webhooks.recordDelivery(wh.id, true);
+      return;
+    }
+
+    // Retry if attempts remain
+    if (attempt < wh.retryMax) {
+      return this.deliverWithRetry(wh, dto, attempt + 1);
+    }
+
+    // Retries exhausted
+    this.logger.warn(
+      `[Fanout] webhook.failed id=${wh.id} event=${dto.event} status=${statusCode ?? 'timeout'} attempt=${attempt}`,
+    );
+    await this.webhooks.recordDelivery(wh.id, false);
   }
 
   @Cron('0 2 * * *', { timeZone: 'UTC' })
