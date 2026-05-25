@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as http from 'http';
 import * as https from 'https';
 
@@ -16,11 +18,46 @@ export interface WebhookPayload {
   data: any;
 }
 
+// Persist the callback URL to disk so it survives container restarts.
+// The sessions volume (/app/sessions) is already mounted as a named Docker
+// volume, so this file outlives any individual container lifecycle.
+const URL_PERSIST_PATH = path.join(
+  process.env.SESSIONS_DIR ?? '/app/sessions',
+  '.dashboard-callback-url',
+);
+
+function loadPersistedUrl(): string {
+  try {
+    const saved = fs.readFileSync(URL_PERSIST_PATH, 'utf8').trim();
+    return saved || '';
+  } catch {
+    return '';
+  }
+}
+
+function persistUrl(url: string): void {
+  try {
+    fs.mkdirSync(path.dirname(URL_PERSIST_PATH), { recursive: true });
+    fs.writeFileSync(URL_PERSIST_PATH, url, 'utf8');
+  } catch (err) {
+    console.warn('[Webhook] Could not persist callback URL to disk:', (err as Error).message);
+  }
+}
+
 @Injectable()
-export class WebhookService {
-  // Dashboard URL where events get sent
-  // Dashboard sets this when registering this binary
+export class WebhookService implements OnModuleInit {
+  // Priority: 1) persisted file  2) DASHBOARD_WEBHOOK_URL env  3) empty
   private dashboardUrl: string = process.env.DASHBOARD_WEBHOOK_URL || '';
+
+  onModuleInit(): void {
+    const persisted = loadPersistedUrl();
+    if (persisted) {
+      this.dashboardUrl = persisted;
+      console.log(`[Webhook] Loaded callback URL from disk: ${persisted}`);
+    } else if (this.dashboardUrl) {
+      console.log(`[Webhook] Using DASHBOARD_WEBHOOK_URL env: ${this.dashboardUrl}`);
+    }
+  }
 
   setDashboardUrl(url: string) {
     const secret = process.env.WEBHOOK_SIGNING_SECRET ?? '';
@@ -33,6 +70,7 @@ export class WebhookService {
       );
     }
     this.dashboardUrl = url;
+    persistUrl(url);
   }
 
   getDashboardUrl(): string | null {
