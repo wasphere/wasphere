@@ -11,7 +11,7 @@ COPY packages/dashboard-api/prisma/schema.prisma ./packages/dashboard-api/prisma
 
 RUN pnpm install --frozen-lockfile --filter dashboard-ui...
 
-ARG REBUILD_EPOCH=0
+ARG REBUILD_EPOCH=1
 COPY packages/dashboard-ui ./packages/dashboard-ui
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter dashboard-ui build
@@ -32,5 +32,7 @@ COPY --from=builder /repo/packages/dashboard-ui/public \
 EXPOSE 3004
 ENV PORT=3004
 ENV HOSTNAME=0.0.0.0
-WORKDIR /app/packages/dashboard-ui
-CMD ["node", "server.js"]
+# Run from /app so node finds server.js whether Next.js places it at the
+# standalone root (monorepo workspace mode) or inside packages/dashboard-ui/
+WORKDIR /app
+CMD ["sh", "-c", "node $([ -f packages/dashboard-ui/server.js ] && echo packages/dashboard-ui/server.js || echo server.js)"]
