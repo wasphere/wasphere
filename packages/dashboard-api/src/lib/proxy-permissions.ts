@@ -19,8 +19,8 @@ import { PermissionScope } from './permissions';
  */
 export function proxyPermission(method: string, rawPath: string): PermissionScope | null {
   const m = method.toUpperCase();
-  // Strip leading/trailing slashes and query string
-  const path = rawPath.replace(/^\/+|\/+$/g, '').split('?')[0];
+  // Strip leading/trailing slashes, query string, and optional global "api/" prefix
+  const path = rawPath.replace(/^\/+|\/+$/g, '').split('?')[0].replace(/^api\//, '');
   const segs = path.split('/');
 
   const top = segs[0];
