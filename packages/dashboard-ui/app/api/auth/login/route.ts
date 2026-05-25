@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
-
-const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000";
+import { serverPost } from "@/lib/server-fetch";
 
 const SECURE = process.env.NODE_ENV === "production";
 
@@ -12,24 +11,20 @@ export async function POST(request: Request) {
     return Response.json({ message: "Invalid request body" }, { status: 400 });
   }
 
-  const apiRes = await fetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: body.email, password: body.password }),
-  });
-
-  if (!apiRes.ok) {
-    const errorBody = await apiRes.json().catch(() => ({
-      message: "Login failed",
-    }));
-    return Response.json(errorBody, { status: apiRes.status });
-  }
-
-  const data = (await apiRes.json()) as {
+  const { ok, status, data } = await serverPost<{
     accessToken: string;
     refreshToken: string;
     user: { id: string; email: string; name: string };
-  };
+  }>("/auth/login", "", { email: body.email, password: body.password });
+
+  if (!ok || !data) {
+    return Response.json(
+      (data as { message?: string } | null)?.message
+        ? data
+        : { message: "Login failed" },
+      { status: status || 502 }
+    );
+  }
 
   const cookieStore = await cookies();
 
@@ -38,7 +33,7 @@ export async function POST(request: Request) {
     secure: SECURE,
     sameSite: "lax",
     path: "/",
-    maxAge: 900, // 15 minutes
+    maxAge: 900,
   });
 
   cookieStore.set("wa_refresh", data.refreshToken, {
@@ -46,7 +41,7 @@ export async function POST(request: Request) {
     secure: SECURE,
     sameSite: "lax",
     path: "/",
-    maxAge: 604800, // 7 days
+    maxAge: 604800,
   });
 
   return Response.json({ user: data.user });

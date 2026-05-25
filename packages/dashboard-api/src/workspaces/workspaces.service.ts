@@ -309,7 +309,7 @@ export class WorkspacesService implements OnApplicationBootstrap {
     return new Promise<void>((resolve, reject) => {
       let parsed: URL;
       try {
-        parsed = new URL(`${waServerUrl.replace(/\/$/, '')}/webhooks/callback`);
+        parsed = new URL(`${waServerUrl.replace(/\/$/, '')}/api/webhooks/callback`);
       } catch {
         return reject(new Error(`Invalid waServerUrl: ${waServerUrl}`));
       }

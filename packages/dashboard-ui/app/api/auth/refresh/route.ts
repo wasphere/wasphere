@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
-
-const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000";
+import { serverPost } from "@/lib/server-fetch";
 
 const SECURE = process.env.NODE_ENV === "production";
 
@@ -12,20 +11,17 @@ export async function POST() {
     return new Response(null, { status: 401 });
   }
 
-  const apiRes = await fetch(`${API_BASE}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-  });
+  const { ok, data } = await serverPost<{ accessToken: string }>(
+    "/auth/refresh",
+    "",
+    { refreshToken }
+  );
 
-  if (!apiRes.ok) {
-    // Refresh failed — clear both cookies so the next request goes to /login.
+  if (!ok || !data?.accessToken) {
     cookieStore.set("wa_access", "", { maxAge: 0, path: "/" });
     cookieStore.set("wa_refresh", "", { maxAge: 0, path: "/" });
     return new Response(null, { status: 401 });
   }
-
-  const data = (await apiRes.json()) as { accessToken: string };
 
   cookieStore.set("wa_access", data.accessToken, {
     httpOnly: true,
