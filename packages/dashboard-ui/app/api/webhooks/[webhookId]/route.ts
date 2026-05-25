@@ -10,8 +10,11 @@ export async function PATCH(
   const token = cookieStore.get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
-  const workspaceId = await resolveWorkspaceId(token)
-  if (!workspaceId) return Response.json({ message: "No workspace found" }, { status: 404 })
+  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
+  if (!workspaceId) {
+    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
+    return Response.json({ message: "No workspace found" }, { status: 404 })
+  }
 
   const body = await request.json().catch(() => null)
   if (!body) return Response.json({ message: "Invalid request body" }, { status: 400 })
@@ -29,8 +32,11 @@ export async function DELETE(
   const token = cookieStore.get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
-  const workspaceId = await resolveWorkspaceId(token)
-  if (!workspaceId) return Response.json({ message: "No workspace found" }, { status: 404 })
+  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
+  if (!workspaceId) {
+    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
+    return Response.json({ message: "No workspace found" }, { status: 404 })
+  }
 
   const { data, status } = await serverDelete(`/workspaces/${workspaceId}/webhooks/${webhookId}`, token)
   return Response.json(data ?? {}, { status })

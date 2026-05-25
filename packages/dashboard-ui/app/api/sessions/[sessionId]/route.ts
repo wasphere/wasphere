@@ -10,8 +10,11 @@ export async function GET(
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
   const { sessionId } = await params
-  const workspaceId = await resolveWorkspaceId(token)
-  if (!workspaceId) return Response.json({ message: "No workspace found" }, { status: 404 })
+  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
+  if (!workspaceId) {
+    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
+    return Response.json({ message: "No workspace found" }, { status: 404 })
+  }
 
   const { data, status } = await serverGet(`/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}`, token)
   return Response.json(data ?? { message: "Upstream error" }, { status })
@@ -26,8 +29,11 @@ export async function DELETE(
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
   const { sessionId } = await params
-  const workspaceId = await resolveWorkspaceId(token)
-  if (!workspaceId) return Response.json({ message: "No workspace found" }, { status: 404 })
+  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
+  if (!workspaceId) {
+    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
+    return Response.json({ message: "No workspace found" }, { status: 404 })
+  }
 
   const { data, status } = await serverDelete(`/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}`, token)
   return Response.json(data ?? {}, { status })
