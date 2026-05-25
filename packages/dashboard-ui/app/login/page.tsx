@@ -99,12 +99,6 @@ function LoginForm() {
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Password</Label>
-          <Link
-            href="/forgot-password"
-            className="text-xs text-muted-foreground hover:text-primary transition-colors"
-          >
-            Forgot password?
-          </Link>
         </div>
         <Input
           id="password"
@@ -155,15 +149,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground">
-          By continuing, you agree to our{" "}
-          <Link href="/terms" className="underline hover:text-primary">
-            Terms of Service
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="underline hover:text-primary">
-            Privacy Policy
-          </Link>
-          .
+          WaSphere — Self-hosted WhatsApp automation
         </p>
       </div>
 

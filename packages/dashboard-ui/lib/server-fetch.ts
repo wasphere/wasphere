@@ -64,7 +64,7 @@ interface FetchResult<T> {
   data: T | null
 }
 
-async function apiRequest<T = unknown>(
+export async function apiRequest<T = unknown>(
   path: string,
   method: Method,
   token: string,
@@ -120,15 +120,24 @@ export async function serverDelete<T = unknown>(
   return apiRequest<T>(path, "DELETE", token)
 }
 
-/** Resolves the first workspace ID for the authenticated user. */
-export async function resolveWorkspaceId(token: string): Promise<string | null> {
-  const { data } = await serverGet<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>(
+/**
+ * Resolves the first workspace ID for the authenticated user.
+ * Returns { workspaceId, status } so callers can distinguish a real
+ * 401 (expired token) from a genuinely empty workspace list (404).
+ */
+export async function resolveWorkspaceId(
+  token: string
+): Promise<{ workspaceId: string | null; status: number }> {
+  const result = await apiRequest<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>(
     "/workspaces",
+    "GET",
     token
   )
-  if (!data) return null
+  if (!result.ok) return { workspaceId: null, status: result.status }
+  const data = result.data
+  if (!data) return { workspaceId: null, status: 404 }
   const list = Array.isArray(data) ? data : (data.workspaces ?? [])
-  return list[0]?.id ?? null
+  return { workspaceId: list[0]?.id ?? null, status: list[0] ? 200 : 404 }
 }
 
 /**

@@ -32,8 +32,11 @@ export async function POST(
     return Response.json({ message: "sessionId is required" }, { status: 400 })
   }
 
-  const workspaceId = await resolveWorkspaceId(token)
-  if (!workspaceId) return Response.json({ message: "No workspace found" }, { status: 404 })
+  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
+  if (!workspaceId) {
+    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
+    return Response.json({ message: "No workspace found" }, { status: 404 })
+  }
 
   const { data, status } = await serverPost(
     `/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}/messages/${type}`,

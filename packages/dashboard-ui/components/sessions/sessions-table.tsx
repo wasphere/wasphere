@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
+import { Copy, Check } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +19,25 @@ import { StatusDot } from "@/components/ui/status-dot"
 import { SessionsIllustration } from "@/components/empty-states"
 import { NewSessionDialog } from "@/components/sessions/new-session-dialog"
 import { QrDialog } from "@/components/sessions/qr-dialog"
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = React.useState(false)
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(value).catch(() => null)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      className="ml-1.5 inline-flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+      aria-label={copied ? "Copied" : "Copy session ID"}
+      title={copied ? "Copied!" : "Copy session ID"}
+    >
+      {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+    </button>
+  )
+}
 
 export interface Session {
   id: string
@@ -183,7 +203,12 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
           <TableBody>
             {sessions.map((session) => (
               <TableRow key={session.id} className="hover:bg-muted/40 hover:-translate-y-px hover:shadow-sm transition-all duration-150 ease-out">
-                <TableCell className="text-sm font-medium text-foreground">{session.id}</TableCell>
+                <TableCell className="text-sm font-medium text-foreground font-mono">
+                  <span className="flex items-center gap-0">
+                    {session.id}
+                    <CopyButton value={session.id} />
+                  </span>
+                </TableCell>
                 <TableCell className="text-sm text-zinc-700 dark:text-zinc-300 tabular-nums">{session.phoneNumber ?? "—"}</TableCell>
                 <TableCell>
                   <Badge className={`${statusClassName(session.status)} flex items-center gap-1.5`}>

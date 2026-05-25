@@ -59,7 +59,7 @@ export class InternalService {
     });
 
     const matching = webhooks.filter((wh) =>
-      eventMatchesFilter(wh.events as (WebhookEvent | '*')[], dto.event),
+      eventMatchesFilter(wh.events as (WebhookEvent | '*')[], dto.event as WebhookEvent),
     );
 
     if (matching.length === 0) return;

@@ -51,6 +51,15 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
   const [nameError, setNameError] = React.useState<string | null>(null)
   const [nameSubmitting, setNameSubmitting] = React.useState(false)
 
+  // Workspace ID copy state
+  const [wsCopied, setWsCopied] = React.useState(false)
+
+  const copyWorkspaceId = async () => {
+    await navigator.clipboard.writeText(workspace.id).catch(() => null)
+    setWsCopied(true)
+    setTimeout(() => setWsCopied(false), 2000)
+  }
+
   // Token rotation state
   const [rotateLoading, setRotateLoading] = React.useState(false)
   const [rotatedKey, setRotatedKey] = React.useState<string | null>(null)
@@ -251,6 +260,32 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
                 </Button>
               </div>
             </form>
+
+            {/* Workspace ID — copyable, for use in API calls */}
+            <div className="mt-5 pt-4 border-t flex flex-col gap-1.5">
+              <p className="text-sm font-medium text-foreground">Workspace ID</p>
+              <p className="text-xs text-zinc-400 font-light">
+                Use this UUID to identify your workspace in direct API calls.
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <Input
+                  value={workspace.id}
+                  readOnly
+                  className="font-mono text-xs text-zinc-600 dark:text-zinc-300 bg-muted/40"
+                  aria-label="Workspace ID"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={copyWorkspaceId}
+                  className="shrink-0"
+                  aria-label={wsCopied ? "Copied" : "Copy workspace ID"}
+                >
+                  {wsCopied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

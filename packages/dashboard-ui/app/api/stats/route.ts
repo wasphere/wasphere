@@ -6,8 +6,11 @@ export async function GET() {
   const token = cookieStore.get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
-  const workspaceId = await resolveWorkspaceId(token)
-  if (!workspaceId) return Response.json({ message: "No workspace" }, { status: 404 })
+  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
+  if (!workspaceId) {
+    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
+    return Response.json({ message: "No workspace found" }, { status: 404 })
+  }
 
   const { data, status } = await serverGet(`/workspaces/${workspaceId}/stats`, token)
   return Response.json(data ?? {}, { status })
