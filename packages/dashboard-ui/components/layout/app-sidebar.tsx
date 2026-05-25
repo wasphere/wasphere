@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Smartphone,
@@ -143,16 +142,6 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { state, setOpen } = useSidebar();
   const collapsed = state === "collapsed";
-  const [waServerUrl, setWaServerUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/settings/workspace")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data?.waServerUrl) setWaServerUrl(data.waServerUrl);
-      })
-      .catch(() => {});
-  }, []);
 
   return (
     <Sidebar
@@ -202,15 +191,13 @@ export function AppSidebar() {
             <SidebarMenu>
               <ExternalNavItem
                 label="WhatsApp API"
-                href={waServerUrl ? `${waServerUrl}/api/reference` : null}
+                href="/docs/wa-server"
                 icon={BookOpen}
                 collapsed={collapsed}
-                disabled={!waServerUrl}
-                disabledReason="Configure WA Server URL in Settings first"
               />
               <ExternalNavItem
                 label="Admin API"
-                href="/api/reference"
+                href="/docs/admin"
                 icon={ShieldCheck}
                 collapsed={collapsed}
               />

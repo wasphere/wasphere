@@ -89,6 +89,7 @@ services:
     restart: unless-stopped
     environment:
       DASHBOARD_API_URL: http://dashboard-api:3000
+      WA_SERVER_INTERNAL_URL: http://wa-server:3001
       NODE_ENV: production
     depends_on:
       dashboard-api:
