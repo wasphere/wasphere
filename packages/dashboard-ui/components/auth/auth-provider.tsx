@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -16,7 +17,6 @@ interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
-  /** True while the initial /api/auth/me fetch is in flight. */
   loading: boolean;
 }
 
@@ -25,9 +25,21 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
 });
 
+// Refresh 2 minutes before the 15-minute access token expires.
+const REFRESH_INTERVAL_MS = 13 * 60 * 1000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refresh = async () => {
+    const res = await fetch("/api/auth/refresh", { method: "POST" });
+    if (!res.ok) {
+      // Refresh failed — redirect to login.
+      window.location.href = "/login?reason=expired";
+    }
+  };
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -41,6 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
+
+    // Proactively refresh the access token before it expires.
+    timerRef.current = setInterval(refresh, REFRESH_INTERVAL_MS);
+
+    return () => {
+      if (timerRef.current !== null) clearInterval(timerRef.current);
+    };
   }, []);
 
   return (

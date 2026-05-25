@@ -83,7 +83,9 @@ async function apiRequest<T = unknown>(
       return { ok, status, data: null }
     }
   } catch {
-    return { ok: false, status: 0, data: null }
+    // status 0 is not a valid HTTP status code; Next.js Response.json() throws
+    // RangeError if status is outside 200-599, so use 502 for network failures.
+    return { ok: false, status: 502, data: null }
   }
 }
 
