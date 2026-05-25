@@ -1,19 +1,5 @@
 import { cookies } from "next/headers"
-
-const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
-
-async function resolveWorkspaceId(token: string): Promise<string | null> {
-  const res = await fetch(`${API_BASE}/workspaces`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  })
-  if (!res.ok) return null
-  const data = await res.json()
-  const list: Array<{ id: string }> = Array.isArray(data)
-    ? data
-    : (data.workspaces ?? [])
-  return list[0]?.id ?? null
-}
+import { serverPost, resolveWorkspaceId } from "@/lib/server-fetch"
 
 interface SendMessageBody {
   sessionId: string
@@ -26,9 +12,7 @@ interface SendMessageBody {
 export async function POST(request: Request) {
   const cookieStore = await cookies()
   const token = cookieStore.get("wa_access")?.value
-  if (!token) {
-    return Response.json({ message: "Unauthorized" }, { status: 401 })
-  }
+  if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
   let body: SendMessageBody
   try {
@@ -38,38 +22,21 @@ export async function POST(request: Request) {
   }
 
   const { sessionId, to, text, imageUrl, caption } = body
-
   if (!sessionId || !to) {
-    return Response.json(
-      { message: "sessionId and to are required" },
-      { status: 400 }
-    )
+    return Response.json({ message: "sessionId and to are required" }, { status: 400 })
   }
 
   const workspaceId = await resolveWorkspaceId(token)
-  if (!workspaceId) {
-    return Response.json({ message: "No workspace found" }, { status: 404 })
-  }
+  if (!workspaceId) return Response.json({ message: "No workspace found" }, { status: 404 })
 
   const isImage = Boolean(imageUrl)
   const endpoint = isImage ? "send-image" : "send-text"
+  const upstreamBody = isImage ? { to, imageUrl, caption: caption ?? "" } : { to, text }
 
-  const upstreamBody = isImage
-    ? { to, imageUrl, caption: caption ?? "" }
-    : { to, text }
-
-  const res = await fetch(
-    `${API_BASE}/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}/${endpoint}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(upstreamBody),
-    }
+  const { data, status } = await serverPost(
+    `/workspaces/${workspaceId}/proxy/api/sessions/${sessionId}/${endpoint}`,
+    token,
+    upstreamBody
   )
-
-  const resBody = await res.json().catch(() => ({ message: "Upstream error" }))
-  return Response.json(resBody, { status: res.status })
+  return Response.json(data ?? { message: "Upstream error" }, { status })
 }
