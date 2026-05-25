@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { safeFetch, SsrfBlockedError } from '../common/safe-fetch';
+import * as http from 'http';
+import * as https from 'https';
 
 function computeSignature(secret: string, timestamp: number, rawBody: string): string {
   const signedString = `${timestamp}.${rawBody}`;
@@ -51,33 +52,60 @@ export class WebhookService {
     try {
       await this.post(this.dashboardUrl, payload);
     } catch (err) {
-      if (err instanceof SsrfBlockedError) {
-        // SSRF block on DASHBOARD_WEBHOOK_URL indicates misconfigured or compromised Dashboard
-        console.error(`[Webhook] SSRF_BLOCKED firing event ${event}: ${err.message}`);
-      } else {
-        // Silent fail — dashboard might be temporarily down
-        console.warn(`[Webhook] Failed to fire event ${event}: ${err.message}`);
-      }
+      // Silent fail — dashboard might be temporarily down
+      console.warn(`[Webhook] Failed to fire event ${event}: ${(err as Error).message}`);
     }
   }
 
-  private async post(url: string, payload: WebhookPayload): Promise<void> {
+  // DASHBOARD_WEBHOOK_URL is operator-configured (not user-supplied), so safeFetch's
+  // SSRF protection is not appropriate here — it would block Docker-internal URLs used
+  // in self-hosted deployments. Uses native http like audit.middleware.ts.
+  private post(url: string, payload: WebhookPayload): Promise<void> {
     const rawBody = JSON.stringify(payload);
     const timestamp = Math.floor(Date.now() / 1000);
-    const secret = process.env.WEBHOOK_SIGNING_SECRET ?? '';
-    const signature = computeSignature(secret, timestamp, rawBody);
+    const signingSecret = process.env.WEBHOOK_SIGNING_SECRET ?? '';
+    const internalSecret = process.env.INTERNAL_WEBHOOK_SECRET ?? '';
+    const signature = computeSignature(signingSecret, timestamp, rawBody);
 
-    await safeFetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-WaSphere-Event': payload.event,
-        'X-WaSphere-Session': payload.sessionId,
-        'X-WaSphere-Signature': signature,
-        'X-WaSphere-Timestamp': String(timestamp),
-      },
-      body: rawBody,
-      maxBytes: 1 * 1024 * 1024, // 1 MiB — webhook responses are JSON only
+    return new Promise<void>((resolve, reject) => {
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return reject(new Error(`Invalid DASHBOARD_WEBHOOK_URL: ${url}`));
+      }
+
+      const mod = parsed.protocol === 'https:' ? https : http;
+      const req = mod.request(
+        {
+          hostname: parsed.hostname,
+          port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+          path: parsed.pathname + (parsed.search || ''),
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(rawBody),
+            'X-WaSphere-Event': payload.event,
+            'X-WaSphere-Session': payload.sessionId,
+            'X-WaSphere-Signature': signature,
+            'X-WaSphere-Timestamp': String(timestamp),
+            'X-Internal-Secret': internalSecret,
+          },
+        },
+        (res) => {
+          res.resume(); // drain to free socket
+          resolve();
+        },
+      );
+
+      req.setTimeout(10_000, () => {
+        req.destroy();
+        reject(new Error('Webhook delivery timeout'));
+      });
+
+      req.on('error', reject);
+      req.write(rawBody);
+      req.end();
     });
   }
 }
