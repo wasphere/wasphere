@@ -11,6 +11,7 @@ COPY packages/dashboard-api/prisma/schema.prisma ./packages/dashboard-api/prisma
 
 RUN pnpm install --frozen-lockfile --filter dashboard-ui...
 
+ARG REBUILD_EPOCH=0
 COPY packages/dashboard-ui ./packages/dashboard-ui
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter dashboard-ui build
