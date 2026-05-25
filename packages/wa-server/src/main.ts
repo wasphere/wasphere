@@ -7,6 +7,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SsrfExceptionFilter } from './common/ssrf-exception.filter';
 import { UriDecodeExceptionFilter } from './common/uri-decode-exception.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { apiReference } from '@scalar/nestjs-api-reference';
 
 // Parse CLI args: --port 3001 and validate docs env vars
 function validateDocsEnv(): void {
@@ -175,7 +176,12 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
+    bodyParser: false,
   });
+
+  const { json: expressJson, urlencoded: expressUrlEncoded } = await import('express');
+  app.use(expressJson({ limit: '10mb' }));
+  app.use(expressUrlEncoded({ extended: true, limit: '10mb' }));
 
   // Raw Express middleware — must run before NestJS routing so it catches all requests
   // including those whose URLs are normalized away by Express route matching
@@ -215,8 +221,61 @@ async function bootstrap() {
     const { version } = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 
     const config = new DocumentBuilder()
-      .setTitle('WaSphere WA Server')
-      .setDescription('REST API for managing WhatsApp sessions, messages, groups, contacts, and webhooks.')
+      .setTitle('WaSphere — WhatsApp API')
+      .setDescription(`
+WaSphere is a self-hosted WhatsApp automation platform. This API lets you manage WhatsApp sessions, send all message types, configure webhooks, and interact with contacts and groups — all over a simple REST interface.
+
+## Authentication
+
+Every request must include your API token in the \`X-Api-Token\` header. Set this token via the \`WA_TOKEN\` environment variable when starting the server.
+
+\`\`\`bash
+curl http://your-server:3001/api/sessions \\
+  -H "X-Api-Token: YOUR_TOKEN"
+\`\`\`
+
+## Base URL
+
+\`\`\`
+http://your-server:3001/api
+\`\`\`
+
+## How Sessions Work
+
+A **session** represents one linked WhatsApp account.
+
+1. **Create** a session → \`POST /sessions/{sessionId}\`
+2. **Fetch the QR code** → \`GET /sessions/{sessionId}/qr\`
+3. **Scan** the QR with WhatsApp on your phone (Linked Devices → Link a Device)
+4. **Wait for status \`open\`** → \`GET /sessions/{sessionId}/status\`
+5. **Start sending** using \`sessionId\` in all message, contact, and group endpoints
+
+Sessions persist across server restarts. One server supports multiple concurrent sessions.
+
+## Message Types
+
+| Type | Endpoint |
+|------|----------|
+| Text | \`POST /sessions/{sessionId}/messages/text\` |
+| Image | \`POST /sessions/{sessionId}/messages/image\` |
+| Video | \`POST /sessions/{sessionId}/messages/video\` |
+| Audio | \`POST /sessions/{sessionId}/messages/audio\` |
+| Document | \`POST /sessions/{sessionId}/messages/document\` |
+| Location | \`POST /sessions/{sessionId}/messages/location\` |
+| Poll | \`POST /sessions/{sessionId}/messages/poll\` |
+| Buttons | \`POST /sessions/{sessionId}/messages/buttons\` |
+| List | \`POST /sessions/{sessionId}/messages/list\` |
+| Reaction | \`POST /sessions/{sessionId}/messages/reaction\` |
+| Sticker | \`POST /sessions/{sessionId}/messages/sticker\` |
+
+## Rate Limiting
+
+Default: **100 requests / minute** per IP. Configurable via \`RATE_LIMIT_MAX\` and \`RATE_LIMIT_WINDOW_MS\` environment variables.
+
+## IP Allowlist
+
+Optionally restrict API access to specific IPs or CIDR ranges via the \`ALLOWED_IPS\` environment variable.
+      `.trim())
       .setVersion(version)
       .addApiKey({ type: 'apiKey', in: 'header', name: 'X-Api-Token' }, 'X-Api-Token')
       .addSecurityRequirements('X-Api-Token')
@@ -224,45 +283,39 @@ async function bootstrap() {
 
     const document = SwaggerModule.createDocument(app, config);
 
-    const basicUser = process.env.DOCS_BASIC_AUTH_USER;
-    const basicPass = process.env.DOCS_BASIC_AUTH_PASS;
-    const expressApp = app.getHttpAdapter().getInstance();
+    // Raw OpenAPI JSON — publicly accessible; Scalar reads from this.
+    // To gate docs behind auth, set SWAGGER_ENABLED=false and serve your own wrapper.
+    app.use('/api/docs-json', (_req: unknown, res: { json: (d: unknown) => void }) => {
+      res.json(document);
+    });
 
-    // SwaggerModule registers directly on Express (not NestJS router), so NestJS
-    // middleware consumer (AuthMiddleware) does not cover Swagger routes.
-    // We attach auth guards directly on the Express app BEFORE SwaggerModule.setup().
-    if (basicUser && basicPass) {
-      // Basic Auth mode: check Basic credentials on all /api/docs* paths.
-      const basicAuthGuard = (req: any, res: any, next: any) => {
-        const authHeader = req.headers['authorization'];
-        if (!authHeader || !authHeader.startsWith('Basic ')) {
-          res.setHeader('WWW-Authenticate', 'Basic realm="WaSphere Docs"');
-          return res.status(401).send('Unauthorized');
-        }
-        const [user, pass] = Buffer.from(authHeader.slice(6), 'base64').toString().split(':');
-        if (user !== basicUser || pass !== basicPass) {
-          res.setHeader('WWW-Authenticate', 'Basic realm="WaSphere Docs"');
-          return res.status(401).send('Unauthorized');
-        }
-        next();
-      };
-      expressApp.use(`/${swaggerPath}`, basicAuthGuard);
-      expressApp.use(`/${swaggerPath}-json`, basicAuthGuard);
-    } else {
-      // X-Api-Token fallback mode: reuse the same token check as the rest of the API.
-      const tokenGuard = (req: any, res: any, next: any) => {
-        const incoming = req.headers['x-api-token'];
-        if (!incoming || incoming !== token) {
-          return res.status(401).json({ message: 'Unauthorized', statusCode: 401 });
-        }
-        next();
-      };
-      expressApp.use(`/${swaggerPath}`, tokenGuard);
-      expressApp.use(`/${swaggerPath}-json`, tokenGuard);
-    }
+    // Scalar three-column API reference — publicly accessible
+    app.use(
+      '/api/reference',
+      apiReference({
+        spec: { url: '/api/docs-json' },
+        metaData: {
+          title: 'WaSphere API Reference',
+          description: 'WhatsApp automation REST API — sessions, messages, webhooks, contacts, groups',
+        },
+        defaultHttpClient: { targetKey: 'shell', clientKey: 'curl' },
+        customCss: `
+          .light-mode {
+            --scalar-color-accent: #10b981;
+            --scalar-background-accent: #10b98120;
+          }
+          .dark-mode {
+            --scalar-color-accent: #34d399;
+            --scalar-background-accent: #34d39920;
+          }
+        `,
+      }),
+    );
 
-    // SwaggerModule registers at /${swaggerPath} and /${swaggerPath}-json on Express directly.
-    SwaggerModule.setup(swaggerPath, app, document);
+    // Redirect old Swagger path so existing bookmarks still work
+    app.use(`/${swaggerPath}`, (_req: unknown, res: { redirect: (url: string) => void }) => {
+      res.redirect('/api/reference');
+    });
   }
 
   await app.listen(port);

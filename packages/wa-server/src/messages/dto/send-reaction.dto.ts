@@ -2,12 +2,15 @@ import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SendReactionDto {
-  @ApiProperty({ description: 'Recipient JID (phone number or group JID)', example: '14155552671' })
+  @ApiProperty({ description: 'Recipient phone number with country code (e.g. 923001234567) or full WhatsApp JID (e.g. 923001234567@s.whatsapp.net). Both formats are accepted.', example: '923001234567' })
   @IsString() @IsNotEmpty() @MaxLength(40) to: string;
 
-  @ApiProperty({ description: 'ID of the message to react to', example: '3EB0123456789ABCDEF0' })
+  @ApiProperty({
+    description: 'WhatsApp message ID of the message to react to. Real message IDs arrive in incoming webhook events (field: `message.key.id`) or from the message history API (v1.1).',
+    example: '3EB0123456789ABCDEF0',
+  })
   @IsString() @IsNotEmpty() @MaxLength(100) messageId: string;
 
-  @ApiProperty({ description: 'Emoji to react with (empty string to remove reaction, max 8 chars)', example: '👍' })
+  @ApiProperty({ description: 'Emoji to react with. Pass an empty string `""` to remove an existing reaction.', example: '👍' })
   @IsString() @MaxLength(8) emoji: string;
 }

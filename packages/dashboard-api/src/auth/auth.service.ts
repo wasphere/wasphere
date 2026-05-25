@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   OnModuleInit,
@@ -70,12 +71,22 @@ export class AuthService implements OnModuleInit {
     return { accessToken, refreshToken: rawRefreshToken };
   }
 
+  async registerAvailable(): Promise<{ available: boolean }> {
+    const count = await this.prisma.user.count();
+    return { available: count === 0 };
+  }
+
   async register(dto: RegisterDto): Promise<{
     accessToken: string;
     refreshToken: string;
     user: { id: string; email: string };
     workspace: { id: string; name: string };
   }> {
+    const count = await this.prisma.user.count();
+    if (count > 0) {
+      throw new ForbiddenException('registration_locked');
+    }
+
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });

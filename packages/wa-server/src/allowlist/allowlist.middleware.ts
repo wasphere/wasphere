@@ -189,7 +189,9 @@ const BYPASS_PATHS = new Set([
   '/api/health/ready',
   '/api/health/live/',   // trailing-slash variants for load-balancers that append /
   '/api/health/ready/',
-  swaggerBase,
+  '/api/reference',      // Scalar UI — publicly readable by design
+  '/api/docs-json',      // OpenAPI spec — Scalar reads from this
+  swaggerBase,           // old Swagger path (now redirects to /api/reference)
   swaggerBase + '-json',
 ]);
 
