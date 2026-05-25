@@ -1,8 +1,8 @@
 import { cookies } from "next/headers"
-import { ApiError } from "@/components/ui/api-error"
+import { redirect } from "next/navigation"
 import { SettingsForm, type Workspace } from "@/components/settings/settings-form"
 
-import { serverGet } from "@/lib/server-fetch"
+import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
 
 async function fetchWorkspace(token: string): Promise<{ workspace: Workspace; workspaceId: string } | null> {
   const list = await serverGet<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>("/workspaces", token)
@@ -18,17 +18,19 @@ async function fetchWorkspace(token: string): Promise<{ workspace: Workspace; wo
 
 export default async function SettingsPage() {
   const cookieStore = await cookies()
-  const token = cookieStore.get("wa_access")?.value ?? ""
+  let token = cookieStore.get("wa_access")?.value ?? ""
 
-  const result = await fetchWorkspace(token)
+  if (!token) redirect("/login?reason=expired")
+
+  let result = await fetchWorkspace(token)
 
   if (!result) {
-    return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <ApiError message="Could not load workspace settings." />
-      </div>
-    )
+    const newToken = await tryRefreshToken()
+    if (newToken) {
+      token = newToken
+      result = await fetchWorkspace(token)
+    }
+    if (!result) redirect("/login?reason=expired")
   }
 
   const { workspace } = result

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Smartphone, MessageSquare, ShieldCheck, Zap, BarChart2, ActivitySquare } from "lucide-react"
 
@@ -11,7 +12,7 @@ import { AnimatedBarChart } from "@/components/overview/animated-bar-chart"
 import { DonutChart } from "@/components/overview/donut-chart"
 import { ActivityFeed, type ActivityItem } from "@/components/overview/activity-feed"
 
-import { serverGet } from "@/lib/server-fetch"
+import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -66,17 +67,19 @@ async function fetchStats(workspaceId: string, token: string): Promise<Stats | n
 
 export default async function OverviewPage() {
   const cookieStore = await cookies()
-  const token = cookieStore.get("wa_access")?.value ?? ""
+  let token = cookieStore.get("wa_access")?.value ?? ""
 
-  const workspaces = await fetchWorkspaces(token)
+  if (!token) redirect("/login?reason=expired")
+
+  let workspaces = await fetchWorkspaces(token)
 
   if (workspaces === null) {
-    return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold text-foreground">Overview</h1>
-        <ApiError message="Could not load workspace data." />
-      </div>
-    )
+    const newToken = await tryRefreshToken()
+    if (newToken) {
+      token = newToken
+      workspaces = await fetchWorkspaces(token)
+    }
+    if (workspaces === null) redirect("/login?reason=expired")
   }
 
   if (workspaces.length === 0) {

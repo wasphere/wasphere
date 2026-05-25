@@ -10,6 +10,7 @@
 
 import * as http from "node:http"
 import * as https from "node:https"
+import { cookies } from "next/headers"
 
 export const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
 
@@ -128,4 +129,28 @@ export async function resolveWorkspaceId(token: string): Promise<string | null> 
   if (!data) return null
   const list = Array.isArray(data) ? data : (data.workspaces ?? [])
   return list[0]?.id ?? null
+}
+
+/**
+ * Attempts a server-side token refresh using the wa_refresh cookie.
+ * On success, sets the new wa_access cookie and returns the new token.
+ * Returns null if the refresh token is missing or the refresh fails.
+ */
+export async function tryRefreshToken(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const refreshToken = cookieStore.get("wa_refresh")?.value
+  if (!refreshToken) return null
+
+  const SECURE = process.env.NODE_ENV === "production"
+  const { ok, data } = await serverPost<{ accessToken: string }>("/auth/refresh", "", { refreshToken })
+  if (!ok || !data?.accessToken) return null
+
+  cookieStore.set("wa_access", data.accessToken, {
+    httpOnly: true,
+    secure: SECURE,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 900,
+  })
+  return data.accessToken
 }

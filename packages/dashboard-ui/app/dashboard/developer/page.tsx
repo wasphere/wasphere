@@ -1,8 +1,8 @@
 import { cookies } from "next/headers"
-import { ApiError } from "@/components/ui/api-error"
+import { redirect } from "next/navigation"
 import { DeveloperPanel } from "@/components/developer/developer-panel"
 
-import { serverGet } from "@/lib/server-fetch"
+import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
 
 interface Workspace {
   id: string
@@ -24,17 +24,19 @@ async function fetchWorkspace(token: string): Promise<Workspace | null> {
 
 export default async function DeveloperPage() {
   const cookieStore = await cookies()
-  const token = cookieStore.get("wa_access")?.value ?? ""
+  let token = cookieStore.get("wa_access")?.value ?? ""
 
-  const workspace = await fetchWorkspace(token)
+  if (!token) redirect("/login?reason=expired")
 
-  if (workspace === null) {
-    return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Developer</h1>
-        <ApiError message="Could not load workspace data." />
-      </div>
-    )
+  let workspace = await fetchWorkspace(token)
+
+  if (!workspace) {
+    const newToken = await tryRefreshToken()
+    if (newToken) {
+      token = newToken
+      workspace = await fetchWorkspace(token)
+    }
+    if (!workspace) redirect("/login?reason=expired")
   }
 
   return (
