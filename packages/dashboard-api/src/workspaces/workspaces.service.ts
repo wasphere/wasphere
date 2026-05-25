@@ -2,8 +2,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
+import * as http from 'http';
+import * as https from 'https';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from './encryption.service';
@@ -12,11 +16,28 @@ import { SetWaServerDto } from './dto/set-wa-server.dto';
 import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
 
 @Injectable()
-export class WorkspacesService {
+export class WorkspacesService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(WorkspacesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
   ) {}
+
+  async onApplicationBootstrap(): Promise<void> {
+    const workspaces = await this.prisma.workspace.findMany({
+      where: { waServerUrl: { not: null }, waServerToken: { not: null } },
+      select: { id: true, waServerUrl: true, waServerToken: true, waServerTokenIv: true },
+    });
+    for (const w of workspaces) {
+      try {
+        const token = this.encryption.decrypt(w.waServerToken!, w.waServerTokenIv!);
+        await this.registerCallback(w.id, w.waServerUrl!, token);
+      } catch (err) {
+        this.logger.warn(`[Bootstrap] Failed to register callback for workspace ${w.id}: ${(err as Error).message}`);
+      }
+    }
+  }
 
   async listForUser(userId: string) {
     const memberships = await this.prisma.workspaceMember.findMany({
@@ -83,6 +104,13 @@ export class WorkspacesService {
         waServerTokenIv: iv,
       },
     });
+
+    // Auto-register callback so wa-server knows where to send events
+    try {
+      await this.registerCallback(workspaceId, dto.waServerUrl, dto.waServerToken);
+    } catch (err) {
+      this.logger.warn(`[SetWaServer] Callback registration failed for workspace ${workspaceId}: ${(err as Error).message}`);
+    }
 
     return { success: true };
   }
@@ -271,6 +299,52 @@ export class WorkspacesService {
         createdAt: log.timestamp,
       })),
     };
+  }
+
+  private registerCallback(workspaceId: string, waServerUrl: string, token: string): Promise<void> {
+    const base = (process.env.DASHBOARD_INTERNAL_URL ?? 'http://dashboard-api:3000').replace(/\/$/, '');
+    const callbackUrl = `${base}/internal/webhook-event/${workspaceId}`;
+    const body = JSON.stringify({ url: callbackUrl });
+
+    return new Promise<void>((resolve, reject) => {
+      let parsed: URL;
+      try {
+        parsed = new URL(`${waServerUrl.replace(/\/$/, '')}/webhooks/callback`);
+      } catch {
+        return reject(new Error(`Invalid waServerUrl: ${waServerUrl}`));
+      }
+
+      const mod = parsed.protocol === 'https:' ? https : http;
+      const req = mod.request(
+        {
+          hostname: parsed.hostname,
+          port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+          path: parsed.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            'X-Api-Token': token,
+          },
+        },
+        (res) => {
+          res.resume();
+          if (res.statusCode && res.statusCode >= 400) {
+            return reject(new Error(`wa-server responded ${res.statusCode} to callback registration`));
+          }
+          resolve();
+        },
+      );
+
+      req.setTimeout(8_000, () => {
+        req.destroy();
+        reject(new Error('Callback registration timed out'));
+      });
+
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
   }
 
   private async requireOwner(userId: string, workspaceId: string) {

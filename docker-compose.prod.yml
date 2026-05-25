@@ -62,7 +62,6 @@ services:
       WA_TOKEN: ${WA_TOKEN}
       PORT: "3001"
       CORS_ORIGIN: ${DASHBOARD_UI_URL}
-      DASHBOARD_WEBHOOK_URL: http://dashboard-api:3000/internal/webhook-event/be11c51b-1a5a-4bc9-9cb6-7ee7040ec4d8
       WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET}
       AUDIT_DASHBOARD_URL: http://dashboard-api:3000/internal/audit
       INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET}
