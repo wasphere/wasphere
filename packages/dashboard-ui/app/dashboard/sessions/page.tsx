@@ -1,4 +1,5 @@
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 import { ApiError } from "@/components/ui/api-error"
 import {
   SessionsTable,
@@ -7,7 +8,7 @@ import {
 import { AntiBanControls } from "@/components/settings/anti-ban-controls"
 import { type SessionSummary } from "@/lib/session-config"
 
-import { serverGet } from "@/lib/server-fetch"
+import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
 
 async function fetchWorkspaceId(token: string): Promise<string | null> {
   const { ok, data } = await serverGet<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>("/workspaces", token)
@@ -29,20 +30,24 @@ async function fetchSessions(
 
 export default async function SessionsPage() {
   const cookieStore = await cookies()
-  const token = cookieStore.get("wa_access")?.value ?? ""
+  let token = cookieStore.get("wa_access")?.value ?? ""
 
-  const workspaceId = await fetchWorkspaceId(token)
+  if (!token) {
+    redirect("/login?reason=expired")
+  }
+
+  let workspaceId = await fetchWorkspaceId(token)
 
   if (!workspaceId) {
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold text-foreground">Sessions</h1>
-          <p className="text-sm text-zinc-700 dark:text-zinc-300">Manage WhatsApp sessions connected to this workspace.</p>
-        </div>
-        <ApiError message="Could not load workspace. Please check your settings." />
-      </div>
-    )
+    // Token may have just expired — try a server-side refresh before giving up
+    const newToken = await tryRefreshToken()
+    if (newToken) {
+      token = newToken
+      workspaceId = await fetchWorkspaceId(token)
+    }
+    if (!workspaceId) {
+      redirect("/login?reason=expired")
+    }
   }
 
   const sessions = await fetchSessions(workspaceId, token)
