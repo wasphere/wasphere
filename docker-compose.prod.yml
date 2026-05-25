@@ -50,6 +50,8 @@ services:
       - traefik.http.routers.wasphere-api.rule=Host(`${DASHBOARD_API_DOMAIN}`)
       - traefik.http.routers.wasphere-api.entrypoints=websecure
       - traefik.http.routers.wasphere-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.wasphere-api.service=wasphere-api
+      - traefik.http.routers.wasphere-api.priority=100
       - traefik.http.services.wasphere-api.loadbalancer.server.port=3000
 
   # ── WA Server ───────────────────────────────────────────────────────────────
@@ -107,6 +109,8 @@ services:
       - traefik.http.routers.wasphere-ui.rule=Host(`${DASHBOARD_UI_DOMAIN}`)
       - traefik.http.routers.wasphere-ui.entrypoints=websecure
       - traefik.http.routers.wasphere-ui.tls.certresolver=letsencrypt
+      - traefik.http.routers.wasphere-ui.service=wasphere-ui
+      - traefik.http.routers.wasphere-ui.priority=100
       - traefik.http.services.wasphere-ui.loadbalancer.server.port=3004
 
 volumes:
