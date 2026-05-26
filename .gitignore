@@ -28,4 +28,5 @@ npm-debug.log*
 # internal — agent definitions and design docs (contains PRD)
 .claude/
 /docs/
+CLAUDE.md
 docker-compose.test-ports.yml

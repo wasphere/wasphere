@@ -28,7 +28,7 @@ Self-hosted WhatsApp API platform — multi-session, multi-webhook, with develop
 ### Docker (recommended)
 
 ```bash
-git clone https://github.com/YOUR_ORG/wasphere.git
+git clone https://github.com/wasphere/wasphere.git
 cd wasphere
 cp packages/wa-server/.env.example packages/wa-server/.env
 cp packages/dashboard-api/.env.example packages/dashboard-api/.env
@@ -42,7 +42,7 @@ docker compose up -d
 **Requirements:** Node ≥ 20, PostgreSQL ≥ 14, Redis ≥ 7, pnpm
 
 ```bash
-git clone https://github.com/YOUR_ORG/wasphere.git
+git clone https://github.com/wasphere/wasphere.git
 cd wasphere
 pnpm install
 # Configure .env files (see First-Time Setup below)
@@ -55,7 +55,7 @@ Services start on:
 | Service | URL |
 |---|---|
 | WA Server | `http://localhost:3001` |
-| Dashboard API | `http://localhost:3005` |
+| Dashboard API | `http://localhost:3000` |
 | Dashboard UI | `http://localhost:3004` |
 
 ---
@@ -121,7 +121,7 @@ Navigate to `http://localhost:3004` and register an account.
 Interactive Scalar API reference is available at:
 
 - **WhatsApp API** — `http://localhost:3001/api/reference` (send messages, manage sessions, configure webhooks)
-- **Admin API** — `http://localhost:3005/api/reference` (workspaces, API keys, audit logs)
+- **Admin API** — `http://localhost:3000/api/reference` (workspaces, API keys, audit logs)
 
 Both include live cURL / JavaScript / Python / PHP code examples and support authenticated requests directly in the browser. Toggle dark mode in the top-right corner.
 
@@ -129,8 +129,8 @@ Quick example:
 
 ```bash
 # Send a text message
-curl -X POST http://localhost:3001/api/sessions/{sessionId}/messages/text \
-  -H "X-Api-Token: YOUR_TOKEN" \
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/text \
+  -H "Authorization: Bearer wsk_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"to": "+12345678901", "text": "Hello from WaSphere!"}'
 ```
@@ -177,6 +177,6 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions, branch naming, 
 
 ## Support
 
-- **Bug reports / feature requests** — [GitHub Issues](https://github.com/YOUR_ORG/wasphere/issues)
-- **Discussions** — [GitHub Discussions](https://github.com/YOUR_ORG/wasphere/discussions)
-- **Twitter** — [@WaSphereHQ](#) _(placeholder)_
+- **Bug reports / feature requests** — [GitHub Issues](https://github.com/wasphere/wasphere/issues)
+- **Discussions** — [GitHub Discussions](https://github.com/wasphere/wasphere/discussions)
+- **Twitter** — [@WaSphereHQ](https://twitter.com/WaSphereHQ)

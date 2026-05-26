@@ -16,7 +16,7 @@ Thank you for your interest in contributing. This document covers setup, workflo
 ### Clone and install
 
 ```bash
-git clone https://github.com/YOUR_ORG/wasphere.git
+git clone https://github.com/wasphere/wasphere.git
 cd wasphere
 pnpm install
 ```
@@ -46,7 +46,7 @@ pnpm dev
 ```
 
 - WA Server: `http://localhost:3001`
-- Dashboard API: `http://localhost:3005`
+- Dashboard API: `http://localhost:3000`
 - Dashboard UI: `http://localhost:3004`
 
 ---

@@ -10,7 +10,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] - YYYY-MM-DD
+## [1.0.0] - 2026-05-27
 
 ### Added
 
@@ -52,5 +52,5 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/YOUR_ORG/wasphere/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/YOUR_ORG/wasphere/releases/tag/v1.0.0
+[Unreleased]: https://github.com/wasphere/wasphere/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/wasphere/wasphere/releases/tag/v1.0.0
