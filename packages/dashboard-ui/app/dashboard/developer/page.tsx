@@ -2,7 +2,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { DeveloperPanel } from "@/components/developer/developer-panel"
 
-import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
+import { serverGet } from "@/lib/server-fetch"
 
 interface Workspace {
   id: string
@@ -31,12 +31,7 @@ export default async function DeveloperPage() {
   let workspace = await fetchWorkspace(token)
 
   if (!workspace) {
-    const newToken = await tryRefreshToken()
-    if (newToken) {
-      token = newToken
-      workspace = await fetchWorkspace(token)
-    }
-    if (!workspace) redirect("/login?reason=expired")
+    redirect("/login?reason=expired")
   }
 
   return (

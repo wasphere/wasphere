@@ -2,7 +2,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { MessagesPanel } from "@/components/messages/messages-panel"
 
-import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
+import { serverGet } from "@/lib/server-fetch"
 
 interface SessionRaw {
   id: string
@@ -39,12 +39,7 @@ export default async function MessagesPage() {
   let workspaceId = await fetchWorkspaceId(token)
 
   if (!workspaceId) {
-    const newToken = await tryRefreshToken()
-    if (newToken) {
-      token = newToken
-      workspaceId = await fetchWorkspaceId(token)
-    }
-    if (!workspaceId) redirect("/login?reason=expired")
+    redirect("/login?reason=expired")
   }
 
   const sessions = await fetchSessions(workspaceId, token)

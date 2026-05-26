@@ -12,7 +12,7 @@ import { AnimatedBarChart } from "@/components/overview/animated-bar-chart"
 import { DonutChart } from "@/components/overview/donut-chart"
 import { ActivityFeed, type ActivityItem } from "@/components/overview/activity-feed"
 
-import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
+import { serverGet } from "@/lib/server-fetch"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -74,12 +74,7 @@ export default async function OverviewPage() {
   let workspaces = await fetchWorkspaces(token)
 
   if (workspaces === null) {
-    const newToken = await tryRefreshToken()
-    if (newToken) {
-      token = newToken
-      workspaces = await fetchWorkspaces(token)
-    }
-    if (workspaces === null) redirect("/login?reason=expired")
+    redirect("/login?reason=expired")
   }
 
   if (workspaces.length === 0) {

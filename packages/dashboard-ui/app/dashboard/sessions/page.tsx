@@ -8,7 +8,7 @@ import {
 import { AntiBanControls } from "@/components/settings/anti-ban-controls"
 import { type SessionSummary } from "@/lib/session-config"
 
-import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
+import { serverGet } from "@/lib/server-fetch"
 
 async function fetchWorkspaceId(token: string): Promise<string | null> {
   const { ok, data } = await serverGet<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>("/workspaces", token)
@@ -39,15 +39,7 @@ export default async function SessionsPage() {
   let workspaceId = await fetchWorkspaceId(token)
 
   if (!workspaceId) {
-    // Token may have just expired — try a server-side refresh before giving up
-    const newToken = await tryRefreshToken()
-    if (newToken) {
-      token = newToken
-      workspaceId = await fetchWorkspaceId(token)
-    }
-    if (!workspaceId) {
-      redirect("/login?reason=expired")
-    }
+    redirect("/login?reason=expired")
   }
 
   const sessions = await fetchSessions(workspaceId, token)
