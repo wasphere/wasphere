@@ -10,7 +10,6 @@
 
 import * as http from "node:http"
 import * as https from "node:https"
-import { cookies } from "next/headers"
 
 export const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
 
@@ -122,44 +121,38 @@ export async function serverDelete<T = unknown>(
 
 /**
  * Resolves the first workspace ID for the authenticated user.
- * Returns { workspaceId, status } so callers can distinguish a real
- * 401 (expired token) from a genuinely empty workspace list (404).
+ *
+ * Returns { workspaceId, wsError } where:
+ *   - workspaceId is the resolved ID on success (wsError is null)
+ *   - wsError is a ready-made Response on failure (workspaceId is null)
+ *
+ * Using wsError directly instead of inspecting a numeric status prevents
+ * callers from accidentally mapping upstream 502s to a misleading
+ * 404 "No workspace found" response.
  */
 export async function resolveWorkspaceId(
   token: string
-): Promise<{ workspaceId: string | null; status: number }> {
+): Promise<{ workspaceId: string | null; wsError: Response | null }> {
   const result = await apiRequest<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>(
     "/workspaces",
     "GET",
     token
   )
-  if (!result.ok) return { workspaceId: null, status: result.status }
+  if (!result.ok) {
+    if (result.status === 401) {
+      return { workspaceId: null, wsError: Response.json({ message: "Unauthorized" }, { status: 401 }) }
+    }
+    // 502 = dashboard-api unreachable; propagate as 502, not 404
+    return { workspaceId: null, wsError: Response.json({ message: "Service unavailable" }, { status: 502 }) }
+  }
   const data = result.data
-  if (!data) return { workspaceId: null, status: 404 }
+  if (!data) {
+    return { workspaceId: null, wsError: Response.json({ message: "No workspace found" }, { status: 404 }) }
+  }
   const list = Array.isArray(data) ? data : (data.workspaces ?? [])
-  return { workspaceId: list[0]?.id ?? null, status: list[0] ? 200 : 404 }
+  if (!list[0]) {
+    return { workspaceId: null, wsError: Response.json({ message: "No workspace found" }, { status: 404 }) }
+  }
+  return { workspaceId: list[0].id, wsError: null }
 }
 
-/**
- * Attempts a server-side token refresh using the wa_refresh cookie.
- * On success, sets the new wa_access cookie and returns the new token.
- * Returns null if the refresh token is missing or the refresh fails.
- */
-export async function tryRefreshToken(): Promise<string | null> {
-  const cookieStore = await cookies()
-  const refreshToken = cookieStore.get("wa_refresh")?.value
-  if (!refreshToken) return null
-
-  const SECURE = process.env.NODE_ENV === "production"
-  const { ok, data } = await serverPost<{ accessToken: string }>("/auth/refresh", "", { refreshToken })
-  if (!ok || !data?.accessToken) return null
-
-  cookieStore.set("wa_access", data.accessToken, {
-    httpOnly: true,
-    secure: SECURE,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 900,
-  })
-  return data.accessToken
-}

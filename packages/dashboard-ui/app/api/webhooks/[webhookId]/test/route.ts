@@ -10,11 +10,8 @@ export async function POST(
   const token = cookieStore.get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
-  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
-  if (!workspaceId) {
-    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
-    return Response.json({ message: "No workspace found" }, { status: 404 })
-  }
+  const { workspaceId, wsError } = await resolveWorkspaceId(token)
+  if (!workspaceId) return wsError!
 
   const { data, status } = await serverPost(`/workspaces/${workspaceId}/webhooks/${webhookId}/test`, token)
   return Response.json(data ?? {}, { status })

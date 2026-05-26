@@ -6,11 +6,8 @@ export async function GET(request: Request) {
   const token = cookieStore.get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
-  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
-  if (!workspaceId) {
-    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
-    return Response.json({ message: "No workspace found" }, { status: 404 })
-  }
+  const { workspaceId, wsError } = await resolveWorkspaceId(token)
+  if (!workspaceId) return wsError!
 
   const { searchParams } = new URL(request.url)
   const upstreamParams = new URLSearchParams()

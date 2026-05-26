@@ -36,6 +36,9 @@ export function QrDialog({
 
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
   const isFetchingRef = React.useRef(false)
+  // Transient errors (rate limit, service unavailable) should not stop polling.
+  // Only stop after 3 consecutive failures.
+  const failCountRef = React.useRef(0)
 
   const clearPoller = () => {
     if (intervalRef.current !== null) {
@@ -52,12 +55,16 @@ export function QrDialog({
     try {
       const res = await fetch(`/api/sessions/${sessionId}`)
       if (!res.ok) {
+        failCountRef.current += 1
+        // Transient failures (rate limit, service unavailable): keep polling up to 3 attempts
+        if (failCountRef.current < 3) return
         const body = await res.json().catch(() => ({}))
         setError(body.message ?? "Failed to fetch session status.")
         clearPoller()
         return
       }
 
+      failCountRef.current = 0
       const data: Session = await res.json()
       setSession(data)
 
@@ -99,10 +106,11 @@ export function QrDialog({
     setError(null)
     setCountdown(0)
     isFetchingRef.current = false
+    failCountRef.current = 0
 
-    // Immediate first tick.
+    // Immediate first tick, then poll every 4s.
     poll()
-    intervalRef.current = setInterval(poll, 2000)
+    intervalRef.current = setInterval(poll, 4000)
 
     return () => {
       clearPoller()
@@ -134,8 +142,9 @@ export function QrDialog({
 
       // Restart the polling loop.
       isFetchingRef.current = false
+      failCountRef.current = 0
       poll()
-      intervalRef.current = setInterval(poll, 2000)
+      intervalRef.current = setInterval(poll, 4000)
     } catch {
       setError("Could not reach the server.")
     } finally {
