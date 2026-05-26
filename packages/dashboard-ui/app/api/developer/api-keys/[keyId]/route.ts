@@ -17,11 +17,8 @@ export async function PATCH(
   }
 
   const { keyId } = await params
-  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
-  if (!workspaceId) {
-    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
-    return Response.json({ message: "No workspace found" }, { status: 404 })
-  }
+  const { workspaceId, wsError } = await resolveWorkspaceId(token)
+  if (!workspaceId) return wsError!
 
   const { data, status } = await serverPatch(`/workspaces/${workspaceId}/api-keys/${keyId}`, token, body)
   return Response.json(data ?? { message: "Upstream error" }, { status })
@@ -36,11 +33,8 @@ export async function DELETE(
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
   const { keyId } = await params
-  const { workspaceId, status: wsStatus } = await resolveWorkspaceId(token)
-  if (!workspaceId) {
-    if (wsStatus === 401) return Response.json({ message: "Unauthorized" }, { status: 401 })
-    return Response.json({ message: "No workspace found" }, { status: 404 })
-  }
+  const { workspaceId, wsError } = await resolveWorkspaceId(token)
+  if (!workspaceId) return wsError!
 
   const { data, status } = await serverDelete(`/workspaces/${workspaceId}/api-keys/${keyId}`, token)
   return Response.json(data ?? { message: "Upstream error" }, { status })

@@ -1,30 +1,21 @@
 import { cookies } from "next/headers"
 import { serverGet, serverPatch, resolveWorkspaceId } from "@/lib/server-fetch"
 
-async function resolveWorkspace(
-  token: string
-): Promise<{ workspace: { id: string; [key: string]: unknown } | null; unauthorized: boolean }> {
-  const { workspaceId, status } = await resolveWorkspaceId(token)
-  if (!workspaceId) return { workspace: null, unauthorized: status === 401 }
-  const { data } = await serverGet<{ id: string; [key: string]: unknown }>(
-    `/workspaces/${workspaceId}`,
-    token
-  )
-  return { workspace: data, unauthorized: false }
-}
-
 export async function GET() {
   const cookieStore = await cookies()
   const token = cookieStore.get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
-  const { workspace, unauthorized } = await resolveWorkspace(token)
-  if (!workspace) {
-    if (unauthorized) return Response.json({ message: "Unauthorized" }, { status: 401 })
-    return Response.json({ message: "No workspace found" }, { status: 404 })
-  }
+  const { workspaceId, wsError } = await resolveWorkspaceId(token)
+  if (!workspaceId) return wsError!
 
-  return Response.json(workspace)
+  const { data, status } = await serverGet<{ id: string; [key: string]: unknown }>(
+    `/workspaces/${workspaceId}`,
+    token
+  )
+  if (!data) return Response.json({ message: "No workspace found" }, { status })
+
+  return Response.json(data)
 }
 
 export async function PATCH(request: Request) {
@@ -39,14 +30,11 @@ export async function PATCH(request: Request) {
     return Response.json({ message: "Invalid request body" }, { status: 400 })
   }
 
-  const { workspace, unauthorized } = await resolveWorkspace(token)
-  if (!workspace) {
-    if (unauthorized) return Response.json({ message: "Unauthorized" }, { status: 401 })
-    return Response.json({ message: "No workspace found" }, { status: 404 })
-  }
+  const { workspaceId, wsError } = await resolveWorkspaceId(token)
+  if (!workspaceId) return wsError!
 
   if (body.waServerUrl !== undefined || body.waServerToken !== undefined) {
-    const { data, status } = await serverPatch(`/workspaces/${workspace.id}/wa-server`, token, {
+    const { data, status } = await serverPatch(`/workspaces/${workspaceId}/wa-server`, token, {
       waServerUrl: body.waServerUrl,
       waServerToken: body.waServerToken,
     })

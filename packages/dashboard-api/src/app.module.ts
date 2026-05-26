@@ -16,7 +16,7 @@ import { HealthModule } from './health/health.module';
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 60,
+        limit: 600,
       },
     ]),
     PrismaModule,

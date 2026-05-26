@@ -123,7 +123,8 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: "DELETE",
       })
-      if (!res.ok) {
+      // 404 means already gone on wa-server — treat as success
+      if (!res.ok && res.status !== 404) {
         const body = await res.json().catch(() => ({}))
         toast.error(body.message ?? "Delete failed.")
         return
