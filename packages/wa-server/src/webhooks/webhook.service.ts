@@ -44,18 +44,42 @@ function persistUrl(url: string): void {
   }
 }
 
+// A valid callback URL must point to dashboard-api, not back to wa-server itself.
+// Operators sometimes set DASHBOARD_WEBHOOK_URL to a wa-server URL by mistake —
+// detect and ignore that to avoid a silent self-loop.
+function isValidCallbackUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const { hostname } = new URL(url);
+    // Reject any URL that resolves back to this process's own hostname
+    const ownHost = process.env.HOSTNAME ?? 'wa-server';
+    return hostname !== ownHost && hostname !== 'wa-server' && hostname !== 'localhost';
+  } catch {
+    return false;
+  }
+}
+
 @Injectable()
 export class WebhookService implements OnModuleInit {
-  // Priority: 1) persisted file  2) DASHBOARD_WEBHOOK_URL env  3) empty
-  private dashboardUrl: string = process.env.DASHBOARD_WEBHOOK_URL || '';
+  // Priority: 1) persisted file on sessions volume
+  //           2) DASHBOARD_WEBHOOK_URL env (only if it points to dashboard-api, not wa-server)
+  //           3) empty — bootstrap will register it shortly after startup
+  private dashboardUrl: string = '';
 
   onModuleInit(): void {
     const persisted = loadPersistedUrl();
     if (persisted) {
       this.dashboardUrl = persisted;
       console.log(`[Webhook] Loaded callback URL from disk: ${persisted}`);
-    } else if (this.dashboardUrl) {
-      console.log(`[Webhook] Using DASHBOARD_WEBHOOK_URL env: ${this.dashboardUrl}`);
+      return;
+    }
+
+    const envUrl = process.env.DASHBOARD_WEBHOOK_URL ?? '';
+    if (isValidCallbackUrl(envUrl)) {
+      this.dashboardUrl = envUrl;
+      console.log(`[Webhook] Using DASHBOARD_WEBHOOK_URL env: ${envUrl}`);
+    } else if (envUrl) {
+      console.warn(`[Webhook] DASHBOARD_WEBHOOK_URL looks invalid or self-referential ("${envUrl}") — ignoring. Dashboard bootstrap will register the correct URL.`);
     }
   }
 

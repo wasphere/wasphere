@@ -67,10 +67,9 @@ services:
       WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET}
       AUDIT_DASHBOARD_URL: http://dashboard-api:3000/internal/audit
       INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET}
-      # Optional static fallback. The dashboard auto-registers the callback URL
-      # at runtime (persisted to the sessions volume). Set this only if the
-      # automatic registration consistently fails in your environment.
-      # Format: http://dashboard-api:3000/internal/webhook-event/<workspaceId>
+      # Do NOT set this in .env — the dashboard registers the callback URL
+      # automatically on first start and persists it to the sessions volume.
+      # Setting a wrong value here causes a self-loop and breaks all webhooks.
       DASHBOARD_WEBHOOK_URL: ${DASHBOARD_WEBHOOK_URL:-}
       NODE_ENV: production
     volumes:
