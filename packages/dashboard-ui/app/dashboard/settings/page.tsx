@@ -2,7 +2,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { SettingsForm, type Workspace } from "@/components/settings/settings-form"
 
-import { serverGet, tryRefreshToken } from "@/lib/server-fetch"
+import { serverGet } from "@/lib/server-fetch"
 
 async function fetchWorkspace(token: string): Promise<{ workspace: Workspace; workspaceId: string } | null> {
   const list = await serverGet<Array<{ id: string }> | { workspaces: Array<{ id: string }> }>("/workspaces", token)
@@ -25,12 +25,7 @@ export default async function SettingsPage() {
   let result = await fetchWorkspace(token)
 
   if (!result) {
-    const newToken = await tryRefreshToken()
-    if (newToken) {
-      token = newToken
-      result = await fetchWorkspace(token)
-    }
-    if (!result) redirect("/login?reason=expired")
+    redirect("/login?reason=expired")
   }
 
   const { workspace } = result
