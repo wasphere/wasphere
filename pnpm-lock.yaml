@@ -49,6 +49,12 @@ importers:
       class-validator:
         specifier: ^0.15.1
         version: 0.15.1
+      helmet:
+        specifier: ^7.1.0
+        version: 7.2.0
+      ipaddr.js:
+        specifier: ^2.4.0
+        version: 2.4.0
       passport:
         specifier: ^0.7.0
         version: 0.7.0
@@ -171,6 +177,9 @@ importers:
       class-validator:
         specifier: ^0.15.1
         version: 0.15.1
+      helmet:
+        specifier: ^7.1.0
+        version: 7.2.0
       https-proxy-agent:
         specifier: 7.0.5
         version: 7.0.5
@@ -2299,6 +2308,10 @@ packages:
 
   headers-polyfill@5.0.1:
     resolution: {integrity: sha512-1TJ6Fih/b8h5TIcv+1+Hw0PDQWJTKDKzFZzcKOiW1wJza3XoAQlkCuXLbymPYB8+ZQyw8mHvdw560e8zVFIWyA==}
+
+  helmet@7.2.0:
+    resolution: {integrity: sha512-ZRiwvN089JfMXokizgqEPXsl2Guk094yExfoDXR0cBYWxtBbaSww/w+vT4WEJsBW2iTUi1GgZ6swmoug3Oy4Xw==}
+    engines: {node: '>=16.0.0'}
 
   hono@4.12.22:
     resolution: {integrity: sha512-7fvVPbB92zNRsQke+uiRGwtTuef0tB2Dg4hWxYfFNvkQhIltWoyi0ONReM5LWA+jJWS3nfT5lTq+qbsIpX0IQw==}
@@ -6208,6 +6221,8 @@ snapshots:
     dependencies:
       '@types/set-cookie-parser': 2.4.10
       set-cookie-parser: 3.1.0
+
+  helmet@7.2.0: {}
 
   hono@4.12.22: {}
 

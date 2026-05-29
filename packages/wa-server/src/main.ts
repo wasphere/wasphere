@@ -8,6 +8,7 @@ import { SsrfExceptionFilter } from './common/ssrf-exception.filter';
 import { UriDecodeExceptionFilter } from './common/uri-decode-exception.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
+import helmet from 'helmet';
 
 // Parse CLI args: --port 3001 and validate docs env vars
 function validateDocsEnv(): void {
@@ -180,6 +181,17 @@ async function bootstrap() {
   });
 
   const { json: expressJson, urlencoded: expressUrlEncoded } = await import('express');
+
+  // Security headers. CSP and COEP are disabled because the Scalar docs UI
+  // needs inline scripts and cross-origin embeds — revisit in v1.1 with a
+  // nonce-based CSP scoped to the docs route.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
+
   app.use(expressJson({ limit: '10mb' }));
   app.use(expressUrlEncoded({ extended: true, limit: '10mb' }));
 

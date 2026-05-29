@@ -51,6 +51,18 @@ function validateEnv(): void {
     }
     process.exit(1);
   }
+
+  // Non-fatal: warn loudly if a token-leaking dev flag is set in production.
+  // The forgotPassword handler additionally refuses to log the token in prod.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.EXPOSE_RESET_TOKEN_IN_LOGS === 'true'
+  ) {
+    console.error(
+      '[Config] SECURITY WARNING: EXPOSE_RESET_TOKEN_IN_LOGS is true in production. ' +
+        'Reset tokens will NOT be logged, but you should unset this flag.',
+    );
+  }
 }
 
 async function bootstrap(): Promise<void> {
@@ -61,6 +73,7 @@ async function bootstrap(): Promise<void> {
   const { ValidationPipe } = await import('@nestjs/common');
   const { DocumentBuilder, SwaggerModule } = await import('@nestjs/swagger');
   const { apiReference } = await import('@scalar/nestjs-api-reference');
+  const { default: helmet } = await import('helmet');
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
@@ -77,6 +90,16 @@ async function bootstrap(): Promise<void> {
     }),
   );
   app.use(expressUrlEncoded({ extended: true, limit: '10mb' }));
+
+  // Security headers. CSP and COEP are disabled because the Scalar docs UI
+  // (/api/reference) needs inline scripts and cross-origin embeds — revisit in
+  // v1.1 with a nonce-based CSP scoped to the docs route.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   // Trust X-Forwarded-For for correct IP in throttler when behind a reverse proxy
   const expressApp = app.getHttpAdapter().getInstance() as {
