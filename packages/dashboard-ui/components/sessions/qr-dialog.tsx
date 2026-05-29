@@ -35,6 +35,9 @@ export function QrDialog({
   const [retrying, setRetrying] = React.useState(false)
 
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+  // The 1.5s "Connected!" success timer — held so it can be cleared on unmount,
+  // otherwise it fires onConnected/onClose on an unmounted component.
+  const successTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFetchingRef = React.useRef(false)
   // Transient errors (rate limit, service unavailable) should not stop polling.
   // Only stop after 3 consecutive failures.
@@ -44,6 +47,10 @@ export function QrDialog({
     if (intervalRef.current !== null) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
+    }
+    if (successTimeoutRef.current !== null) {
+      clearTimeout(successTimeoutRef.current)
+      successTimeoutRef.current = null
     }
   }
 
@@ -81,7 +88,9 @@ export function QrDialog({
       if (data.status === "connected") {
         clearPoller()
         // Show success for 1.5s then close and refresh the parent list.
-        setTimeout(() => {
+        // Held in a ref so unmounting before it fires cancels it.
+        successTimeoutRef.current = setTimeout(() => {
+          successTimeoutRef.current = null
           onConnected()
           onClose()
         }, 1500)

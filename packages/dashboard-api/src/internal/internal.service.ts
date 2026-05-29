@@ -4,6 +4,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { eventMatchesFilter, WebhookEvent } from '../lib/webhook-events';
+import { deliverWebhook } from '../common/webhook-delivery';
 import { AuditEventDto } from './dto/audit-event.dto';
 import { WebhookEventDto } from './dto/webhook-event.dto';
 
@@ -90,30 +91,25 @@ export class InternalService {
     const signature = sign(wh.signingSecret, timestamp, rawBody);
     const start = Date.now();
 
-    let statusCode: number | null = null;
-    let succeeded = false;
+    // SSRF-guarded delivery — a user-controlled URL can never reach internal
+    // services or cloud metadata (DNS pinning + private-IP denylist + manual
+    // redirect handling live inside deliverWebhook → safeFetch).
+    const result = await deliverWebhook(wh.url, rawBody, {
+      'X-WaSphere-Event': dto.event,
+      'X-WaSphere-Signature': signature,
+      'X-WaSphere-Timestamp': String(timestamp),
+      'X-WaSphere-Delivery-Id': deliveryId,
+    });
+    const statusCode = result.statusCode;
+    const succeeded = result.success;
 
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10_000);
-      const resp = await fetch(wh.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-WaSphere-Event': dto.event,
-          'X-WaSphere-Signature': signature,
-          'X-WaSphere-Timestamp': String(timestamp),
-          'X-WaSphere-Delivery-Id': deliveryId,
-        },
-        body: rawBody,
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      statusCode = resp.status;
-      succeeded = resp.ok;
-    } catch (err) {
+    if (result.blocked) {
       this.logger.warn(
-        `[Fanout] webhook=${wh.id} attempt=${attempt} error=${String(err)}`,
+        `[Fanout] webhook=${wh.id} attempt=${attempt} blocked: destination not allowed (SSRF guard) url=${wh.url}`,
+      );
+    } else if (!succeeded && result.error) {
+      this.logger.warn(
+        `[Fanout] webhook=${wh.id} attempt=${attempt} ${result.error}`,
       );
     }
 

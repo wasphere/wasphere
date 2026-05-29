@@ -7,6 +7,7 @@ import {
 import { randomBytes, createHmac } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { isValidEvents, WILDCARD_EVENT } from '../lib/webhook-events';
+import { deliverWebhook } from '../common/webhook-delivery';
 import { CreateWebhookDto } from './dto/create-webhook.dto';
 import { UpdateWebhookDto } from './dto/update-webhook.dto';
 
@@ -157,32 +158,14 @@ export class WebhooksService {
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = computeSignature(wh.signingSecret, timestamp, rawBody);
 
-    let statusCode: number | null = null;
-    let success = false;
-    let error: string | null = null;
-
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
-
-      const resp = await fetch(wh.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-WaSphere-Event': payload.event,
-          'X-WaSphere-Signature': signature,
-          'X-WaSphere-Timestamp': String(timestamp),
-        },
-        body: rawBody,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-      statusCode = resp.status;
-      success = resp.ok;
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    }
+    // SSRF-guarded delivery. The returned error is always generic so the
+    // test-fire response can never be used to probe the SSRF guard.
+    const result = await deliverWebhook(wh.url, rawBody, {
+      'X-WaSphere-Event': payload.event,
+      'X-WaSphere-Signature': signature,
+      'X-WaSphere-Timestamp': String(timestamp),
+    });
+    const { statusCode, success, error } = result;
 
     await this.prisma.auditLog.create({
       data: { method: 'POST', endpoint: 'webhook.test_fire', statusCode: statusCode ?? undefined },

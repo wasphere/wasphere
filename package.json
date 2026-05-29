@@ -15,7 +15,7 @@
   "scripts": {
     "dev": "pnpm --parallel --filter './packages/*' dev",
     "build": "pnpm --recursive --filter './packages/*' build",
-    "prisma:migrate": "pnpm --filter @wasphere/dashboard-api prisma:migrate",
+    "prisma:migrate": "pnpm --filter @wasphere/dashboard-api db:migrate:deploy",
     "wa-server:dev": "pnpm --filter @wasphere/wa-server dev"
   },
   "workspaces": [

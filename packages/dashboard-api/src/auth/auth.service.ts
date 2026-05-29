@@ -230,8 +230,16 @@ export class AuthService implements OnModuleInit {
       data: { userId: user.id, tokenHash, expiresAt },
     });
 
+    // Raw token may only be logged outside production. In production this is a
+    // full account-takeover credential, so the flag is ignored and refused.
     if (process.env.EXPOSE_RESET_TOKEN_IN_LOGS === 'true') {
-      this.logger.log(`[PasswordReset] Raw token for ${email}: ${rawToken}`);
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.error(
+          '[Security] EXPOSE_RESET_TOKEN_IN_LOGS is enabled in production — refusing to log reset token. Unset this flag.',
+        );
+      } else {
+        this.logger.log(`[PasswordReset] Raw token for ${email}: ${rawToken}`);
+      }
     }
 
     return genericResponse;
