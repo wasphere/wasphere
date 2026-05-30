@@ -17,6 +17,20 @@ import { PermissionScope } from './permissions';
  *   @Controller('sessions/:sid/groups')      → sessions.*
  *   @Controller('health')                    → sessions:read
  */
+/**
+ * Extracts the target session ID from a proxy wildcard path, or null when the
+ * path does not address a specific session (e.g. `sessions` list/create,
+ * `health`). Used to enforce a key's `sessionScope`.
+ *
+ * Mirrors the segmenting in `proxyPermission`: `sessions/:id/...` → `:id`.
+ */
+export function proxySessionId(rawPath: string): string | null {
+  const path = rawPath.replace(/^\/+|\/+$/g, '').split('?')[0].replace(/^api\//, '');
+  const segs = path.split('/');
+  if (segs[0] === 'sessions' && segs.length >= 2 && segs[1]) return segs[1];
+  return null;
+}
+
 export function proxyPermission(method: string, rawPath: string): PermissionScope | null {
   const m = method.toUpperCase();
   // Strip leading/trailing slashes, query string, and optional global "api/" prefix
