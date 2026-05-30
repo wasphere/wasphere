@@ -119,6 +119,50 @@ export async function serverDelete<T = unknown>(
   return apiRequest<T>(path, "DELETE", token)
 }
 
+export interface WaServerProbe {
+  reachable: boolean
+  /** Only meaningful when a token was supplied and the server was reachable. */
+  authenticated: boolean
+  status: number | null
+  version: string | null
+}
+
+/**
+ * Probes a WA Server instance to verify the dashboard can reach it.
+ *
+ * With a token it hits the authenticated `/api/health` (validates URL *and*
+ * token, and returns the server version); without a token it hits the
+ * unauthenticated `/api/health/live` (reachability only). Uses the native
+ * http transport so Docker-internal hostnames like `wa-server` resolve.
+ */
+export async function probeWaServer(
+  rawUrl: string,
+  token?: string
+): Promise<WaServerProbe> {
+  const base = rawUrl.replace(/\/+$/, "")
+  const path = token ? "/api/health" : "/api/health/live"
+  const headers: Record<string, string> = { Accept: "application/json" }
+  if (token) headers["X-Api-Token"] = token
+
+  try {
+    const { status, body } = await rawRequest(`${base}${path}`, "GET", headers)
+    let version: string | null = null
+    try {
+      version = (JSON.parse(body) as { version?: string }).version ?? null
+    } catch {
+      version = null
+    }
+    return {
+      reachable: true,
+      authenticated: token ? status === 200 : false,
+      status,
+      version,
+    }
+  } catch {
+    return { reachable: false, authenticated: false, status: null, version: null }
+  }
+}
+
 /**
  * Resolves the first workspace ID for the authenticated user.
  *

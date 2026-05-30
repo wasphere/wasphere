@@ -1,5 +1,6 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { existsSync, readFileSync } from "node:fs"
 import { SettingsForm, type Workspace } from "@/components/settings/settings-form"
 
 import { serverGet } from "@/lib/server-fetch"
@@ -16,13 +17,35 @@ async function fetchWorkspace(token: string): Promise<{ workspace: Workspace; wo
   return { workspace: detail.data, workspaceId }
 }
 
+/**
+ * Best-guess WA Server URL to suggest when a workspace has none set yet:
+ *   1. WA_SERVER_INTERNAL_URL env (already correct in the Docker compose).
+ *   2. Docker detected → the compose service name `http://wa-server:3001`.
+ *   3. Otherwise a manual single-host install → `http://localhost:3001`.
+ */
+function suggestWaServerUrl(): string {
+  const fromEnv = process.env.WA_SERVER_INTERNAL_URL?.trim()
+  if (fromEnv) return fromEnv
+
+  let dockerized = existsSync("/.dockerenv")
+  if (!dockerized) {
+    try {
+      const cgroup = readFileSync("/proc/1/cgroup", "utf8")
+      dockerized = /docker|containerd|kubepods/.test(cgroup)
+    } catch {
+      dockerized = false
+    }
+  }
+  return dockerized ? "http://wa-server:3001" : "http://localhost:3001"
+}
+
 export default async function SettingsPage() {
   const cookieStore = await cookies()
-  let token = cookieStore.get("wa_access")?.value ?? ""
+  const token = cookieStore.get("wa_access")?.value ?? ""
 
   if (!token) redirect("/login?reason=expired")
 
-  let result = await fetchWorkspace(token)
+  const result = await fetchWorkspace(token)
 
   if (!result) {
     redirect("/login?reason=expired")
@@ -33,7 +56,7 @@ export default async function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
-      <SettingsForm workspace={workspace} />
+      <SettingsForm workspace={workspace} suggestedWaServerUrl={suggestWaServerUrl()} />
     </div>
   )
 }
