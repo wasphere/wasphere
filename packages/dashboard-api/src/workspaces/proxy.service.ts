@@ -13,7 +13,7 @@ import * as https from 'https';
 import { IncomingMessage, ServerResponse } from 'http';
 import { Request, Response } from 'express';
 import { WorkspacesService } from './workspaces.service';
-import { proxyPermission } from '../lib/proxy-permissions';
+import { proxyPermission, proxySessionId } from '../lib/proxy-permissions';
 import { hasPermission, PermissionScope, WILDCARD_PERMISSION } from '../lib/permissions';
 
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
@@ -47,6 +47,7 @@ export class ProxyService {
     req: Request,
     res: Response,
     apiKeyPermissions?: (PermissionScope | typeof WILDCARD_PERMISSION)[],
+    sessionScope?: string | null,
   ): Promise<void> {
     const method = req.method.toUpperCase();
 
@@ -74,6 +75,18 @@ export class ProxyService {
       }
       if (!hasPermission(apiKeyPermissions, required)) {
         throw new ForbiddenException(`API key missing required permission: ${required}`);
+      }
+
+      // Session scope: a key bound to one session may only touch that session's
+      // routes. Null scope = workspace-wide (no restriction).
+      if (sessionScope) {
+        const pathSessionId = proxySessionId(decodedPath);
+        if (pathSessionId === null) {
+          throw new ForbiddenException('Session-scoped API key cannot access this route');
+        }
+        if (pathSessionId !== sessionScope) {
+          throw new ForbiddenException('API key is scoped to a different session');
+        }
       }
     }
 

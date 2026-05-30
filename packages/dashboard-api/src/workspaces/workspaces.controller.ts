@@ -27,7 +27,13 @@ import { SetWaServerDto } from './dto/set-wa-server.dto';
 import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
 
 interface AuthenticatedRequest extends Request {
-  user: { userId: string; email?: string; workspaceId?: string; permissions?: string[] };
+  user: {
+    userId: string;
+    email?: string;
+    workspaceId?: string;
+    permissions?: string[];
+    sessionScope?: string | null;
+  };
 }
 
 @ApiTags('Workspaces')
@@ -140,6 +146,14 @@ export class WorkspacesController {
     const apiKeyPermissions = req.user.permissions as
       | import('../lib/permissions').PermissionScope[]
       | undefined;
-    await this.proxyService.proxy(req.user.userId, id, wildcardPath, req, res, apiKeyPermissions);
+    await this.proxyService.proxy(
+      req.user.userId,
+      id,
+      wildcardPath,
+      req,
+      res,
+      apiKeyPermissions,
+      req.user.sessionScope ?? null,
+    );
   }
 }
