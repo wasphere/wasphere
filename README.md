@@ -74,7 +74,18 @@ Key variables across packages:
 | `JWT_SECRET` | dashboard-api | Dashboard auth secret (random 64 chars) |
 | `ENCRYPTION_KEY` | dashboard-api | 32-byte hex key for token encryption |
 | `INTERNAL_WEBHOOK_SECRET` | both | Shared secret for wa-server → dashboard-api events (min 32 chars) |
+| `WA_SERVER_INTERNAL_URL` | dashboard-ui | Where the dashboard reaches the WA Server (see below) |
 | `DASHBOARD_WEBHOOK_URL` | wa-server | `https://your-dashboard/internal/webhook-event/<workspace-uuid>` |
+
+> **`WA_SERVER_INTERNAL_URL` (and the Settings → WA Server URL field):**
+> This is the **internal** address the dashboard uses to reach the WA Server —
+> not a public URL.
+> - **Docker / docker-compose:** `http://wa-server:3001` (the compose service name)
+> - **Manual install:** `http://localhost:3001` (or your host's IP:port)
+> - **Kubernetes:** `http://wa-server.<namespace>.svc.cluster.local:3001`
+>
+> Inside Docker, `localhost` points at the dashboard container itself — use the
+> service name `wa-server`. See [CONFIGURATION.md](./CONFIGURATION.md) for details.
 
 > **`DASHBOARD_WEBHOOK_URL` note (v1.0):** WaSphere v1.0 is one wa-server per workspace.
 > Set this to include your workspace UUID, shown on the Settings page after first login.
@@ -100,9 +111,11 @@ Navigate to `http://localhost:3004` and register an account.
 
 **Step 5 — Send your first message**
 
-1. Go to **Settings** → enter your WA Server URL and API token → Save
+1. Go to **Settings** → set your WA Server URL (Docker: `http://wa-server:3001`, manual: `http://localhost:3001`) and paste your `WA_TOKEN` → click **Test Connection** → Save
 2. Go to **Sessions** → New Session → scan the QR code
 3. Go to **Messages** → select your session → send a Text message
+
+See [CONFIGURATION.md](./CONFIGURATION.md) if Test Connection fails (it's almost always the WA Server URL — Docker uses the service name, not `localhost`).
 
 ---
 

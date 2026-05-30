@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import {
   Globe, KeyRound, Eye, EyeOff, Building2, CheckCircle2,
   Server, ShieldCheck, Bell, Lock, AlertTriangle, Copy,
-  Check, ExternalLink, RotateCcw,
+  Check, ExternalLink, RotateCcw, Plug, XCircle, Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,7 +24,11 @@ export interface Workspace {
 
 interface SettingsFormProps {
   workspace: Workspace
+  /** Environment-aware default/placeholder for the WA Server URL field. */
+  suggestedWaServerUrl?: string
 }
+
+type TestResult = { ok: boolean; message: string } | null
 
 // ─── Shared card header icon ──────────────────────────────────────────────────
 
@@ -38,13 +42,35 @@ function SectionIcon({ icon: Icon, className = "" }: { icon: React.ElementType; 
 
 // ─── Main form ────────────────────────────────────────────────────────────────
 
-export function SettingsForm({ workspace }: SettingsFormProps) {
-  // WA Server state
-  const [waServerUrl, setWaServerUrl] = React.useState(workspace.waServerUrl ?? "")
+export function SettingsForm({ workspace, suggestedWaServerUrl = "http://localhost:3001" }: SettingsFormProps) {
+  // WA Server state — prefill the suggested URL on first install (no value saved yet).
+  const [waServerUrl, setWaServerUrl] = React.useState(workspace.waServerUrl || suggestedWaServerUrl)
   const [waServerToken, setWaServerToken] = React.useState(workspace.waServerToken ?? "")
   const [showToken, setShowToken] = React.useState(false)
   const [configError, setConfigError] = React.useState<string | null>(null)
   const [configSubmitting, setConfigSubmitting] = React.useState(false)
+
+  // Test Connection state
+  const [testing, setTesting] = React.useState(false)
+  const [testResult, setTestResult] = React.useState<TestResult>(null)
+
+  const handleTestConnection = async () => {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res = await fetch("/api/settings/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: waServerUrl, token: waServerToken }),
+      })
+      const data = await res.json().catch(() => ({}))
+      setTestResult({ ok: Boolean(data.ok), message: data.message ?? "Test failed." })
+    } catch {
+      setTestResult({ ok: false, message: "Could not reach the dashboard server." })
+    } finally {
+      setTesting(false)
+    }
+  }
 
   // Workspace name state
   const [name, setName] = React.useState(workspace.name)
@@ -173,12 +199,17 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
               <Input
                 id="wa-server-url"
                 type="url"
-                placeholder="http://localhost:3001"
+                placeholder={suggestedWaServerUrl}
                 value={waServerUrl}
-                onChange={(e) => setWaServerUrl(e.target.value)}
+                onChange={(e) => { setWaServerUrl(e.target.value); setTestResult(null) }}
                 className="placeholder:text-zinc-400 placeholder:font-light font-mono text-sm"
               />
-              <p className="text-xs text-zinc-400 font-light">Base URL of your WA Server instance.</p>
+              <p className="text-xs text-zinc-400 font-light leading-relaxed">
+                Internal URL where the dashboard reaches wa-server.<br />
+                <span className="font-mono">Docker:</span> http://wa-server:3001 (compose service name)<br />
+                <span className="font-mono">Manual:</span> http://localhost:3001 (or your server IP:port)<br />
+                <span className="font-mono">Kubernetes:</span> http://wa-server.&lt;namespace&gt;.svc.cluster.local:3001
+              </p>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -211,9 +242,35 @@ export function SettingsForm({ workspace }: SettingsFormProps) {
 
             {configError && <p className="text-xs text-destructive sm:col-span-2">{configError}</p>}
 
-            <div className="sm:col-span-2">
+            {testResult && (
+              <div
+                className={`sm:col-span-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
+                  testResult.ok
+                    ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300"
+                    : "border-destructive/30 bg-destructive/5 text-destructive"
+                }`}
+              >
+                {testResult.ok
+                  ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                  : <XCircle size={14} className="mt-0.5 shrink-0" />}
+                <span>{testResult.message}</span>
+              </div>
+            )}
+
+            <div className="sm:col-span-2 flex items-center gap-2">
               <Button type="submit" disabled={configSubmitting} size="sm">
                 {configSubmitting ? "Saving…" : "Save Configuration"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleTestConnection}
+                disabled={testing || !waServerUrl.trim()}
+                className="gap-1.5"
+              >
+                {testing ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
+                {testing ? "Testing…" : "Test Connection"}
               </Button>
             </div>
           </form>
