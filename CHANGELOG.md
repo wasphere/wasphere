@@ -44,7 +44,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Architecture
 
 - `POST /internal/webhook-event/:workspaceId` — dashboard-api endpoint that receives WhatsApp events from wa-server and fans out to all active matching webhooks for that workspace; returns `202 Accepted` immediately, delivery runs via `Promise.allSettled`
-- Monorepo: pnpm workspaces — `wa-server` (NestJS + Baileys, port 3001), `dashboard-api` (NestJS + Prisma + PostgreSQL, port 3005), `dashboard-ui` (Next.js 15 App Router + ShadCN UI, port 3004)
+- Monorepo: pnpm workspaces — `wa-server` (NestJS + Baileys, port 3001), `dashboard-api` (NestJS + Prisma + PostgreSQL, port 3000), `dashboard-ui` (Next.js 15 App Router + ShadCN UI, port 3004)
 
 ### Constraints (v1.0)
 

@@ -149,7 +149,9 @@ export function QrDialog({
         return
       }
 
-      // Restart the polling loop.
+      // Restart the polling loop. Clear any existing poller first so rapid
+      // retries can't orphan a second interval (duplicate polling).
+      clearPoller()
       isFetchingRef.current = false
       failCountRef.current = 0
       poll()

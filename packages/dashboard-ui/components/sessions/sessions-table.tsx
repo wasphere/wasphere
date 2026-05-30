@@ -205,9 +205,9 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
             {sessions.map((session) => (
               <TableRow key={session.id} className="hover:bg-muted/40 hover:-translate-y-px hover:shadow-sm transition-all duration-150 ease-out">
                 <TableCell className="text-sm font-medium text-foreground font-mono">
-                  <span className="flex items-center gap-0">
-                    {session.id}
-                    <CopyButton value={session.id} />
+                  <span className="flex items-center gap-0 max-w-[220px]">
+                    <span className="min-w-0 truncate" title={session.id}>{session.id}</span>
+                    <span className="shrink-0"><CopyButton value={session.id} /></span>
                   </span>
                 </TableCell>
                 <TableCell className="text-sm text-zinc-700 dark:text-zinc-300 tabular-nums">{session.phoneNumber ?? "—"}</TableCell>
@@ -219,7 +219,9 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
                 </TableCell>
                 <TableCell className="text-xs text-zinc-400 font-light tabular-nums">{formatDate(session.connectedAt)}</TableCell>
                 <TableCell className="font-mono text-xs">
-                  {session.proxy ?? "—"}
+                  <span className="block max-w-[160px] truncate" title={session.proxy ?? undefined}>
+                    {session.proxy ?? "—"}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
