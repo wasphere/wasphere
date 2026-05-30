@@ -11,13 +11,13 @@ export async function POST() {
     return new Response(null, { status: 401 });
   }
 
-  const { ok, data } = await serverPost<{ accessToken: string }>(
+  const { ok, data } = await serverPost<{ accessToken: string; refreshToken: string }>(
     "/auth/refresh",
     "",
     { refreshToken }
   );
 
-  if (!ok || !data?.accessToken) {
+  if (!ok || !data?.accessToken || !data?.refreshToken) {
     cookieStore.set("wa_access", "", { maxAge: 0, path: "/" });
     cookieStore.set("wa_refresh", "", { maxAge: 0, path: "/" });
     return new Response(null, { status: 401 });
@@ -29,6 +29,17 @@ export async function POST() {
     sameSite: "lax",
     path: "/",
     maxAge: 900,
+  });
+
+  // The API rotates the refresh token on every refresh and revokes the old one.
+  // Persist the new value, or the next refresh sends a revoked token and the
+  // reuse-detection path logs the user out everywhere.
+  cookieStore.set("wa_refresh", data.refreshToken, {
+    httpOnly: true,
+    secure: SECURE,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 604800,
   });
 
   return new Response(null, { status: 200 });

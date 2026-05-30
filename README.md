@@ -39,7 +39,7 @@ docker compose up -d
 
 ### Manual (Node + pnpm)
 
-**Requirements:** Node ≥ 20, PostgreSQL ≥ 14, Redis ≥ 7, pnpm
+**Requirements:** Node ≥ 20, PostgreSQL ≥ 14, pnpm
 
 ```bash
 git clone https://github.com/wasphere/wasphere.git
@@ -70,7 +70,6 @@ Key variables across packages:
 |---|---|---|
 | `WA_TOKEN` | wa-server | API token (generate a random 32+ char string) |
 | `DATABASE_URL` | dashboard-api | PostgreSQL connection string |
-| `REDIS_URL` | dashboard-api | Redis connection string |
 | `JWT_SECRET` | dashboard-api | Dashboard auth secret (random 64 chars) |
 | `ENCRYPTION_KEY` | dashboard-api | 32-byte hex key for token encryption |
 | `INTERNAL_WEBHOOK_SECRET` | both | Shared secret for wa-server → dashboard-api events (min 32 chars) |
