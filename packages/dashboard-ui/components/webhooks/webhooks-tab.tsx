@@ -60,10 +60,6 @@ function formatDate(iso: string | null | undefined): string {
   try { return new Date(iso).toLocaleString() } catch { return iso }
 }
 
-function truncateUrl(url: string, max = 40): string {
-  return url.length > max ? url.slice(0, max) + "…" : url
-}
-
 function EventChips({ events }: { events: string[] }) {
   if (events.length === 1 && events[0] === "*")
     return <Badge variant="secondary" className="text-xs">All Events</Badge>
@@ -243,10 +239,10 @@ export function WebhooksTab() {
                   {webhooks.map((wh) => (
                     <TableRow key={wh.id} className="hover:bg-muted/40 hover:-translate-y-px hover:shadow-sm transition-all duration-150 ease-out">
                       <TableCell className="text-sm font-medium text-foreground">{wh.name}</TableCell>
-                      <TableCell className="font-mono text-xs text-zinc-700 dark:text-zinc-300 max-w-[180px]">
+                      <TableCell className="font-mono text-xs text-zinc-700 dark:text-zinc-300">
                         <Tooltip>
-                          <TooltipTrigger>
-                            <span className="cursor-default">{truncateUrl(wh.url)}</span>
+                          <TooltipTrigger className="block max-w-[200px] truncate cursor-default text-left">
+                            {wh.url}
                           </TooltipTrigger>
                           <TooltipContent className="font-mono text-xs max-w-xs break-all">{wh.url}</TooltipContent>
                         </Tooltip>
