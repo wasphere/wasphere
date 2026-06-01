@@ -182,7 +182,7 @@ Requests go through the Dashboard API, which proxies to your WA Server and injec
 ```bash
 # Send a text message
 curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/text \
-  -H "Authorization: Bearer wsk_live_your_key" \
+  -H "Authorization: Bearer wsk_your_key" \
   -H "Content-Type: application/json" \
   -d '{ "to": "12125550100", "text": "Hello from WaSphere!" }'
 ```
@@ -190,12 +190,17 @@ curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sess
 ```bash
 # Register a signed webhook
 curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/webhooks \
-  -H "Authorization: Bearer wsk_live_your_key" \
+  -H "Authorization: Bearer wsk_your_key" \
   -H "Content-Type: application/json" \
   -d '{ "name": "n8n", "url": "https://n8n.example.com/webhook/wa", "events": ["message.received"] }'
 ```
 
-Every delivery is signed: `X-WaSphere-Signature: v1,sha256=<hmac>` over `{timestamp}.{rawBody}`. Full interactive docs ship at `/api/reference` on both services.
+Every delivery is signed: `X-WaSphere-Signature: v1,sha256=<hmac>` over `{timestamp}.{rawBody}`.
+
+**Interactive API reference** — every endpoint, request/response schema, and try-it-out console ships built-in on both services (at `/docs/wa-server` and `/docs/admin` on your own deployment). Explore them live:
+
+- 📘 **[WA Server API](https://app.wasphere.com/docs/wa-server)** — sessions, messages (all 14 types), contacts, groups
+- 📗 **[Dashboard / Admin API](https://app.wasphere.com/docs/admin)** — auth, workspaces, API keys, webhooks, proxy
 
 ---
 
