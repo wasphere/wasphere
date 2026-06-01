@@ -74,17 +74,30 @@ WaSphere is two cleanly separated services so the GPL-licensed WhatsApp engine s
 | Built-in API docs    |   ✅   | Interactive Scalar reference on both services             |
 | Workspaces           |   ✅   | Isolated config + data per workspace                      |
 
-### Messaging — 14 types
+### Messaging — 14 send types
 
-| Feature                | Status | Notes                                                    |
-| ---------------------- | :----: | -------------------------------------------------------- |
-| Text                   |   ✅   | with link previews                                       |
-| Media                  |   ✅   | image, video, audio, document, sticker, GIF, view-once   |
-| Interactive            |   ✅   | buttons, list, poll                                      |
-| Reactions              |   ✅   | react to messages with emoji                             |
-| Location & contacts    |   ✅   | location pins and vCard contacts                         |
-| Bulk messaging         |   ✅   | per-recipient outcome tracking                           |
-| Anti-ban controls      |   ✅   | configurable per-session send delays + auto-read/receive |
+Every type below has a dedicated REST endpoint and is fully implemented in the WA Server.
+
+| #  | Type        | Notes                                              |
+| -- | ----------- | -------------------------------------------------- |
+| 1  | Text        | with automatic link previews                       |
+| 2  | Image       | with caption, any common format                    |
+| 3  | Video       | with caption, streamable                           |
+| 4  | Audio       | voice notes (PTT) and audio files                  |
+| 5  | Document    | any file type, custom filename                     |
+| 6  | Sticker     | static and animated (WebP)                         |
+| 7  | GIF         | looping video sent as a GIF                        |
+| 8  | View-once   | self-destructing image / video                     |
+| 9  | Buttons     | interactive quick-reply buttons                    |
+| 10 | List        | interactive menu / list picker                     |
+| 11 | Poll        | multi-option polls                                 |
+| 12 | Reaction    | emoji reaction to any message                      |
+| 13 | Location    | location pins (lat/long + label)                   |
+| 14 | Contact     | vCard contact cards                                |
+
+**Delivery & safety:** bulk send with per-recipient outcome tracking · configurable
+per-session send delays + auto-read/receipts (anti-ban) · inbound webhooks for every
+incoming message and status update.
 
 ### Security & Auth
 
@@ -276,6 +289,6 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, branch naming, and PR guidel
   <a href="https://github.com/wasphere/wasphere/issues">Issues</a> ·
   <a href="https://wasphere.com/docs/">Docs</a>
   <br/><br/>
-  <sub>Built by <a href="https://github.com/waqasahmedwaseer">Waqas Ahmed Waseer</a> · <a href="https://waqasahmedwaseer.com">waqasahmedwaseer.com</a></sub><br/>
+  <sub>Made with ❤️ by <a href="https://waqasahmedwaseer.com">Waqas Ahmed Waseer</a></sub><br/>
   <sub>Hosting by <a href="https://waseerhost.com">WaseerHost</a> · Not affiliated with WhatsApp Inc. or Meta.</sub>
 </div>
