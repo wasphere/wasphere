@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 
 export async function GET() {
+  if (process.env.DEMO_MODE === "true") {
+    return Response.json({ userId: "demo", email: "demo@wasphere.com", name: "Demo User" });
+  }
+
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("wa_access")?.value;
 

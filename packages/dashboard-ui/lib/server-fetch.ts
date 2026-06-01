@@ -10,6 +10,7 @@
 
 import * as http from "node:http"
 import * as https from "node:https"
+import { DEMO_MODE, demoApiResponse } from "./demo"
 
 export const API_BASE = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
 
@@ -69,6 +70,10 @@ export async function apiRequest<T = unknown>(
   token: string,
   body?: unknown
 ): Promise<FetchResult<T>> {
+  if (DEMO_MODE) {
+    const r = demoApiResponse(path, method)
+    return { ok: r.ok, status: r.status, data: r.data as T }
+  }
   try {
     const { status, body: raw } = await rawRequest(
       `${API_BASE}${path}`,
