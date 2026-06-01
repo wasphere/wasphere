@@ -2,10 +2,25 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
-  // DEMO_MODE: skip register/login routing and drop into the seeded dashboard.
+  const pathname = request.nextUrl.pathname
+
+  // ── DEMO_MODE ──────────────────────────────────────────────────────────────
+  // Drop "/" into the seeded dashboard, and stamp a dummy auth cookie on every
+  // dashboard/api request so the API routes don't 401 on a missing cookie
+  // (the data layer ignores the token and returns seeds in demo mode).
   if (process.env.DEMO_MODE === "true") {
-    return NextResponse.redirect(new URL("/dashboard/overview", request.url))
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/dashboard/overview", request.url))
+    }
+    const res = NextResponse.next()
+    if (!request.cookies.has("wa_access")) {
+      res.cookies.set("wa_access", "demo", { httpOnly: true, sameSite: "lax", path: "/" })
+    }
+    return res
   }
+
+  // ── Normal mode: only the root path is routed to register/login ─────────────
+  if (pathname !== "/") return NextResponse.next()
 
   const apiUrl = process.env.DASHBOARD_API_URL ?? "http://localhost:3000"
   try {
@@ -25,5 +40,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/"],
+  matcher: ["/", "/dashboard/:path*", "/api/:path*"],
 }
