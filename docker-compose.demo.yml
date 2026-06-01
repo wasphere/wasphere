@@ -1,0 +1,29 @@
+# demo.wasphere.com — dashboard-ui in DEMO_MODE (seeded, read-only, no backend).
+# Used both for raw `docker compose` runs and as the Dokploy "demo" Compose service.
+services:
+  dashboard-ui-demo:
+    build:
+      context: .
+      dockerfile: packages/dashboard-ui/Dockerfile
+    restart: unless-stopped
+    environment:
+      DEMO_MODE: "true"
+      NODE_ENV: production
+    networks: [dokploy-network]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3004/login || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wasphere-demo.rule=Host(`demo.wasphere.com`)
+      - traefik.http.routers.wasphere-demo.entrypoints=websecure
+      - traefik.http.routers.wasphere-demo.tls.certresolver=letsencrypt
+      - traefik.http.routers.wasphere-demo.service=wasphere-demo
+      - traefik.http.routers.wasphere-demo.priority=100
+      - traefik.http.services.wasphere-demo.loadbalancer.server.port=3004
+networks:
+  dokploy-network:
+    external: true
