@@ -26,11 +26,11 @@
 
 <p align="center">
   <a href="https://youtu.be/k6tBGIApd8I">
-    <img src="https://img.shields.io/badge/▶_Watch_demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the demo on YouTube"/>
+    <img src="https://img.shields.io/badge/▶%20%20WATCH%20DEMO-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the demo on YouTube" height="48"/>
   </a>
-  &nbsp;
+  &nbsp;&nbsp;
   <a href="https://demo.wasphere.com">
-    <img src="https://img.shields.io/badge/▶_Try_live_demo-22c55e?style=for-the-badge&logoColor=white" alt="Try the live demo"/>
+    <img src="https://img.shields.io/badge/▶%20%20TRY%20LIVE%20DEMO-22c55e?style=for-the-badge&logoColor=white" alt="Try the live demo" height="48"/>
   </a>
 </p>
 
