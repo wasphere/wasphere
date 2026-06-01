@@ -138,10 +138,14 @@ function ExternalNavItem({
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
   const pathname = usePathname();
   const { state, setOpen } = useSidebar();
   const collapsed = state === "collapsed";
+
+  // In demo mode the local API-docs proxy has no backend, so link to the public
+  // hosted docs instead.
+  const docsBase = demoMode ? "https://app.wasphere.com" : "";
 
   return (
     <Sidebar
@@ -191,13 +195,13 @@ export function AppSidebar() {
             <SidebarMenu>
               <ExternalNavItem
                 label="WhatsApp API"
-                href="/docs/wa-server"
+                href={`${docsBase}/docs/wa-server`}
                 icon={BookOpen}
                 collapsed={collapsed}
               />
               <ExternalNavItem
                 label="Admin API"
-                href="/docs/admin"
+                href={`${docsBase}/docs/admin`}
                 icon={ShieldCheck}
                 collapsed={collapsed}
               />
