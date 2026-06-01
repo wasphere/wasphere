@@ -4,6 +4,10 @@
  * connection. Enabled with DEMO_MODE=true.
  *
  * Reads return canned data; writes are no-ops. Nothing here touches a real API.
+ *
+ * Every ID, key, and prefix below is FAKE. Real API keys use the `wsk_` prefix;
+ * these demo fixtures use `wsk_demo_` so they can never be mistaken for real
+ * credentials.
  */
 
 export const DEMO_MODE = process.env.DEMO_MODE === "true";
@@ -22,8 +26,8 @@ const webhooks = [
 ];
 
 const apiKeys = [
-  { id: "key_live", name: "Production key", prefix: "wsk_live_8fA2", permissions: ["*"], sessionScope: null, lastUsedAt: "2026-06-01T10:40:00.000Z", expiresAt: null, createdAt: "2026-05-20T12:00:00.000Z" },
-  { id: "key_sales", name: "Sales (send only)", prefix: "wsk_live_3kP9", permissions: ["messages:send", "sessions:read"], sessionScope: "sales-team", lastUsedAt: "2026-06-01T08:15:00.000Z", expiresAt: null, createdAt: "2026-05-26T09:30:00.000Z" },
+  { id: "key_live", name: "Production key", prefix: "wsk_demo_8fA2", permissions: ["*"], sessionScope: null, lastUsedAt: "2026-06-01T10:40:00.000Z", expiresAt: null, createdAt: "2026-05-20T12:00:00.000Z" },
+  { id: "key_sales", name: "Sales (send only)", prefix: "wsk_demo_3kP9", permissions: ["messages:send", "sessions:read"], sessionScope: "sales-team", lastUsedAt: "2026-06-01T08:15:00.000Z", expiresAt: null, createdAt: "2026-05-26T09:30:00.000Z" },
 ];
 
 const stats = {
