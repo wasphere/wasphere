@@ -27,15 +27,22 @@ Self-hosted WhatsApp API platform — multi-session, multi-webhook, with develop
 
 ### Docker (recommended)
 
+One `.env`, one command — the full stack (Postgres, WA Server, Dashboard API, Dashboard UI) builds and starts together. Database migrations run automatically.
+
 ```bash
 git clone https://github.com/wasphere/wasphere.git
 cd wasphere
-cp packages/wa-server/.env.example packages/wa-server/.env
-cp packages/dashboard-api/.env.example packages/dashboard-api/.env
-cp packages/dashboard-ui/.env.example packages/dashboard-ui/.env
-# Fill in required variables (see First-Time Setup below)
+cp .env.example .env
+# Edit .env and set the secrets — generate each with: openssl rand -hex 32
+#   POSTGRES_PASSWORD, JWT_SECRET, ENCRYPTION_KEY, WA_TOKEN,
+#   WEBHOOK_SIGNING_SECRET, INTERNAL_WEBHOOK_SECRET
 docker compose up -d
 ```
+
+Then open the dashboard at **http://localhost:3004** and register the first (admin) account.
+
+> Putting it behind a domain with TLS? Front it with your own nginx/Caddy/Traefik,
+> and set `DASHBOARD_UI_URL=https://app.your-domain.com` in `.env`.
 
 ### Manual (Node + pnpm)
 
@@ -45,7 +52,11 @@ docker compose up -d
 git clone https://github.com/wasphere/wasphere.git
 cd wasphere
 pnpm install
-# Configure .env files (see First-Time Setup below)
+docker compose -f docker-compose.dev.yml up -d   # Postgres for local dev
+# Configure each package's .env (see First-Time Setup below):
+cp packages/wa-server/.env.example     packages/wa-server/.env
+cp packages/dashboard-api/.env.example packages/dashboard-api/.env
+cp packages/dashboard-ui/.env.example  packages/dashboard-ui/.env
 pnpm prisma:migrate          # runs prisma migrate deploy in dashboard-api
 pnpm dev                     # starts all three packages concurrently
 ```

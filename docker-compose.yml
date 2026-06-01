@@ -1,25 +1,121 @@
-version: '3.9'
+# WaSphere — full self-hosted stack.
+#
+#   cp .env.example .env      # then fill in the secrets (see comments in .env.example)
+#   docker compose up -d      # builds + starts Postgres, WA Server, Dashboard API, Dashboard UI
+#
+# Open the dashboard at http://localhost:3004
+#
+# This file is portable — it has no reverse-proxy or platform coupling. To put it
+# behind a domain with TLS, front it with your own nginx/Caddy/Traefik, or use the
+# Dokploy-flavoured docker-compose.prod.yml.
 
 services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: wasphere-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: wasphere
-      POSTGRES_PASSWORD: wasphere_dev
-      POSTGRES_DB: wasphere
-    ports:
-      - '5432:5432'
+      POSTGRES_USER: ${POSTGRES_USER:-wasphere}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-wasphere}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - wa-postgres:/var/lib/postgresql/data
+    networks: [internal]
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U wasphere -d wasphere']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-wasphere} -d ${POSTGRES_DB:-wasphere}']
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
 
+  # ── Dashboard API (runs DB migrations on start) ─────────────────────────────
+  dashboard-api:
+    build:
+      context: .
+      dockerfile: packages/dashboard-api/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wasphere}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-wasphere}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
+      INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET:?set INTERNAL_WEBHOOK_SECRET in .env}
+      CORS_ORIGIN: ${DASHBOARD_UI_URL:-http://localhost:3004}
+      DASHBOARD_PORT: "3000"
+      NODE_ENV: production
+    ports:
+      - "${DASHBOARD_API_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # ── WA Server (WhatsApp gateway) ────────────────────────────────────────────
+  wa-server:
+    build:
+      context: .
+      dockerfile: packages/wa-server/Dockerfile
+    restart: unless-stopped
+    environment:
+      WA_TOKEN: ${WA_TOKEN:?set WA_TOKEN in .env}
+      PORT: "3001"
+      CORS_ORIGIN: ${DASHBOARD_UI_URL:-http://localhost:3004}
+      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:?set WEBHOOK_SIGNING_SECRET in .env}
+      INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET}
+      AUDIT_DASHBOARD_URL: http://dashboard-api:3000/internal/audit
+      # Leave DASHBOARD_WEBHOOK_URL unset — the dashboard registers it automatically.
+      # A manual value causes a self-referential webhook loop.
+      DASHBOARD_WEBHOOK_URL: ${DASHBOARD_WEBHOOK_URL:-}
+      NODE_ENV: production
+    ports:
+      - "${WA_SERVER_PORT:-3001}:3001"
+    volumes:
+      - wa-sessions:/app/sessions
+    depends_on:
+      dashboard-api:
+        condition: service_healthy
+    networks: [internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3001/api/health/live || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Dashboard UI ─────────────────────────────────────────────────────────────
+  dashboard-ui:
+    build:
+      context: .
+      dockerfile: packages/dashboard-ui/Dockerfile
+    restart: unless-stopped
+    environment:
+      DASHBOARD_API_URL: http://dashboard-api:3000
+      WA_SERVER_INTERNAL_URL: http://wa-server:3001
+      NODE_ENV: production
+    ports:
+      - "${DASHBOARD_UI_PORT:-3004}:3004"
+    depends_on:
+      dashboard-api:
+        condition: service_healthy
+    networks: [internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3004/login || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 volumes:
-  postgres_data:
+  wa-postgres:
     driver: local
+  wa-sessions:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
