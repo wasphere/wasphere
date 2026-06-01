@@ -24,6 +24,20 @@
   <img src="https://img.shields.io/badge/Docker-ready-2496ED.svg" alt="Docker"/>
 </p>
 
+<p align="center">
+  <a href="https://youtu.be/k6tBGIApd8I">
+    <img src="https://img.shields.io/badge/▶_Watch_demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the demo on YouTube"/>
+  </a>
+  &nbsp;
+  <a href="https://demo.wasphere.com">
+    <img src="https://img.shields.io/badge/▶_Try_live_demo-22c55e?style=for-the-badge&logoColor=white" alt="Try the live demo"/>
+  </a>
+</p>
+
+<p align="center">
+  <img src="assets/dashboard-overview.png" alt="WaSphere — self-hosted WhatsApp API dashboard showing real-time stats, 14 message types, scoped API keys, and audit log" width="100%"/>
+</p>
+
 ---
 
 ## ✨ Why WaSphere?

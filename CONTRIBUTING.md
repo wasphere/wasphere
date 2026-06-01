@@ -11,7 +11,6 @@ Thank you for your interest in contributing. This document covers setup, workflo
 - Node.js ≥ 20
 - pnpm ≥ 9
 - PostgreSQL ≥ 14 (Docker is fine)
-- Redis ≥ 7
 
 ### Clone and install
 
