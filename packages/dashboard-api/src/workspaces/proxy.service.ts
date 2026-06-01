@@ -141,17 +141,23 @@ export class ProxyService {
       outHeaders['content-length'] = String(requestBody.length);
     }
 
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       let connectTimer: ReturnType<typeof setTimeout> | null = null;
       let readTimer: ReturnType<typeof setTimeout> | null = null;
       let settled = false;
 
-      const settle = (fn: () => void) => {
+      // Terminal completion — runs exactly once. Kept separate from "response
+      // received" so res.end() is actually called (and the promise resolves) on
+      // the success path, instead of leaking the socket + timer until the read
+      // timeout fires.
+      const finish = (beforeEnd?: () => void) => {
         if (settled) return;
         settled = true;
         if (connectTimer) clearTimeout(connectTimer);
         if (readTimer) clearTimeout(readTimer);
-        fn();
+        if (beforeEnd) beforeEnd();
+        if (!res.writableEnded) res.end();
+        resolve();
       };
 
       const options: http.RequestOptions = {
@@ -163,75 +169,67 @@ export class ProxyService {
       };
 
       const proxyReq = transport.request(options, (proxyRes: IncomingMessage) => {
-        settle(() => {
-          if (readTimer) clearTimeout(readTimer);
+        // Response head received — connection established (NOT terminal).
+        if (settled) {
+          proxyRes.destroy();
+          return;
+        }
+        if (connectTimer) {
+          clearTimeout(connectTimer);
+          connectTimer = null;
+        }
 
-          // Start read timeout on response reception
-          readTimer = setTimeout(() => {
-            proxyRes.destroy();
+        // Read timeout: from response reception until the body is fully read.
+        readTimer = setTimeout(() => {
+          proxyRes.destroy();
+          finish(() => {
             if (!res.headersSent) {
-              res
-                .status(HttpStatus.GATEWAY_TIMEOUT)
-                .json({ error: 'WA_SERVER_TIMEOUT' });
+              res.status(HttpStatus.GATEWAY_TIMEOUT).json({ error: 'WA_SERVER_TIMEOUT' });
             }
-            resolve();
-          }, READ_TIMEOUT_MS);
-
-          // Strip unwanted response headers
-          const forwardHeaders: Record<string, string | string[]> = {};
-          for (const [key, value] of Object.entries(proxyRes.headers)) {
-            if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
-            if (value !== undefined) forwardHeaders[key] = value;
-          }
-
-          res.writeHead(proxyRes.statusCode ?? 200, forwardHeaders);
-
-          proxyRes.on('data', (chunk: Buffer) => {
-            res.write(chunk);
           });
+        }, READ_TIMEOUT_MS);
 
-          proxyRes.on('end', () => {
-            settle(() => {
-              res.end();
-              resolve();
-            });
-          });
+        // Strip unwanted response headers
+        const forwardHeaders: Record<string, string | string[]> = {};
+        for (const [key, value] of Object.entries(proxyRes.headers)) {
+          if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
+          if (value !== undefined) forwardHeaders[key] = value;
+        }
 
-          proxyRes.on('error', (err) => {
-            settle(() => {
-              this.logger.error('Proxy response error', err.message);
-              if (!res.headersSent) {
-                res
-                  .status(HttpStatus.BAD_GATEWAY)
-                  .json({ error: 'WA_SERVER_UNREACHABLE' });
-              }
-              resolve();
-            });
+        res.writeHead(proxyRes.statusCode ?? 200, forwardHeaders);
+
+        proxyRes.on('data', (chunk: Buffer) => {
+          if (!res.writableEnded) res.write(chunk);
+        });
+
+        // Body fully received — terminate the client response exactly once.
+        proxyRes.on('end', () => finish());
+
+        proxyRes.on('error', (err) => {
+          finish(() => {
+            this.logger.error('Proxy response error', err.message);
+            if (!res.headersSent) {
+              res.status(HttpStatus.BAD_GATEWAY).json({ error: 'WA_SERVER_UNREACHABLE' });
+            }
           });
         });
       });
 
       connectTimer = setTimeout(() => {
         proxyReq.destroy();
-        settle(() => {
+        finish(() => {
           if (!res.headersSent) {
-            res
-              .status(HttpStatus.BAD_GATEWAY)
-              .json({ error: 'WA_SERVER_UNREACHABLE' });
+            res.status(HttpStatus.BAD_GATEWAY).json({ error: 'WA_SERVER_UNREACHABLE' });
           }
-          resolve();
         });
       }, CONNECT_TIMEOUT_MS);
 
       proxyReq.on('error', (err: NodeJS.ErrnoException) => {
-        settle(() => {
+        finish(() => {
           this.logger.error('Proxy request error', err.message);
           if (!res.headersSent) {
-            res
-              .status(HttpStatus.BAD_GATEWAY)
-              .json({ error: 'WA_SERVER_UNREACHABLE' });
+            res.status(HttpStatus.BAD_GATEWAY).json({ error: 'WA_SERVER_UNREACHABLE' });
           }
-          resolve();
         });
       });
 
