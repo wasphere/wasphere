@@ -1,205 +1,281 @@
-# WaSphere
+<h1 align="center">WaSphere</h1>
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](./CHANGELOG.md)
-[![Node](https://img.shields.io/badge/Node.js-20+-brightgreen.svg)](https://nodejs.org)
+<p align="center">
+  <strong>The self-hosted, open-source WhatsApp API platform.</strong><br/>
+  Multi-session · multi-webhook · developer-first · MIT licensed.
+</p>
 
-Self-hosted WhatsApp API platform — multi-session, multi-webhook, with developer-first dashboard. Built for WHMCS, billing systems, and custom integrations.
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-api">API</a> •
+  <a href="#-security">Security</a> •
+  <a href="#-roadmap">Roadmap</a> •
+  <a href="https://demo.wasphere.com">Live Demo ↗</a>
+</p>
 
-<!-- screenshot: hero -->
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-10b981.svg" alt="Version"/>
+  <img src="https://img.shields.io/badge/license-MIT-10b981.svg" alt="License"/>
+  <img src="https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg" alt="Node"/>
+  <img src="https://img.shields.io/badge/NestJS-10.x-E0234E.svg" alt="NestJS"/>
+  <img src="https://img.shields.io/badge/Next.js-16-000.svg" alt="Next.js"/>
+  <img src="https://img.shields.io/badge/PostgreSQL-16-336791.svg" alt="Postgres"/>
+  <img src="https://img.shields.io/badge/Docker-ready-2496ED.svg" alt="Docker"/>
+</p>
 
 ---
 
-## Features
+## ✨ Why WaSphere?
 
-- **Multi-session WhatsApp connections** — manage multiple WhatsApp accounts from a single deployment
-- **14 message types** — text, image, video, audio, document, sticker, GIF, location, contact, buttons, list, poll, reaction, view-once
-- **Multi-API-key authentication** — up to N keys per workspace, each with 12 scoped permissions (messages, sessions, webhooks, workspace, audit, wildcard)
-- **Multi-webhook delivery** — per-webhook HMAC-SHA256 signing secrets, exponential backoff retry, auto-deactivation on failure, test-fire button
-- **Built-in API docs** — Scalar three-column reference at `/api/reference` on both WA Server and Dashboard API
-- **Anti-ban controls** — per-session configurable min/max send delay (ms), auto-read toggle, receive toggle
-- **Audit log** — every API request logged with timestamp, method, path, status, duration; filterable by session, date range, status code; 90-day retention
-- **Dark mode + WCAG AA** — full dark mode parity, status pulse animations, accessible colour contrast throughout
+**WaSphere** is a self-hosted WhatsApp API platform for developers, hosting/WHMCS resellers, and billing systems that want a production-grade WhatsApp gateway they **fully own** — your server, your data, no managed SaaS, no per-message fees, no vendor lock-in.
+
+|                              |                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| 🔓 **100% open source**      | MIT licensed. Run it anywhere, fork it, ship it.                                    |
+| 🏠 **Self-hosted & private** | Your WhatsApp sessions and contact data never leave your infrastructure.           |
+| 🔐 **Security-first**        | HMAC-signed webhooks, scoped API keys, SSRF-guarded delivery, encrypted secrets.    |
+| 🖥️ **Developer dashboard**   | Next.js UI for sessions, webhooks, API keys, messaging, audit log + dark mode.     |
+| 💬 **14 message types**      | Text, media, buttons, lists, polls, reactions, view-once, location, contacts…       |
+| 🐳 **One-command Docker**    | `docker compose up -d` brings up the whole stack with auto-migrations.              |
+
+👉 **Try it live (seeded demo, no signup): [demo.wasphere.com](https://demo.wasphere.com)**
 
 ---
 
-## Install
+## 🏗️ Architecture
 
-### Docker (recommended)
+WaSphere is two cleanly separated services so the GPL-licensed WhatsApp engine stays isolated from your application layer:
 
-One `.env`, one command — the full stack (Postgres, WA Server, Dashboard API, Dashboard UI) builds and starts together. Database migrations run automatically.
+```
+┌─────────────────┐   HTTPS    ┌──────────────────┐   internal    ┌────────────────────┐
+│  Dashboard UI   │ ─────────▶ │   Dashboard API  │ ────────────▶ │     WA Server      │
+│  Next.js (3004) │            │ NestJS · Prisma  │   X-Api-Token │ NestJS · Baileys   │
+│  sessions/keys/ │ ◀───────── │  Postgres (3000) │ ◀──────────── │   WhatsApp (3001)  │
+│  webhooks UI    │            │  auth · proxy    │               │  the GPL boundary  │
+└─────────────────┘            └──────────────────┘               └────────────────────┘
+```
+
+- **WA Server** — the WhatsApp gateway (Baileys), the only component that links the GPL engine.
+- **Dashboard API** — auth (JWT + scoped API keys), workspaces, webhook fan-out, audit log, and a token-injecting proxy to the WA Server.
+- **Dashboard UI** — the management console. Talks only to the Dashboard API; never holds your WA Server token in the browser.
+
+---
+
+## 🎯 Features
+
+### Core
+
+| Feature              | Status | Description                                                |
+| -------------------- | :----: | ---------------------------------------------------------- |
+| REST API             |   ✅   | Full WhatsApp API over HTTP                                |
+| Multi-session        |   ✅   | Run many WhatsApp numbers from one deployment             |
+| Web dashboard        |   ✅   | Next.js console with dark mode + WCAG-AA contrast         |
+| Built-in API docs    |   ✅   | Interactive Scalar reference on both services             |
+| Workspaces           |   ✅   | Isolated config + data per workspace                      |
+
+### Messaging — 14 types
+
+| Feature                | Status | Notes                                                    |
+| ---------------------- | :----: | -------------------------------------------------------- |
+| Text                   |   ✅   | with link previews                                       |
+| Media                  |   ✅   | image, video, audio, document, sticker, GIF, view-once   |
+| Interactive            |   ✅   | buttons, list, poll                                      |
+| Reactions              |   ✅   | react to messages with emoji                             |
+| Location & contacts    |   ✅   | location pins and vCard contacts                         |
+| Bulk messaging         |   ✅   | per-recipient outcome tracking                           |
+| Anti-ban controls      |   ✅   | configurable per-session send delays + auto-read/receive |
+
+### Security & Auth
+
+| Feature                       | Status | Notes                                                          |
+| ----------------------------- | :----: | -------------------------------------------------------------- |
+| Scoped API keys               |   ✅   | up to N keys, 12 permission scopes, **per-session scoping**    |
+| HMAC-signed webhooks          |   ✅   | `v1,sha256=` over `timestamp.body`, per-webhook secret, retries |
+| SSRF-guarded delivery         |   ✅   | DNS pinning + private-IP denylist on all outbound webhooks     |
+| Encrypted secrets at rest     |   ✅   | AES-256-GCM for stored WA Server tokens                        |
+| Argon2id + JWT rotation       |   ✅   | timing-safe login, refresh-token rotation + reuse detection    |
+| Security headers              |   ✅   | helmet on the API + headers on the UI                          |
+| Audit log                     |   ✅   | every API request logged; filterable; 90-day retention         |
+
+### Operations
+
+| Feature              | Status | Notes                                            |
+| -------------------- | :----: | ------------------------------------------------ |
+| Per-session proxy    |   ✅   | HTTP / HTTPS / SOCKS5 per session                |
+| Rate limiting        |   ✅   | sliding-window per session + global throttle     |
+| Health checks        |   ✅   | liveness/readiness probes, Kubernetes-ready      |
+| One-command Docker   |   ✅   | `docker compose up -d`, migrations auto-run      |
+| PostgreSQL 16        |   ✅   | production-grade storage via Prisma              |
+
+---
+
+## 🚀 Quick Start
+
+**Requirements:** Docker Engine 24+ and Docker Compose v2. (For a public deployment, bring your own reverse proxy for TLS — WaSphere does not bundle one.)
 
 ```bash
 git clone https://github.com/wasphere/wasphere.git
 cd wasphere
 cp .env.example .env
-# Edit .env and set the secrets — generate each with: openssl rand -hex 32
+# Set the secrets in .env — generate each with: openssl rand -hex 32
 #   POSTGRES_PASSWORD, JWT_SECRET, ENCRYPTION_KEY, WA_TOKEN,
 #   WEBHOOK_SIGNING_SECRET, INTERNAL_WEBHOOK_SECRET
 docker compose up -d
 ```
 
-Then open the dashboard at **http://localhost:3004** and register the first (admin) account.
+Then open **http://localhost:3004**, register the first (admin) account, and in **Settings → WA Server** set the URL to `http://wa-server:3001` and your `WA_TOKEN`. Connect a number under **Sessions**, and you're live.
 
-> Putting it behind a domain with TLS? Front it with your own nginx/Caddy/Traefik,
-> and set `DASHBOARD_UI_URL=https://app.your-domain.com` in `.env`.
+> Full walkthrough: [Quick Start docs](https://wasphere.com/docs/getting-started/quick-start/) · [Configuration reference](./CONFIGURATION.md)
 
-### Manual (Node + pnpm)
+### Services
 
-**Requirements:** Node ≥ 20, PostgreSQL ≥ 14, pnpm
+| Service       | URL                              |
+| ------------- | -------------------------------- |
+| Dashboard UI  | `http://localhost:3004`          |
+| Dashboard API | `http://localhost:3000`          |
+| WA Server     | `http://localhost:3001`          |
+| API reference | `…:3001/api/reference` (WhatsApp API) · `…:3000/api/reference` (Admin API) |
+
+### Local development
 
 ```bash
-git clone https://github.com/wasphere/wasphere.git
-cd wasphere
 pnpm install
-docker compose -f docker-compose.dev.yml up -d   # Postgres for local dev
-# Configure each package's .env (see First-Time Setup below):
-cp packages/wa-server/.env.example     packages/wa-server/.env
-cp packages/dashboard-api/.env.example packages/dashboard-api/.env
-cp packages/dashboard-ui/.env.example  packages/dashboard-ui/.env
-pnpm prisma:migrate          # runs prisma migrate deploy in dashboard-api
-pnpm dev                     # starts all three packages concurrently
+docker compose -f docker-compose.dev.yml up -d   # Postgres only
+pnpm prisma:migrate
+pnpm dev                                          # all three packages
 ```
-
-Services start on:
-
-| Service | URL |
-|---|---|
-| WA Server | `http://localhost:3001` |
-| Dashboard API | `http://localhost:3000` |
-| Dashboard UI | `http://localhost:3004` |
 
 ---
 
-## First-Time Setup
+## 📡 API
 
-**Step 1 — Configure `.env` files**
-
-Key variables across packages:
-
-| Variable | Package | Description |
-|---|---|---|
-| `WA_TOKEN` | wa-server | API token (generate a random 32+ char string) |
-| `DATABASE_URL` | dashboard-api | PostgreSQL connection string |
-| `JWT_SECRET` | dashboard-api | Dashboard auth secret (random 64 chars) |
-| `ENCRYPTION_KEY` | dashboard-api | 32-byte hex key for token encryption |
-| `INTERNAL_WEBHOOK_SECRET` | both | Shared secret for wa-server → dashboard-api events (min 32 chars) |
-| `WA_SERVER_INTERNAL_URL` | dashboard-ui | Where the dashboard reaches the WA Server (see below) |
-| `DASHBOARD_WEBHOOK_URL` | wa-server | `https://your-dashboard/internal/webhook-event/<workspace-uuid>` |
-
-> **`WA_SERVER_INTERNAL_URL` (and the Settings → WA Server URL field):**
-> This is the **internal** address the dashboard uses to reach the WA Server —
-> not a public URL.
-> - **Docker / docker-compose:** `http://wa-server:3001` (the compose service name)
-> - **Manual install:** `http://localhost:3001` (or your host's IP:port)
-> - **Kubernetes:** `http://wa-server.<namespace>.svc.cluster.local:3001`
->
-> Inside Docker, `localhost` points at the dashboard container itself — use the
-> service name `wa-server`. See [CONFIGURATION.md](./CONFIGURATION.md) for details.
-
-> **`DASHBOARD_WEBHOOK_URL` note (v1.0):** WaSphere v1.0 is one wa-server per workspace.
-> Set this to include your workspace UUID, shown on the Settings page after first login.
-
-**Step 2 — Run database migrations**
-
-```bash
-cd packages/dashboard-api
-npx prisma migrate deploy
-```
-
-**Step 3 — Start services**
-
-```bash
-# From repo root
-pnpm dev
-# or: docker compose up -d
-```
-
-**Step 4 — Open the dashboard**
-
-Navigate to `http://localhost:3004` and register an account.
-
-**Step 5 — Send your first message**
-
-1. Go to **Settings** → set your WA Server URL (Docker: `http://wa-server:3001`, manual: `http://localhost:3001`) and paste your `WA_TOKEN` → click **Test Connection** → Save
-2. Go to **Sessions** → New Session → scan the QR code
-3. Go to **Messages** → select your session → send a Text message
-
-See [CONFIGURATION.md](./CONFIGURATION.md) if Test Connection fails (it's almost always the WA Server URL — Docker uses the service name, not `localhost`).
-
----
-
-## Screenshots
-
-<!-- screenshot: overview-dashboard -->
-<!-- gif: create-session-flow -->
-<!-- gif: send-message -->
-<!-- gif: webhook-test-fire -->
-<!-- screenshot: api-keys-page -->
-
----
-
-## API Documentation
-
-Interactive Scalar API reference is available at:
-
-- **WhatsApp API** — `http://localhost:3001/api/reference` (send messages, manage sessions, configure webhooks)
-- **Admin API** — `http://localhost:3000/api/reference` (workspaces, API keys, audit logs)
-
-Both include live cURL / JavaScript / Python / PHP code examples and support authenticated requests directly in the browser. Toggle dark mode in the top-right corner.
-
-Quick example:
+Requests go through the Dashboard API, which proxies to your WA Server and injects the token. Authenticate with a scoped key: `Authorization: Bearer wsk_…`.
 
 ```bash
 # Send a text message
 curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/text \
-  -H "Authorization: Bearer wsk_your_api_key" \
+  -H "Authorization: Bearer wsk_live_your_key" \
   -H "Content-Type: application/json" \
-  -d '{"to": "+12345678901", "text": "Hello from WaSphere!"}'
+  -d '{ "to": "12125550100", "text": "Hello from WaSphere!" }'
+```
+
+```bash
+# Register a signed webhook
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/webhooks \
+  -H "Authorization: Bearer wsk_live_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "n8n", "url": "https://n8n.example.com/webhook/wa", "events": ["message.received"] }'
+```
+
+Every delivery is signed: `X-WaSphere-Signature: v1,sha256=<hmac>` over `{timestamp}.{rawBody}`. Full interactive docs ship at `/api/reference` on both services.
+
+---
+
+## 🔐 Security
+
+- **No vendor trust required** — sessions and contacts live only on your infrastructure.
+- **Scoped, hashed API keys** — 12 permission scopes plus optional per-session scoping; keys stored Argon2id-hashed, shown once.
+- **Signed webhooks with SSRF protection** — HMAC-SHA256 signatures, per-webhook secrets, exponential-backoff retries, auto-deactivation; outbound delivery is DNS-pinned and blocks private/loopback/link-local/cloud-metadata targets.
+- **Secrets encrypted at rest** — AES-256-GCM for WA Server tokens; secrets only via environment variables, never committed.
+- **Hardened auth** — Argon2id passwords, timing-safe login, JWT refresh-token rotation with reuse detection, registration locks after the first admin.
+- **Header-only WA token + proxy stripping** — the WA Server token is accepted via `X-Api-Token` only and is stripped from all proxied responses, so it never reaches the browser.
+
+Found a vulnerability? See [CONTRIBUTING.md](./CONTRIBUTING.md) for responsible disclosure.
+
+---
+
+## 🛠 Tech Stack
+
+| Layer        | Technology                                  |
+| ------------ | ------------------------------------------- |
+| WA Server    | NestJS · TypeScript · Baileys (pinned 6.7.21) |
+| Dashboard API| NestJS · Prisma · PostgreSQL 16             |
+| Dashboard UI | Next.js 16 · TailwindCSS · ShadCN UI        |
+| Auth         | JWT + Argon2id · scoped API keys            |
+| Monorepo     | pnpm workspaces                             |
+| Container    | Docker + Docker Compose                     |
+
+---
+
+## 📁 Project Structure
+
+```
+wasphere/
+├── packages/
+│   ├── wa-server/        # WhatsApp gateway (NestJS + Baileys) — the GPL boundary
+│   ├── dashboard-api/    # NestJS + Prisma API: auth, workspaces, webhooks, proxy
+│   └── dashboard-ui/     # Next.js dashboard
+├── docker-compose.yml        # portable full stack (self-host)
+├── docker-compose.dev.yml    # Postgres only (local dev)
+├── docker-compose.prod.yml   # Dokploy/Traefik overlay
+├── docker-compose.demo.yml   # DEMO_MODE showcase (demo.wasphere.com)
+├── CONFIGURATION.md
+└── README.md
 ```
 
 ---
 
-## Roadmap
+## 🗺️ Roadmap
 
-### v1.1 (next release)
-
+### v1.1
 - Inbox UI — receive messages and view threads in the dashboard
-- Rich phone preview per message type
-- Webhook recent-events log per webhook
-- Custom signing secret input for webhooks
-- Onboarding checklist for new workspaces
-- Real-time event ticker on Overview page
-- Sidebar logo SVG mark
+- Rich per-message-type phone preview
+- Per-webhook recent-events log + custom signing secret input
+- New-workspace onboarding checklist + real-time Overview event ticker
 
 ### v1.5
+- MySQL / SQLite support (PostgreSQL-only today)
+- Full message log with search & filter
+- Workspace rename · real-time WebSocket events
+- Multiple workspaces per deployment
 
-- MySQL / SQLite support (currently PostgreSQL only)
-- Full message log with search and filter
-- Workspace rename
-- Real-time WebSocket events
-- Multi-workspace support per deployment
+### v2.0 — WaSphere Pro
+- Campaigns, Automations, CRM & Inbox, AI replies
+- Email/SMS notifications, multi-language SDK snippets
+- First-class WHMCS integration · premium support
 
-### v2.0 (future)
-
-- WaSphere Pro — email/SMS notifications, multi-language SDK snippets, Campaigns, Automations, CRM & Inbox, AI Replies, WHMCS integration, premium support
-
----
-
-## License
-
-MIT — see [LICENSE](./LICENSE)
+> Have a request? [Open an issue](https://github.com/wasphere/wasphere/issues).
 
 ---
 
-## Contributing
+## 📚 Documentation
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions, branch naming, commit format, and PR guidelines.
+| Resource                                                                   | Description                       |
+| -------------------------------------------------------------------------- | --------------------------------- |
+| [Quick Start](https://wasphere.com/docs/getting-started/quick-start/)      | Deploy + first message in ~10 min |
+| [Installation](https://wasphere.com/docs/getting-started/installation/)    | Every service & port explained    |
+| [Configuration](./CONFIGURATION.md)                                        | Full environment reference        |
+| [WHMCS integration](https://wasphere.com/docs/guides/whmcs-integration/)   | Order/invoice WhatsApp alerts      |
+| [Webhooks](https://wasphere.com/docs/concepts/webhooks/)                   | Real-time events + signatures      |
 
 ---
 
-## Support
+## 🤝 Contributing
 
-- **Bug reports / feature requests** — [GitHub Issues](https://github.com/wasphere/wasphere/issues)
-- **Discussions** — [GitHub Discussions](https://github.com/wasphere/wasphere/discussions)
-- **Twitter** — [@WaSphereHQ](https://twitter.com/WaSphereHQ)
+1. **Fork** the repo and create a branch (`git checkout -b feature/amazing-feature`)
+2. **Commit** your changes (Conventional Commits; include `Closes #N`)
+3. **Push** and open a Pull Request
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, branch naming, and PR guidelines.
+
+---
+
+## 📄 License
+
+**MIT** — free for personal and commercial use. See [LICENSE](./LICENSE).
+
+> The WA Server links [Baileys](https://github.com/WhiskeySockets/Baileys), which depends on `libsignal` (GPLv3). WaSphere isolates all Baileys code in the WA Server binary; the rest of the platform stays MIT-clean.
+
+---
+
+<div align="center">
+  <strong>WaSphere</strong> — own your WhatsApp infrastructure.<br/>
+  <a href="https://wasphere.com">Website</a> ·
+  <a href="https://demo.wasphere.com">Live Demo</a> ·
+  <a href="https://github.com/wasphere/wasphere/issues">Issues</a> ·
+  <a href="https://wasphere.com/docs/">Docs</a>
+  <br/><br/>
+  <sub>Built by <a href="https://github.com/waqasahmedwaseer">Waqas Ahmed Waseer</a> · <a href="https://waqasahmedwaseer.com">waqasahmedwaseer.com</a></sub><br/>
+  <sub>Hosting by <a href="https://waseerhost.com">WaseerHost</a> · Not affiliated with WhatsApp Inc. or Meta.</sub>
+</div>
