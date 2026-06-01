@@ -66,10 +66,11 @@ function NavItem({
   active: boolean;
   collapsed: boolean;
 }) {
+  const { isMobile, setOpenMobile } = useSidebar();
   return (
     <SidebarMenuItem className="mb-0.5">
       <SidebarMenuButton
-        render={<Link href={href} />}
+        render={<Link href={href} onClick={() => { if (isMobile) setOpenMobile(false); }} />}
         isActive={active}
         tooltip={label}
         className={[
@@ -140,8 +141,10 @@ function ExternalNavItem({
 
 export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
   const pathname = usePathname();
-  const { state, setOpen } = useSidebar();
-  const collapsed = state === "collapsed";
+  const { state, setOpen, isMobile } = useSidebar();
+  // On mobile the sidebar is a full drawer — never icon-collapse it, and the
+  // hover-to-expand behaviour is desktop-only.
+  const collapsed = !isMobile && state === "collapsed";
 
   // In demo mode the local API-docs proxy has no backend, so link to the public
   // hosted docs instead.
@@ -150,8 +153,8 @@ export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
   return (
     <Sidebar
       collapsible="icon"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseEnter={isMobile ? undefined : () => setOpen(true)}
+      onMouseLeave={isMobile ? undefined : () => setOpen(false)}
     >
       <SidebarHeader className="px-4 py-3">
         {collapsed ? (

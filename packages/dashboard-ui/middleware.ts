@@ -9,7 +9,8 @@ export async function middleware(request: NextRequest) {
   // dashboard/api request so the API routes don't 401 on a missing cookie
   // (the data layer ignores the token and returns seeds in demo mode).
   if (process.env.DEMO_MODE === "true") {
-    if (pathname === "/") {
+    // There's no real auth in demo — never strand the visitor on login/register.
+    if (pathname === "/" || pathname === "/login" || pathname === "/register") {
       return NextResponse.redirect(new URL("/dashboard/overview", request.url))
     }
     const res = NextResponse.next()
@@ -40,5 +41,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/api/:path*"],
+  matcher: ["/", "/login", "/register", "/dashboard/:path*", "/api/:path*"],
 }
