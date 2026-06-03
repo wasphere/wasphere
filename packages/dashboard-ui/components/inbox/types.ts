@@ -43,3 +43,11 @@ export interface Paginated<T> {
   items: T[]
   nextCursor: string | null
 }
+
+// Outbound reply payloads sent to POST /api/inbox/conversations/:id/messages.
+// `media` is a base64 data URI for image/document.
+export type OutboundReply =
+  | { kind: "text"; text: string }
+  | { kind: "image"; media: string; caption?: string }
+  | { kind: "document"; media: string; fileName: string; mimetype: string }
+  | { kind: "poll"; pollName: string; options: string[] }

@@ -12,7 +12,10 @@ import makeWASocket, {
   BaileysEventMap,
   proto,
   getContentType,
+  decryptPollVote,
+  jidNormalizedUser,
 } from '@whiskeysockets/baileys';
+import * as crypto from 'crypto';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -89,6 +92,11 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   private readonly messageCache = new Map<string, Map<string, proto.IWebMessageInfo>>();
   private readonly MESSAGE_CACHE_LIMIT = 100;
   private readonly qrMeta = new Map<string, { generatedAt: Date }>();
+  // Profile-picture URL cache keyed by `${sessionId}:${jid}`. WhatsApp pic URLs
+  // are temporary, so entries are refreshed after AVATAR_TTL_MS. A null url is
+  // cached too (contact has no pic / pic is private) to avoid re-fetching.
+  private readonly avatarCache = new Map<string, { url: string | null; at: number }>();
+  private readonly AVATAR_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
   constructor(private webhookService: WebhookService) {
     // Ensure sessions directory exists
@@ -556,13 +564,37 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         }
       }
 
+      // Poll votes arrive as an encrypted pollUpdateMessage — decrypt + emit
+      // a dedicated event, then skip the generic content path.
+      if (msg.message?.pollUpdateMessage) {
+        await this.handlePollVote(sessionId, msg);
+        continue;
+      }
+
       const contentType = getContentType(msg.message || {});
       const isGroup = msg.key.remoteJid?.endsWith('@g.us');
+
+      // LID addressing: remoteJid may be an opaque "<id>@lid". The real phone
+      // number (PN) is on key.senderPn. Forward both so the dashboard resolves
+      // the true number for display + as the reply target.
+      const lidKey = msg.key as typeof msg.key & {
+        senderPn?: string | null;
+        senderLid?: string | null;
+      };
+      const senderPn = lidKey.senderPn ?? null;
+
+      const senderJid = senderPn ?? msg.key.remoteJid ?? '';
+      const avatarUrl = await this.getAvatarUrl(sessionId, senderJid);
 
       const basePayload = {
         messageId: msg.key.id,
         from: msg.key.remoteJid,
         sender: msg.key.participant || msg.key.remoteJid,
+        // canonical phone-number JID (falls back to remoteJid when not @lid)
+        senderJid,
+        senderPn,
+        senderLid: lidKey.senderLid ?? (msg.key.remoteJid?.endsWith('@lid') ? msg.key.remoteJid : null),
+        avatarUrl,
         isGroup,
         timestamp: msg.messageTimestamp,
         type: contentType,
@@ -617,6 +649,94 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         content,
         message: sanitizeMessage(msg),
       });
+    }
+  }
+
+  /**
+   * Best-effort WhatsApp profile-picture URL for a contact, cached per session
+   * with a TTL. Returns null when the contact has no picture or it is private.
+   * Never throws — avatars are non-critical and must not block ingestion.
+   */
+  private async getAvatarUrl(sessionId: string, jid: string): Promise<string | null> {
+    if (!jid) return null;
+    const cacheKey = `${sessionId}:${jid}`;
+    const hit = this.avatarCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < this.AVATAR_TTL_MS) return hit.url;
+
+    const sock = this.sessions.get(sessionId);
+    if (!sock) return hit?.url ?? null;
+
+    let url: string | null = null;
+    try {
+      url = (await sock.profilePictureUrl(jid, 'image')) ?? null;
+    } catch {
+      url = null; // 404 (no pic) / 401 (private) / rate-limited
+    }
+    this.avatarCache.set(cacheKey, { url, at: Date.now() });
+    return url;
+  }
+
+  /**
+   * Decrypts an inbound poll vote against the cached original poll message and
+   * emits a `message.received` event of type `poll_vote` carrying the resolved
+   * option names. Best-effort: poll decryption is fragile (needs the original
+   * poll's secret in cache), so any failure is logged and swallowed.
+   */
+  private async handlePollVote(sessionId: string, msg: proto.IWebMessageInfo): Promise<void> {
+    try {
+      const update = msg.message?.pollUpdateMessage;
+      const pollKey = update?.pollCreationMessageKey;
+      const vote = update?.vote;
+      if (!pollKey?.id || !vote?.encPayload || !vote?.encIv) return;
+
+      const pollMsg = this.messageCache.get(sessionId)?.get(pollKey.id);
+      const pollCreation =
+        pollMsg?.message?.pollCreationMessage ??
+        pollMsg?.message?.pollCreationMessageV2 ??
+        pollMsg?.message?.pollCreationMessageV3;
+      const encKey = pollMsg?.message?.messageContextInfo?.messageSecret;
+      if (!pollCreation || !encKey) return; // original poll not in cache — cannot decrypt
+
+      const sock = this.sessions.get(sessionId);
+      const meId = sock?.user?.id ? jidNormalizedUser(sock.user.id) : '';
+      const voterKey = msg.key as typeof msg.key & { senderPn?: string | null };
+      const voterJid = voterKey.senderPn ?? msg.key.participant ?? msg.key.remoteJid ?? '';
+      const pollCreatorJid = pollKey.fromMe ? meId : voterJid;
+
+      const decrypted = decryptPollVote(
+        { encPayload: vote.encPayload, encIv: vote.encIv },
+        { pollCreatorJid, pollMsgId: pollKey.id, pollEncKey: encKey, voterJid },
+      );
+
+      const selectedHashes = (decrypted.selectedOptions ?? []).map((b) =>
+        Buffer.from(b).toString('hex'),
+      );
+      const options = (pollCreation.options ?? []).map((o) => o.optionName ?? '');
+      const selected = options.filter((opt) =>
+        selectedHashes.includes(crypto.createHash('sha256').update(Buffer.from(opt)).digest('hex')),
+      );
+
+      await this.webhookService.fire('message.received', sessionId, {
+        messageId: msg.key.id,
+        from: msg.key.remoteJid,
+        sender: msg.key.participant || msg.key.remoteJid,
+        senderJid: voterJid,
+        senderPn: voterKey.senderPn ?? null,
+        senderLid: msg.key.remoteJid?.endsWith('@lid') ? msg.key.remoteJid : null,
+        avatarUrl: await this.getAvatarUrl(sessionId, voterJid),
+        isGroup: false,
+        timestamp: msg.messageTimestamp,
+        type: 'poll_vote',
+        content: {
+          pollMessageId: pollKey.id,
+          pollName: pollCreation.name,
+          selectedOptions: selected,
+          text: selected.length ? `🗳️ Voted: ${selected.join(', ')}` : '🗳️ Cleared their vote',
+        },
+        message: sanitizeMessage(msg),
+      });
+    } catch (err) {
+      console.warn(`[PollVote] decode failed session=${sessionId}: ${String(err)}`);
     }
   }
 

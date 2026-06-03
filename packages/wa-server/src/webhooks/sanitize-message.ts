@@ -7,6 +7,13 @@ export interface SanitizedKey {
   fromMe: boolean | null | undefined;
   id: string | null | undefined;
   participant: string | null | undefined;
+  // LID addressing: when remoteJid/participant is a "@lid" id, the real phone
+  // number (PN) form is carried separately. Forwarded so the dashboard can
+  // resolve the true number instead of storing the opaque LID.
+  senderPn?: string | null;
+  senderLid?: string | null;
+  participantPn?: string | null;
+  participantLid?: string | null;
 }
 
 export interface SanitizedMessage {
@@ -87,11 +94,21 @@ export function sanitizeMessage(msg: null | undefined): null;
 export function sanitizeMessage(msg: proto.IWebMessageInfo | null | undefined): SanitizedMessage | null {
   if (msg == null) return null;
 
+  const k = msg.key as (typeof msg.key & {
+    senderPn?: string | null;
+    senderLid?: string | null;
+    participantPn?: string | null;
+    participantLid?: string | null;
+  }) | undefined;
   const key: SanitizedKey = {
     remoteJid: msg.key?.remoteJid,
     fromMe: msg.key?.fromMe,
     id: msg.key?.id,
     participant: msg.key?.participant,
+    senderPn: k?.senderPn,
+    senderLid: k?.senderLid,
+    participantPn: k?.participantPn,
+    participantLid: k?.participantLid,
   };
 
   const content = buildMessageContent(msg.message);

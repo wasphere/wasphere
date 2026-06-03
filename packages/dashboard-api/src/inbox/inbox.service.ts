@@ -15,6 +15,13 @@ import { ListMessagesQueryDto } from './dto/list-messages-query.dto';
 import { PatchConversationDto } from './dto/patch-conversation.dto';
 import { SendReplyDto } from './dto/send-reply.dto';
 
+// List/preview labels for outbound non-text replies (no body text to show).
+const OUTBOUND_PREVIEW: Record<string, string> = {
+  image: '📷 Photo',
+  document: '📄 Document',
+  poll: '📊 Poll',
+};
+
 @Injectable()
 export class InboxService {
   private readonly logger = new Logger(InboxService.name);
@@ -172,16 +179,54 @@ export class InboxService {
     // getDecryptedToken re-checks membership + that the WA server is configured.
     const { waServerUrl, token } = await this.workspaces.getDecryptedToken(userId, workspaceId);
     const to = convo.contact.phone;
-    const url =
+    const base =
       `${waServerUrl.replace(/\/+$/, '')}/api/sessions/` +
-      `${encodeURIComponent(convo.sessionId)}/messages/text`;
+      `${encodeURIComponent(convo.sessionId)}/messages`;
+    const kind = dto.kind ?? 'text';
+
+    // Map the reply kind -> (wa-server endpoint, request body, persisted shape).
+    let endpoint: string;
+    let sendBody: Record<string, unknown>;
+    let msgType: string;
+    let msgBody: string | null;
+    let msgPayload: Prisma.InputJsonValue | undefined;
+
+    switch (kind) {
+      case 'image':
+        endpoint = `${base}/image`;
+        sendBody = { to, url: dto.media, caption: dto.caption };
+        msgType = 'image';
+        msgBody = dto.caption ?? null;
+        msgPayload = dto.caption ? { caption: dto.caption } : undefined;
+        break;
+      case 'document':
+        endpoint = `${base}/document`;
+        sendBody = { to, url: dto.media, fileName: dto.fileName, mimetype: dto.mimetype };
+        msgType = 'document';
+        msgBody = dto.fileName ?? null;
+        msgPayload = { fileName: dto.fileName ?? null, mimetype: dto.mimetype ?? null };
+        break;
+      case 'poll':
+        endpoint = `${base}/poll`;
+        sendBody = { to, name: dto.pollName, options: dto.options };
+        msgType = 'poll';
+        msgBody = dto.pollName ?? null;
+        msgPayload = { name: dto.pollName ?? null, options: dto.options ?? [] };
+        break;
+      default:
+        endpoint = `${base}/text`;
+        sendBody = { to, text: dto.text };
+        msgType = 'text';
+        msgBody = dto.text ?? '';
+        msgPayload = undefined;
+    }
 
     let resp: globalThis.Response;
     try {
-      resp = await fetch(url, {
+      resp = await fetch(endpoint, {
         method: 'POST',
         headers: { 'X-Api-Token': token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, text: dto.text }),
+        body: JSON.stringify(sendBody),
       });
     } catch (err) {
       this.logger.warn(`[Inbox] reply send transport error: ${String(err)}`);
@@ -189,8 +234,10 @@ export class InboxService {
     }
 
     if (!resp.ok) {
-      // 404 (session not found) / 5xx (disconnected) -> tell the UI to reconnect
-      this.logger.warn(`[Inbox] reply send failed status=${resp.status} session=${convo.sessionId}`);
+      // 404 (session not found) / 4xx (bad media) / 5xx (disconnected)
+      this.logger.warn(
+        `[Inbox] reply send failed status=${resp.status} kind=${kind} session=${convo.sessionId}`,
+      );
       throw new ServiceUnavailableException(
         'Session disconnected — reconnect to send.',
       );
@@ -199,6 +246,8 @@ export class InboxService {
     const result = (await resp.json().catch(() => ({}))) as { messageId?: string };
     const waMessageId = result.messageId ?? `local-${randomUUID()}`;
     const waTimestamp = new Date();
+    const preview =
+      msgBody && msgBody.length ? msgBody.slice(0, 140) : OUTBOUND_PREVIEW[msgType] ?? msgType;
 
     const message = await this.prisma.message.create({
       data: {
@@ -206,8 +255,9 @@ export class InboxService {
         conversationId: convo.id,
         waMessageId,
         direction: 'OUTBOUND',
-        type: 'text',
-        body: dto.text,
+        type: msgType,
+        body: msgBody,
+        payload: msgPayload,
         status: 'SENT',
         fromMe: true,
         waTimestamp,
@@ -216,7 +266,7 @@ export class InboxService {
 
     await this.prisma.conversation.update({
       where: { id: convo.id },
-      data: { lastPreview: dto.text.slice(0, 140), lastMessageAt: waTimestamp },
+      data: { lastPreview: preview, lastMessageAt: waTimestamp },
     });
 
     await this.writeAudit(convo.sessionId, 'POST', `/inbox/conversations/${conversationId}/messages`);

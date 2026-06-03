@@ -83,15 +83,23 @@ export class InboxIngestService {
   private async ingestInbound(workspaceId: string, dto: WebhookEventDto): Promise<void> {
     const data = dto.data as Record<string, any>;
     const m = data.message as Record<string, any> | undefined;
-    const jid: string | undefined = data.from ?? m?.key?.remoteJid;
+    const rawJid: string | undefined = data.from ?? m?.key?.remoteJid;
     const waMessageId: string | undefined = data.messageId ?? m?.key?.id;
-    if (!jid || !waMessageId) return;
+    if (!rawJid || !waMessageId) return;
 
     // v1.1 is 1:1 only — groups are deferred to v1.2.
-    if (jid.endsWith('@g.us') || data.isGroup === true) return;
+    if (rawJid.endsWith('@g.us') || data.isGroup === true) return;
+
+    // LID addressing: WhatsApp now sends an opaque "<id>@lid" as the chat id.
+    // The real phone-number JID arrives as senderJid/senderPn — prefer it so we
+    // store/display the true number and reply to a deliverable address.
+    const senderPn: string | undefined = data.senderPn ?? m?.key?.senderPn ?? undefined;
+    const isLid = rawJid.endsWith('@lid');
+    const jid: string = data.senderJid ?? (isLid && senderPn ? senderPn : rawJid);
 
     const fromMe = Boolean(m?.key?.fromMe);
     const pushName: string | null = (m?.pushName as string) ?? null;
+    const avatarUrl: string | null = (data.avatarUrl as string) ?? null;
     const phone = jid.split('@')[0].replace(/[^0-9]/g, '');
     const waTimestamp = new Date(toUnixSeconds(data.timestamp ?? m?.messageTimestamp) * 1000);
     const type = mapType(data.type);
@@ -107,8 +115,11 @@ export class InboxIngestService {
     const conversationId = await this.prisma.$transaction(async (tx) => {
       const contact = await tx.contact.upsert({
         where: { workspaceId_jid: { workspaceId, jid } },
-        update: pushName ? { whatsappName: pushName } : {},
-        create: { workspaceId, jid, phone, whatsappName: pushName },
+        update: {
+          ...(pushName ? { whatsappName: pushName } : {}),
+          ...(avatarUrl ? { avatarUrl } : {}),
+        },
+        create: { workspaceId, jid, phone, whatsappName: pushName, avatarUrl },
       });
 
       const convo = await tx.conversation.upsert({

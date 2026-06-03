@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,6 +16,11 @@ import {
 import { cn } from "@/lib/utils"
 import { clockTime } from "./relative-time"
 import type { Conversation, InboxMessage } from "./types"
+
+function contactInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : parts[0]?.[1] ?? "")).toUpperCase()
+}
 
 function Ticks({ status }: { status: InboxMessage["status"] }) {
   if (status === "READ") return <CheckCheck className="size-3.5 text-sky-400" />
@@ -33,19 +39,30 @@ function MediaBlock({ m }: { m: InboxMessage }) {
     : m.type === "location" ? { Icon: MapPin, text: "Location" }
     : m.type === "poll" ? { Icon: BarChart3, text: (p.name as string) || "Poll" }
     : { Icon: FileText, text: m.type }
+  const pollOptions = m.type === "poll" && Array.isArray(p.options) ? (p.options as string[]) : null
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5">
         <label.Icon className="size-4 shrink-0 opacity-80" />
         <span className="truncate text-xs">{label.text}</span>
       </div>
-      {cap ? <span className="whitespace-pre-wrap break-words text-sm">{cap}</span> : null}
+      {pollOptions && pollOptions.length > 0 && (
+        <ul className="flex flex-col gap-1 pl-0.5">
+          {pollOptions.map((o, i) => (
+            <li key={i} className="flex items-center gap-1.5 text-xs">
+              <span className="size-3 shrink-0 rounded-full border border-current opacity-50" />
+              <span className="break-words">{o}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {cap && m.type !== "poll" ? <span className="whitespace-pre-wrap break-words text-sm">{cap}</span> : null}
     </div>
   )
 }
 
 function Bubble({ m }: { m: InboxMessage }) {
-  const isTextual = m.type === "text" || m.type === "reaction"
+  const isTextual = m.type === "text" || m.type === "reaction" || m.type === "poll_vote"
   return (
     <div className={cn("flex", m.fromMe ? "justify-end" : "justify-start")}>
       <div
@@ -108,6 +125,10 @@ export function ThreadView({
       {/* header */}
       <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
+          <Avatar className="size-8 shrink-0">
+            {conversation.contact.avatarUrl ? <AvatarImage src={conversation.contact.avatarUrl} alt="" /> : null}
+            <AvatarFallback className="text-[10px]">{contactInitials(conversation.contact.name)}</AvatarFallback>
+          </Avatar>
           <span className="truncate text-sm font-semibold text-foreground">{conversation.contact.name}</span>
           <span className="hidden text-xs text-muted-foreground sm:inline">· {conversation.sessionId}</span>
           {conversation.status === "RESOLVED" && <Badge variant="secondary" className="text-[10px]">Resolved</Badge>}

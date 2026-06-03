@@ -11,7 +11,7 @@ import { ConversationList } from "./conversation-list"
 import { ThreadView } from "./thread-view"
 import { Composer } from "./composer"
 import { ContactPanel } from "./contact-panel"
-import type { Conversation, ConversationStatus, InboxMessage, Paginated } from "./types"
+import type { Conversation, ConversationStatus, InboxMessage, OutboundReply, Paginated } from "./types"
 
 const SOUND_KEY = "wasphere.inbox.soundEnabled"
 
@@ -108,14 +108,14 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
     onPollFallback: () => { void refreshList({ silent: true }) },
   })
 
-  const sendReply = async (text: string): Promise<boolean> => {
+  const sendReply = async (reply: OutboundReply): Promise<boolean> => {
     if (!selected) return false
     setSending(true)
     try {
       const res = await fetch(`/api/inbox/conversations/${selected.id}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(reply),
       })
       if (!res.ok) {
         toast.error(res.status === 503 ? "Session disconnected — reconnect to send." : "Could not send reply.")
