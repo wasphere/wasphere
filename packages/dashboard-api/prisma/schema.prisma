@@ -62,10 +62,14 @@ model Workspace {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  owner   User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  members WorkspaceMember[]
-  apiKeys ApiKey[]
-  webhooks Webhook[]
+  owner         User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members       WorkspaceMember[]
+  apiKeys       ApiKey[]
+  webhooks      Webhook[]
+  // Inbox (v1.1) — virtual back-relations, no DB columns added to workspaces
+  contacts      Contact[]
+  conversations Conversation[]
+  messages      Message[]
 
   @@index([ownerId])
   @@map("workspaces")
@@ -186,4 +190,119 @@ model PasswordResetToken {
 
   @@index([tokenHash])
   @@map("password_reset_tokens")
+}
+
+// ===========================================================================
+// Inbox (v1.1 — "Receive & Observe"). See docs/designs/inbox.md (PR #110).
+// Net-new, greenfield tables. Ingestion + REST + SSE land in later commits.
+// ===========================================================================
+
+enum ConversationStatus {
+  OPEN
+  RESOLVED
+  SNOOZED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// contacts — one row per (workspace, WhatsApp JID).
+// Name resolution priority: savedName ?? whatsappName ?? phone.
+// ---------------------------------------------------------------------------
+model Contact {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String   @map("workspace_id") @db.Uuid
+  // WhatsApp JID, e.g. 447700900123@s.whatsapp.net
+  jid          String
+  // normalized digits, e.g. 447700900123
+  phone        String
+  // auto-updated from WhatsApp pushName on each inbound
+  whatsappName String?  @map("whatsapp_name")
+  // operator-set; NEVER auto-overwritten
+  savedName    String?  @map("saved_name")
+  avatarUrl    String?  @map("avatar_url")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([workspaceId, jid])
+  @@index([workspaceId, phone])
+  @@map("contacts")
+}
+
+// ---------------------------------------------------------------------------
+// conversations — one thread per (workspace, session, contact).
+// ---------------------------------------------------------------------------
+model Conversation {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId      String             @map("workspace_id") @db.Uuid
+  contactId        String             @map("contact_id") @db.Uuid
+  // which WA session/number owns this thread
+  sessionId        String             @map("session_id")
+  status           ConversationStatus @default(OPEN)
+  lastMessageAt    DateTime           @default(now()) @map("last_message_at") @db.Timestamptz()
+  // denormalized snippet for the list view
+  lastPreview      String?            @map("last_preview")
+  unreadCount      Int                @default(0) @map("unread_count")
+  // JSON array of tag strings (matches the api_keys/webhooks Json-array convention)
+  tags             Json               @default("[]")
+  // set when the owning WA session is deleted -> read-only archive
+  sessionDeletedAt DateTime?          @map("session_deleted_at") @db.Timestamptz()
+  metadata         Json?
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@unique([workspaceId, sessionId, contactId])
+  @@index([workspaceId, status, lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+// ---------------------------------------------------------------------------
+// messages — persisted inbound + outbound. Idempotent on (workspace, waMessageId).
+// Full-text search index (pg_trgm) is added in a later commit.
+// ---------------------------------------------------------------------------
+model Message {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId    String                @map("workspace_id") @db.Uuid
+  conversationId String                @map("conversation_id") @db.Uuid
+  // Baileys message key id
+  waMessageId    String                @map("wa_message_id")
+  direction      MessageDirection
+  // text | image | video | audio | document | sticker | location | contact | poll | reaction
+  type           String
+  // text body / media caption
+  body           String?
+  // resolved media download URL (media handling lands in a later commit)
+  mediaUrl       String?               @map("media_url")
+  // sanitized type-specific data (poll options/results, location, contact card, quoted ref)
+  payload        Json?
+  status         MessageDeliveryStatus @default(SENT)
+  fromMe         Boolean               @map("from_me")
+  // WhatsApp's own message timestamp
+  waTimestamp    DateTime              @map("wa_timestamp") @db.Timestamptz()
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz()
+
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, waMessageId])
+  @@index([conversationId, waTimestamp(sort: Desc)])
+  @@map("messages")
 }
