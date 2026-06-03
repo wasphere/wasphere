@@ -15,6 +15,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/wasphere/wasphere/actions/workflows/ci.yml"><img src="https://github.com/wasphere/wasphere/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
   <img src="https://img.shields.io/badge/version-1.0.0-10b981.svg" alt="Version"/>
   <img src="https://img.shields.io/badge/license-MIT-10b981.svg" alt="License"/>
   <img src="https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg" alt="Node"/>

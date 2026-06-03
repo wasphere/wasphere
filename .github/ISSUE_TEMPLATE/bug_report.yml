@@ -1,0 +1,60 @@
+name: 🐛 Bug Report
+description: Report a reproducible problem in WaSphere
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug!
+        ⚠️ **Never paste secrets, API tokens, or `sessions/` credentials** in logs.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part?
+      options:
+        - WA Server
+        - Dashboard API
+        - Dashboard UI
+        - Docker / deployment
+        - Docs
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: v1.0.0 or commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: |
+        - OS: Ubuntu 24.04
+        - Docker: 27.x
+        - Deploy: docker compose / Dokploy / cPanel
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "Redact secrets. e.g. `docker compose logs <service> --tail=100`"
+      render: shell
