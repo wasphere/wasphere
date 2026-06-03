@@ -10,6 +10,7 @@ import {
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { InternalSecretGuard } from './internal-secret.guard';
 import { InternalService } from './internal.service';
+import { InboxIngestService } from '../inbox/inbox-ingest.service';
 import { AuditEventDto } from './dto/audit-event.dto';
 import { WebhookEventDto } from './dto/webhook-event.dto';
 
@@ -17,7 +18,10 @@ import { WebhookEventDto } from './dto/webhook-event.dto';
 @Controller('internal')
 @UseGuards(InternalSecretGuard)
 export class InternalController {
-  constructor(private readonly internalService: InternalService) {}
+  constructor(
+    private readonly internalService: InternalService,
+    private readonly inboxIngest: InboxIngestService,
+  ) {}
 
   @Post('audit')
   @HttpCode(HttpStatus.CREATED)
@@ -42,7 +46,10 @@ export class InternalController {
     @Param('workspaceId') workspaceId: string,
     @Body() dto: WebhookEventDto,
   ) {
+    // Run the two in parallel: existing webhook fan-out + new Inbox ingestion.
+    // Both are fire-and-forget so the 202 returns immediately.
     this.internalService.fanoutWebhookEvent(workspaceId, dto);
+    this.inboxIngest.ingest(workspaceId, dto);
     return { accepted: true };
   }
 }
