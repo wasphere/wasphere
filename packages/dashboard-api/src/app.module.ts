@@ -9,6 +9,7 @@ import { InternalModule } from './internal/internal.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HealthModule } from './health/health.module';
+import { InboxModule } from './inbox/inbox.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { HealthModule } from './health/health.module';
     ApiKeysModule,
     WebhooksModule,
     HealthModule,
+    InboxModule,
   ],
   providers: [
     {
