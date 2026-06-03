@@ -32,6 +32,16 @@ function Ticks({ status }: { status: InboxMessage["status"] }) {
 function MediaBlock({ m }: { m: InboxMessage }) {
   const p = (m.payload ?? {}) as Record<string, unknown>
   const cap = (p.caption as string) || m.body
+
+  // Inbound messages WhatsApp couldn't decrypt (LID / unsupported) arrive empty.
+  if (m.type === "unknown") {
+    return (
+      <span className="text-xs italic text-muted-foreground">
+        ⚠️ This message couldn’t be loaded (unsupported or encrypted).
+      </span>
+    )
+  }
+
   const label =
     m.type === "image" ? { Icon: ImageIcon, text: "Photo" }
     : m.type === "video" ? { Icon: ImageIcon, text: "Video" }
@@ -40,12 +50,19 @@ function MediaBlock({ m }: { m: InboxMessage }) {
     : m.type === "poll" ? { Icon: BarChart3, text: (p.name as string) || "Poll" }
     : { Icon: FileText, text: m.type }
   const pollOptions = m.type === "poll" && Array.isArray(p.options) ? (p.options as string[]) : null
+  // Outbound images carry their data URI in mediaUrl so we can show the picture.
+  const imgSrc = m.type === "image" && m.mediaUrl ? m.mediaUrl : null
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5">
-        <label.Icon className="size-4 shrink-0 opacity-80" />
-        <span className="truncate text-xs">{label.text}</span>
-      </div>
+      {imgSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imgSrc} alt={cap ?? "image"} className="max-h-64 max-w-full rounded-md object-cover" />
+      ) : (
+        <div className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5">
+          <label.Icon className="size-4 shrink-0 opacity-80" />
+          <span className="truncate text-xs">{label.text}</span>
+        </div>
+      )}
       {pollOptions && pollOptions.length > 0 && (
         <ul className="flex flex-col gap-1 pl-0.5">
           {pollOptions.map((o, i) => (

@@ -14,7 +14,8 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { StatusDot } from "@/components/ui/status-dot"
 import type { OutboundReply } from "./types"
@@ -178,12 +179,14 @@ export function Composer({
             <MessageSquareText className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-72">
-            <DropdownMenuLabel>Saved replies</DropdownMenuLabel>
-            {SAVED_REPLIES.map((r) => (
-              <DropdownMenuItem key={r} onClick={() => setText((t) => (t ? `${t} ${r}` : r))} className="whitespace-normal text-xs">
-                {r}
-              </DropdownMenuItem>
-            ))}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Saved replies</DropdownMenuLabel>
+              {SAVED_REPLIES.map((r) => (
+                <DropdownMenuItem key={r} onClick={() => setText((t) => (t ? `${t} ${r}` : r))} className="whitespace-normal text-xs">
+                  {r}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 

@@ -103,7 +103,8 @@ export class InboxIngestService {
     const phone = jid.split('@')[0].replace(/[^0-9]/g, '');
     const waTimestamp = new Date(toUnixSeconds(data.timestamp ?? m?.messageTimestamp) * 1000);
     const type = mapType(data.type);
-    const body: string | null = data.content?.text ?? data.content?.caption ?? null;
+    const body: string | null =
+      data.content?.text ?? data.content?.caption ?? data.content?.reaction ?? null;
 
     // Idempotency guard (the @@unique constraint is the ultimate backstop).
     const dup = await this.prisma.message.findUnique({

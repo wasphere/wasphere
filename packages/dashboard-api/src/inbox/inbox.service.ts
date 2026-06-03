@@ -190,6 +190,8 @@ export class InboxService {
     let msgType: string;
     let msgBody: string | null;
     let msgPayload: Prisma.InputJsonValue | undefined;
+    // For sent images we keep the data URI so the thread can show the picture.
+    let msgMediaUrl: string | null = null;
 
     switch (kind) {
       case 'image':
@@ -198,6 +200,7 @@ export class InboxService {
         msgType = 'image';
         msgBody = dto.caption ?? null;
         msgPayload = dto.caption ? { caption: dto.caption } : undefined;
+        msgMediaUrl = dto.media ?? null;
         break;
       case 'document':
         endpoint = `${base}/document`;
@@ -258,6 +261,7 @@ export class InboxService {
         type: msgType,
         body: msgBody,
         payload: msgPayload,
+        mediaUrl: msgMediaUrl,
         status: 'SENT',
         fromMe: true,
         waTimestamp,
