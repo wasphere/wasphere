@@ -1,5 +1,8 @@
 generator client {
   provider = "prisma-client-js"
+  // Generate into the package's own node_modules so `pnpm deploy --prod` bundles
+  // the client into the runtime image. Requires a flat (hoisted) node_modules so
+  // @prisma/client resolves this path — enforced by the repo-root .npmrc.
   output   = "../node_modules/.prisma/client"
 }
 

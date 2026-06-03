@@ -67,6 +67,8 @@ git checkout main && git pull
 git checkout -b feature/your-feature
 ```
 
+> ⚠️ **After any PR merges to `main`, run `git checkout main && git pull origin main` locally before branching again.** A squash-merge lands on the remote only — if your local `main` is stale, your next branch forks from an old base and silently misses the just-merged work (e.g. a new migration), which is painful to debug later.
+
 ---
 
 ## Commit Messages
