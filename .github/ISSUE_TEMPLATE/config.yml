@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Questions & Discussions
+    url: https://github.com/wasphere/wasphere/discussions
+    about: Ask questions, share your setup, and discuss ideas.
+  - name: 📖 Documentation
+    url: https://wasphere.com/docs
+    about: Self-hosting guides and the full API reference.
+  - name: ▶️ Live Demo
+    url: https://demo.wasphere.com
+    about: Try WaSphere with seeded data — no signup.

@@ -1,0 +1,36 @@
+name: ✨ Feature Request
+description: Suggest an idea or improvement for WaSphere
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The use case or pain point behind the request.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Messaging / send types
+        - Webhooks
+        - Sessions
+        - API / auth
+        - Dashboard UI
+        - Integrations (n8n, WHMCS, etc.)
+        - Deployment / ops
+        - Other
+    validations:
+      required: true
