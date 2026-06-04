@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical } from "lucide-react"
+import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, SmilePlus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -50,8 +50,8 @@ function MediaBlock({ m }: { m: InboxMessage }) {
     : m.type === "poll" ? { Icon: BarChart3, text: (p.name as string) || "Poll" }
     : { Icon: FileText, text: m.type }
   const pollOptions = m.type === "poll" && Array.isArray(p.options) ? (p.options as string[]) : null
-  // Outbound images carry their data URI in mediaUrl so we can show the picture.
-  const imgSrc = m.type === "image" && m.mediaUrl ? m.mediaUrl : null
+  // Images/stickers carry their data URI in mediaUrl (sent or downloaded).
+  const imgSrc = (m.type === "image" || m.type === "sticker") && m.mediaUrl ? m.mediaUrl : null
   return (
     <div className="flex flex-col gap-1">
       {imgSrc ? (
@@ -78,10 +78,45 @@ function MediaBlock({ m }: { m: InboxMessage }) {
   )
 }
 
-function Bubble({ m }: { m: InboxMessage }) {
-  const isTextual = m.type === "text" || m.type === "reaction" || m.type === "poll_vote"
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
+
+// Reactions + poll votes are events, not chat bubbles — render them centered.
+function SystemLine({ m }: { m: InboxMessage }) {
+  const text =
+    m.type === "reaction"
+      ? `${m.fromMe ? "You" : "They"} reacted ${m.body ?? ""}`
+      : m.body ?? ""
   return (
-    <div className={cn("flex", m.fromMe ? "justify-end" : "justify-start")}>
+    <div className="flex justify-center">
+      <span className="rounded-full bg-muted/60 px-3 py-1 text-[11px] text-muted-foreground">{text}</span>
+    </div>
+  )
+}
+
+function ReactButton({ m, onReact }: { m: InboxMessage; onReact: (m: InboxMessage, emoji: string) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size="icon" className="size-7 shrink-0 opacity-0 transition group-hover:opacity-100" />}
+      >
+        <SmilePlus className="size-4 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={m.fromMe ? "end" : "start"} className="flex gap-0.5 p-1">
+        {QUICK_REACTIONS.map((e) => (
+          <button key={e} onClick={() => onReact(m, e)} className="rounded p-1 text-lg leading-none hover:bg-muted" type="button">
+            {e}
+          </button>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function Bubble({ m, onReact }: { m: InboxMessage; onReact?: (m: InboxMessage, emoji: string) => void }) {
+  const isTextual = m.type === "text"
+  return (
+    <div className={cn("group flex items-center gap-1.5", m.fromMe ? "justify-end" : "justify-start")}>
+      {onReact && m.fromMe && <ReactButton m={m} onReact={onReact} />}
       <div
         className={cn(
           "max-w-[78%] rounded-2xl px-3 py-2 text-sm shadow-sm",
@@ -100,6 +135,7 @@ function Bubble({ m }: { m: InboxMessage }) {
           {m.fromMe ? <Ticks status={m.status} /> : null}
         </div>
       </div>
+      {onReact && !m.fromMe && <ReactButton m={m} onReact={onReact} />}
     </div>
   )
 }
@@ -109,12 +145,14 @@ export function ThreadView({
   messages,
   loading,
   onResolveToggle,
+  onReact,
   children,
 }: {
   conversation: Conversation
   messages: InboxMessage[]
   loading: boolean
   onResolveToggle: () => void
+  onReact?: (m: InboxMessage, emoji: string) => void
   children: React.ReactNode // composer
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -178,7 +216,13 @@ export function ThreadView({
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {ordered.map((m) => <Bubble key={m.id} m={m} />)}
+            {ordered.map((m) =>
+              m.type === "reaction" || m.type === "poll_vote" ? (
+                <SystemLine key={m.id} m={m} />
+              ) : (
+                <Bubble key={m.id} m={m} onReact={onReact} />
+              ),
+            )}
           </div>
         )}
         {!atBottom && (

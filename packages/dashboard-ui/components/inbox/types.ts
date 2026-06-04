@@ -51,3 +51,4 @@ export type OutboundReply =
   | { kind: "image"; media: string; caption?: string }
   | { kind: "document"; media: string; fileName: string; mimetype: string }
   | { kind: "poll"; pollName: string; options: string[] }
+  | { kind: "reaction"; targetMessageId: string; emoji: string }

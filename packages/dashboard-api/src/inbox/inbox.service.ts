@@ -216,6 +216,13 @@ export class InboxService {
         msgBody = dto.pollName ?? null;
         msgPayload = { name: dto.pollName ?? null, options: dto.options ?? [] };
         break;
+      case 'reaction':
+        endpoint = `${base}/reaction`;
+        sendBody = { to, messageId: dto.targetMessageId, emoji: dto.emoji ?? '' };
+        msgType = 'reaction';
+        msgBody = dto.emoji ?? null;
+        msgPayload = undefined;
+        break;
       default:
         endpoint = `${base}/text`;
         sendBody = { to, text: dto.text };
@@ -244,6 +251,12 @@ export class InboxService {
       throw new ServiceUnavailableException(
         'Session disconnected — reconnect to send.',
       );
+    }
+
+    // Reactions attach to an existing message — nothing to persist in the thread.
+    if (kind === 'reaction') {
+      await this.writeAudit(convo.sessionId, 'POST', `/inbox/conversations/${conversationId}/messages`);
+      return { ok: true };
     }
 
     const result = (await resp.json().catch(() => ({}))) as { messageId?: string };

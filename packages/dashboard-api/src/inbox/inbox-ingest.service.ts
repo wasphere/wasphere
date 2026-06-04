@@ -75,6 +75,8 @@ export class InboxIngestService {
       case 'session.deleted':
       case 'session.logged_out':
         return this.archiveSession(workspaceId, dto.sessionId);
+      case 'session.connected':
+        return this.restoreSession(workspaceId, dto.sessionId);
       default:
         return;
     }
@@ -105,6 +107,11 @@ export class InboxIngestService {
     const type = mapType(data.type);
     const body: string | null =
       data.content?.text ?? data.content?.caption ?? data.content?.reaction ?? null;
+    // Downloaded media arrives as a base64 data URI; keep it in mediaUrl, not
+    // in payload (so the JSON column stays small).
+    const content: Record<string, unknown> = { ...(data.content ?? {}) };
+    const mediaUrl: string | null = (content.dataUri as string) ?? null;
+    delete content.dataUri;
 
     // Idempotency guard (the @@unique constraint is the ultimate backstop).
     const dup = await this.prisma.message.findUnique({
@@ -143,7 +150,8 @@ export class InboxIngestService {
           direction: fromMe ? 'OUTBOUND' : 'INBOUND',
           type,
           body,
-          payload: (data.content as Prisma.InputJsonValue) ?? undefined,
+          payload: content as Prisma.InputJsonValue,
+          mediaUrl,
           status: fromMe ? 'SENT' : 'DELIVERED',
           fromMe,
           waTimestamp,
@@ -156,6 +164,8 @@ export class InboxIngestService {
           lastPreview: previewFor(type, body),
           // max() semantics — never move lastMessageAt backwards
           lastMessageAt: waTimestamp > convo.lastMessageAt ? waTimestamp : convo.lastMessageAt,
+          // a live message proves the session is back — clear any stale archive flag
+          ...(convo.sessionDeletedAt ? { sessionDeletedAt: null } : {}),
           ...(fromMe ? {} : { unreadCount: { increment: 1 } }),
         },
       });
@@ -182,6 +192,18 @@ export class InboxIngestService {
       if (res.count > 0) {
         this.events.emit({ type: 'message.status', workspaceId, payload: { waMessageId, status } });
       }
+    }
+  }
+
+  // Re-link / reconnect of a session un-archives its conversations so the
+  // operator can reply again (mirror of archiveSession).
+  private async restoreSession(workspaceId: string, sessionId: string): Promise<void> {
+    const res = await this.prisma.conversation.updateMany({
+      where: { workspaceId, sessionId, sessionDeletedAt: { not: null } },
+      data: { sessionDeletedAt: null },
+    });
+    if (res.count > 0) {
+      this.logger.log(`[Inbox] restored ${res.count} conversation(s) for reconnected session=${sessionId}`);
     }
   }
 

@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export type ReplyKind = 'text' | 'image' | 'document' | 'poll';
+export type ReplyKind = 'text' | 'image' | 'document' | 'poll' | 'reaction';
 
 /**
  * Outbound inbox reply. `kind` selects the message type; the remaining fields
@@ -19,9 +19,9 @@ export type ReplyKind = 'text' | 'image' | 'document' | 'poll';
  * passed as a base64 data URI and proxied to the WA server's send endpoints.
  */
 export class SendReplyDto {
-  @ApiPropertyOptional({ enum: ['text', 'image', 'document', 'poll'], default: 'text' })
+  @ApiPropertyOptional({ enum: ['text', 'image', 'document', 'poll', 'reaction'], default: 'text' })
   @IsOptional()
-  @IsIn(['text', 'image', 'document', 'poll'])
+  @IsIn(['text', 'image', 'document', 'poll', 'reaction'])
   kind?: ReplyKind;
 
   // text (required only for text replies)
@@ -77,4 +77,18 @@ export class SendReplyDto {
   @IsString({ each: true })
   @MaxLength(100, { each: true })
   options?: string[];
+
+  // reaction — WA message id to react to + the emoji (empty string clears it)
+  @ApiPropertyOptional({ description: 'WA message id to react to' })
+  @ValidateIf((o) => o.kind === 'reaction')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  targetMessageId?: string;
+
+  @ApiPropertyOptional({ description: 'Reaction emoji ("" clears)' })
+  @ValidateIf((o) => o.kind === 'reaction')
+  @IsString()
+  @MaxLength(16)
+  emoji?: string;
 }

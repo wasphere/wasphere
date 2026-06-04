@@ -13,9 +13,11 @@ import makeWASocket, {
   proto,
   getContentType,
   decryptPollVote,
+  getAggregateVotesInPollMessage,
+  getKeyAuthor,
   jidNormalizedUser,
+  downloadMediaMessage,
 } from '@whiskeysockets/baileys';
-import * as crypto from 'crypto';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -638,6 +640,12 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         content.replyMessageId = msg.message?.reactionMessage?.key?.id;
       }
 
+      // Download visual media (image/sticker) inline so the inbox can show it.
+      if (contentType === 'imageMessage' || contentType === 'stickerMessage') {
+        const dataUri = await this.downloadInboundMedia(sessionId, msg, contentType);
+        if (dataUri) content.dataUri = dataUri;
+      }
+
       // Check if it's a reply/quoted message
       const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
       if (quotedMsg) {
@@ -677,6 +685,39 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   }
 
   /**
+   * Downloads inbound visual media (image/sticker) and returns it as a base64
+   * data URI (≤5 MB) for inline display. Best-effort: never throws.
+   */
+  private async downloadInboundMedia(
+    sessionId: string,
+    msg: proto.IWebMessageInfo,
+    type: string,
+  ): Promise<string | null> {
+    try {
+      const sock = this.sessions.get(sessionId);
+      if (!sock) return null;
+      const media =
+        type === 'imageMessage' ? msg.message?.imageMessage : msg.message?.stickerMessage;
+      const declared = Number(media?.fileLength ?? 0);
+      if (declared && declared > 5 * 1024 * 1024) return null; // skip large files
+
+      const buffer = (await downloadMediaMessage(
+        msg,
+        'buffer',
+        {},
+        { logger: console as never, reuploadRequest: sock.updateMediaMessage },
+      )) as Buffer;
+      if (!buffer || buffer.length > 5 * 1024 * 1024) return null;
+
+      const mime = media?.mimetype || (type === 'stickerMessage' ? 'image/webp' : 'image/jpeg');
+      return `data:${mime};base64,${buffer.toString('base64')}`;
+    } catch (err) {
+      console.warn(`[Media] download failed session=${sessionId} type=${type}: ${String(err)}`);
+      return null;
+    }
+  }
+
+  /**
    * Decrypts an inbound poll vote against the cached original poll message and
    * emits a `message.received` event of type `poll_vote` carrying the resolved
    * option names. Best-effort: poll decryption is fragile (needs the original
@@ -685,51 +726,52 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   private async handlePollVote(sessionId: string, msg: proto.IWebMessageInfo): Promise<void> {
     try {
       const update = msg.message?.pollUpdateMessage;
-      const pollKey = update?.pollCreationMessageKey;
-      const vote = update?.vote;
-      if (!pollKey?.id || !vote?.encPayload || !vote?.encIv) return;
+      const creationKey = update?.pollCreationMessageKey;
+      if (!creationKey?.id || !update?.vote) return;
 
-      const pollMsg = this.messageCache.get(sessionId)?.get(pollKey.id);
-      const pollCreation =
-        pollMsg?.message?.pollCreationMessage ??
-        pollMsg?.message?.pollCreationMessageV2 ??
-        pollMsg?.message?.pollCreationMessageV3;
-      const encKey = pollMsg?.message?.messageContextInfo?.messageSecret;
-      if (!pollCreation || !encKey) return; // original poll not in cache — cannot decrypt
+      // The original poll message holds the encryption secret + option names.
+      const pollContent = this.messageCache.get(sessionId)?.get(creationKey.id)?.message;
+      const encKey = pollContent?.messageContextInfo?.messageSecret;
+      if (!pollContent || !encKey) return; // poll not in cache — cannot decrypt
 
       const sock = this.sessions.get(sessionId);
       const meId = sock?.user?.id ? jidNormalizedUser(sock.user.id) : '';
+      // Mirror Baileys' own (commented-out) decryption: authors come from the
+      // message keys via getKeyAuthor, which keeps the LID form when present.
+      const pollCreatorJid = getKeyAuthor(creationKey, meId);
+      const voterJid = getKeyAuthor(msg.key, meId);
+
+      const voteMsg = decryptPollVote(update.vote, {
+        pollEncKey: encKey,
+        pollCreatorJid,
+        pollMsgId: creationKey.id,
+        voterJid,
+      });
+
+      const aggregated = getAggregateVotesInPollMessage(
+        { message: pollContent, pollUpdates: [{ pollUpdateMessageKey: msg.key, vote: voteMsg }] },
+        meId,
+      );
+      const selected = aggregated.filter((a) => a.voters.length > 0).map((a) => a.name);
+
       const voterKey = msg.key as typeof msg.key & { senderPn?: string | null };
-      const voterJid = voterKey.senderPn ?? msg.key.participant ?? msg.key.remoteJid ?? '';
-      const pollCreatorJid = pollKey.fromMe ? meId : voterJid;
-
-      const decrypted = decryptPollVote(
-        { encPayload: vote.encPayload, encIv: vote.encIv },
-        { pollCreatorJid, pollMsgId: pollKey.id, pollEncKey: encKey, voterJid },
-      );
-
-      const selectedHashes = (decrypted.selectedOptions ?? []).map((b) =>
-        Buffer.from(b).toString('hex'),
-      );
-      const options = (pollCreation.options ?? []).map((o) => o.optionName ?? '');
-      const selected = options.filter((opt) =>
-        selectedHashes.includes(crypto.createHash('sha256').update(Buffer.from(opt)).digest('hex')),
-      );
+      const voterPn = voterKey.senderPn ?? null;
+      const displayJid = voterPn ?? msg.key.remoteJid ?? '';
 
       await this.webhookService.fire('message.received', sessionId, {
         messageId: msg.key.id,
         from: msg.key.remoteJid,
         sender: msg.key.participant || msg.key.remoteJid,
-        senderJid: voterJid,
-        senderPn: voterKey.senderPn ?? null,
+        senderJid: displayJid,
+        senderPn: voterPn,
         senderLid: msg.key.remoteJid?.endsWith('@lid') ? msg.key.remoteJid : null,
-        avatarUrl: await this.getAvatarUrl(sessionId, voterJid),
+        avatarUrl: await this.getAvatarUrl(sessionId, displayJid),
         isGroup: false,
         timestamp: msg.messageTimestamp,
         type: 'poll_vote',
         content: {
-          pollMessageId: pollKey.id,
-          pollName: pollCreation.name,
+          pollMessageId: creationKey.id,
+          pollName: pollContent.pollCreationMessage?.name ?? pollContent.pollCreationMessageV3?.name,
           selectedOptions: selected,
           text: selected.length ? `🗳️ Voted: ${selected.join(', ')}` : '🗳️ Cleared their vote',
         },

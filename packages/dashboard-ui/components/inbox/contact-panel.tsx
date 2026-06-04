@@ -1,7 +1,10 @@
 "use client"
 
+import * as React from "react"
+import { X } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { clockTime } from "./relative-time"
 import type { Conversation, InboxMessage } from "./types"
@@ -11,12 +14,49 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : parts[0]?.[1] ?? "")).toUpperCase()
 }
 
+function TagEditor({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
+  const [draft, setDraft] = React.useState("")
+  const add = () => {
+    const t = draft.trim().toLowerCase()
+    if (!t || tags.includes(t) || tags.length >= 20) { setDraft(""); return }
+    onChange([...tags, t])
+    setDraft("")
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((t) => (
+            <Badge key={t} variant="secondary" className="gap-1 text-[10px]">
+              {t}
+              <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} className="opacity-60 hover:opacity-100" aria-label={`Remove ${t}`}>
+                <X className="size-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add() } }}
+        onBlur={add}
+        placeholder="Add a tag…"
+        maxLength={40}
+        className="h-7 text-xs"
+      />
+    </div>
+  )
+}
+
 export function ContactPanel({
   conversation,
   recent,
+  onTagsChange,
 }: {
   conversation: Conversation
   recent: InboxMessage[]
+  onTagsChange?: (tags: string[]) => void
 }) {
   const c = conversation.contact
   return (
@@ -36,7 +76,9 @@ export function ContactPanel({
 
       <div className="flex flex-col gap-1.5">
         <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Tags</span>
-        {conversation.tags.length ? (
+        {onTagsChange ? (
+          <TagEditor tags={conversation.tags} onChange={onTagsChange} />
+        ) : conversation.tags.length ? (
           <div className="flex flex-wrap gap-1.5">
             {conversation.tags.map((t) => (
               <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>

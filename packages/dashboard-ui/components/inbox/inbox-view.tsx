@@ -132,6 +132,21 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
     }
   }
 
+  const reactToMessage = (m: InboxMessage, emoji: string) => {
+    void sendReply({ kind: "reaction", targetMessageId: m.waMessageId, emoji })
+  }
+
+  const updateTags = async (tags: string[]) => {
+    if (!selected) return
+    setSelected((s) => (s ? { ...s, tags } : s))
+    setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, tags } : c)))
+    await fetch(`/api/inbox/conversations/${selected.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tags }),
+    }).catch(() => null)
+  }
+
   const toggleResolve = async () => {
     if (!selected) return
     const next: ConversationStatus = selected.status === "RESOLVED" ? "OPEN" : "RESOLVED"
@@ -200,6 +215,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
               messages={messages}
               loading={msgLoading}
               onResolveToggle={toggleResolve}
+              onReact={reactToMessage}
             >
               <>
                 <div className="flex items-center gap-1 border-t px-2 py-1 md:hidden">
@@ -221,7 +237,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
         {/* contact panel (desktop) */}
         {selected && showContact && (
           <div className="hidden w-72 shrink-0 border-l lg:flex">
-            <ContactPanel conversation={selected} recent={messages} />
+            <ContactPanel conversation={selected} recent={messages} onTagsChange={updateTags} />
           </div>
         )}
       </div>
