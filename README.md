@@ -290,6 +290,8 @@ wasphere/
 | **v1.5** | Platform — MySQL / SQLite support, multiple workspaces per deployment, basic AI replies | planned |
 | **v2.0** | Mature Core | planned |
 
+> 🎯 **v1.2 makes WaSphere the only MIT-licensed, self-hostable WhatsApp platform that runs *both* Baileys (unofficial) and the official **Meta Cloud API** behind one unified, per-session API.** Intelligent routing, cost optimization and the Shopify/WooCommerce integrations are part of WaSphere Pro.
+
 ### 💼 Commercial products (paid · closed-source · built on the Core)
 
 These run **on top of** WaSphere Core and are developed separately — the Core stays MIT and self-hostable on its own.
