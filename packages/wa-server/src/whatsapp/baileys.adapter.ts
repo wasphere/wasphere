@@ -574,6 +574,17 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       }
 
       const contentType = getContentType(msg.message || {});
+      // Skip non-renderable wrapper/protocol messages (e.g. album child wrappers,
+      // sender-key distribution) — they leak in when sending media and otherwise
+      // show up as an empty "associatedChildMessage" bubble.
+      if (
+        contentType === 'associatedChildMessage' ||
+        contentType === 'senderKeyDistributionMessage' ||
+        contentType === 'protocolMessage' ||
+        contentType === 'messageContextInfo'
+      ) {
+        continue;
+      }
       const isGroup = msg.key.remoteJid?.endsWith('@g.us');
 
       // LID addressing: remoteJid may be an opaque "<id>@lid". The real phone

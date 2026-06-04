@@ -4,6 +4,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import { Bell, BellOff, Inbox as InboxIcon, PanelRight, ArrowLeft, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { StatusDot } from "@/components/ui/status-dot"
 import { cn } from "@/lib/utils"
 import { useInboxStream } from "@/lib/use-inbox-stream"
@@ -47,6 +48,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
   const [mutedIds, setMutedIds] = React.useState<Set<string>>(new Set())
   const [sessions, setSessions] = React.useState<string[]>([])
   const [sessionFilter, setSessionFilter] = React.useState<string>("") // "" = all sessions (universal inbox)
+  const [mobileContactOpen, setMobileContactOpen] = React.useState(false)
 
   const selectedId = selected?.id ?? null
   const selectedIdRef = React.useRef<string | null>(null)
@@ -231,9 +233,16 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
             {sound ? <Bell className="size-4" /> : <BellOff className="size-4" />}
           </Button>
           {selected && (
-            <Button variant="ghost" size="icon" className="hidden size-8 lg:inline-flex" onClick={() => setShowContact((v) => !v)} title="Toggle contact panel">
-              <PanelRight className="size-4" />
-            </Button>
+            <>
+              {/* desktop: toggle the inline contact panel */}
+              <Button variant="ghost" size="icon" className="hidden size-8 lg:inline-flex" onClick={() => setShowContact((v) => !v)} title="Toggle contact panel">
+                <PanelRight className="size-4" />
+              </Button>
+              {/* mobile/tablet: open the contact panel as a slide-in sheet */}
+              <Button variant="ghost" size="icon" className="size-8 lg:hidden" onClick={() => setMobileContactOpen(true)} title="Contact info">
+                <PanelRight className="size-4" />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -318,6 +327,25 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
         currentId={selectedId}
         onClose={() => setForwardMsg(null)}
       />
+
+      {/* mobile/tablet contact panel (slide-in) */}
+      <Sheet open={mobileContactOpen} onOpenChange={setMobileContactOpen}>
+        <SheetContent side="right" className="w-[88%] max-w-sm gap-0 p-0 lg:hidden">
+          <SheetHeader className="border-b p-3">
+            <SheetTitle className="text-sm">Contact info</SheetTitle>
+          </SheetHeader>
+          {selected && (
+            <ContactPanel
+              conversation={selected}
+              recent={messages}
+              onTagsChange={updateTags}
+              onNotesChange={updateNotes}
+              muted={mutedIds.has(selected.id)}
+              onToggleMute={(v) => toggleMute(selected.id, v)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

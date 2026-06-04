@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy, Maximize2 } from "lucide-react"
+import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy, Maximize2, Plus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -161,6 +161,12 @@ function MediaBlock({ m }: { m: InboxMessage }) {
 }
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
+const ALL_REACTIONS = [
+  "👍", "👎", "❤️", "🔥", "🥰", "😍", "😂", "🤣", "😊", "😇", "🙂", "😉", "😎", "😋",
+  "😮", "😯", "😲", "🤯", "😱", "😨", "😢", "😭", "😡", "🤬", "🙄", "😏", "🤔", "🤨",
+  "🥳", "🎉", "💯", "✅", "❌", "⭐", "🙏", "👏", "🙌", "💪", "👌", "✌️", "🤝", "🫶",
+  "💔", "❤️‍🔥", "💚", "💙", "💜", "🧡", "💛", "🤍", "🖤", "💋", "🌹", "👀",
+]
 
 // Reactions + poll votes are events, not chat bubbles — render them centered.
 function SystemLine({ m }: { m: InboxMessage }) {
@@ -176,25 +182,51 @@ function SystemLine({ m }: { m: InboxMessage }) {
 }
 
 function ReactButton({ m, onReact }: { m: InboxMessage; onReact: (m: InboxMessage, emoji: string) => void }) {
+  const [showAll, setShowAll] = React.useState(false)
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(o) => !o && setShowAll(false)}>
       <DropdownMenuTrigger
         render={<Button variant="ghost" size="icon" className="size-7 shrink-0 opacity-0 transition group-hover:opacity-100" />}
       >
         <SmilePlus className="size-4 text-muted-foreground" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={m.fromMe ? "end" : "start"} className="flex gap-0.5 rounded-full p-1.5 shadow-md">
-        {QUICK_REACTIONS.map((e) => (
+      {showAll ? (
+        <DropdownMenuContent align={m.fromMe ? "end" : "start"} className="w-64 p-2 shadow-md">
+          <div className="grid max-h-44 grid-cols-8 gap-0.5 overflow-y-auto">
+            {ALL_REACTIONS.map((e, i) => (
+              <button
+                key={`${e}-${i}`}
+                onClick={() => onReact(m, e)}
+                className="rounded-md p-1 text-xl leading-none transition-transform hover:scale-125 hover:bg-muted"
+                type="button"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </DropdownMenuContent>
+      ) : (
+        <DropdownMenuContent align={m.fromMe ? "end" : "start"} className="flex items-center gap-0.5 rounded-full p-1.5 shadow-md">
+          {QUICK_REACTIONS.map((e) => (
+            <button
+              key={e}
+              onClick={() => onReact(m, e)}
+              className="rounded-full p-1.5 text-xl leading-none transition-transform hover:scale-125 hover:bg-muted"
+              type="button"
+            >
+              {e}
+            </button>
+          ))}
           <button
-            key={e}
-            onClick={() => onReact(m, e)}
-            className="rounded-full p-1.5 text-xl leading-none transition-transform hover:scale-125 hover:bg-muted"
+            onClick={(ev) => { ev.preventDefault(); setShowAll(true) }}
+            className="ml-0.5 rounded-full bg-muted p-1.5 text-muted-foreground transition hover:bg-muted-foreground/20"
             type="button"
+            title="More emojis"
           >
-            {e}
+            <Plus className="size-4" />
           </button>
-        ))}
-      </DropdownMenuContent>
+        </DropdownMenuContent>
+      )}
     </DropdownMenu>
   )
 }

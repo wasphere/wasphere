@@ -4,7 +4,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import {
   Paperclip, SendHorizonal, MessageSquareText, ImageIcon, FileText,
-  BarChart3, X, Plus, Trash2,
+  BarChart3, X, Plus, Trash2, Pencil,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -24,7 +24,8 @@ import type { OutboundReply } from "./types"
 // ~7 MB raw keeps the base64 data URI under the WA server's 10 MB cap.
 const MAX_FILE_BYTES = 7 * 1024 * 1024
 
-const SAVED_REPLIES = [
+const REPLIES_KEY = "wasphere.inbox.quickReplies"
+const DEFAULT_REPLIES = [
   "Thanks for reaching out! How can I help?",
   "Your order is confirmed and will ship soon. 📦",
   "Could you share your order number, please?",
@@ -67,6 +68,25 @@ export function Composer({
   const [pollOptions, setPollOptions] = React.useState<string[]>(["", ""])
   const [pollMulti, setPollMulti] = React.useState(false)
   const [pollSending, setPollSending] = React.useState(false)
+
+  const [savedReplies, setSavedReplies] = React.useState<string[]>(DEFAULT_REPLIES)
+  const [manageOpen, setManageOpen] = React.useState(false)
+  const [draftReplies, setDraftReplies] = React.useState<string[]>([])
+
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(REPLIES_KEY)
+      if (raw) setSavedReplies(JSON.parse(raw) as string[])
+    } catch { /* ignore */ }
+  }, [])
+
+  const openManage = () => { setDraftReplies(savedReplies.length ? [...savedReplies] : [""]); setManageOpen(true) }
+  const saveManage = () => {
+    const cleaned = draftReplies.map((s) => s.trim()).filter(Boolean)
+    setSavedReplies(cleaned)
+    try { localStorage.setItem(REPLIES_KEY, JSON.stringify(cleaned)) } catch { /* ignore */ }
+    setManageOpen(false)
+  }
 
   const busy = sending || sessionOffline
 
@@ -187,12 +207,18 @@ export function Composer({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-72">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Saved replies</DropdownMenuLabel>
-              {SAVED_REPLIES.map((r) => (
-                <DropdownMenuItem key={r} onClick={() => setText((t) => (t ? `${t} ${r}` : r))} className="whitespace-normal text-xs">
+              <DropdownMenuLabel>Quick replies</DropdownMenuLabel>
+              {savedReplies.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">No quick replies yet.</div>
+              )}
+              {savedReplies.map((r, i) => (
+                <DropdownMenuItem key={`${r}-${i}`} onClick={() => setText((t) => (t ? `${t} ${r}` : r))} className="whitespace-normal text-xs">
                   {r}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onClick={openManage} className="text-xs font-medium text-primary">
+                <Pencil className="mr-2 size-3.5" /> Manage quick replies
+              </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -261,6 +287,36 @@ export function Composer({
             <Button onClick={() => void sendPoll()} disabled={pollSending}>
               {pollSending ? "Sending…" : "Send poll"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent showCloseButton className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Quick replies</DialogTitle>
+          </DialogHeader>
+          <div className="flex max-h-72 flex-col gap-2 overflow-y-auto">
+            {draftReplies.map((r, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  value={r}
+                  maxLength={1000}
+                  placeholder="Type a quick reply…"
+                  onChange={(e) => setDraftReplies((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
+                  className="text-xs"
+                />
+                <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => setDraftReplies((p) => p.filter((_, j) => j !== i))} title="Delete">
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" className="self-start" onClick={() => setDraftReplies((p) => [...p, ""])}>
+              <Plus className="mr-1 size-4" /> Add reply
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={saveManage}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
