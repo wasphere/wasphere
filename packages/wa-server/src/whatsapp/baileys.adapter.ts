@@ -815,6 +815,20 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         },
         message: sanitizeMessage(msg),
       });
+
+      // Dedicated, integration-friendly event so order-confirmation flows
+      // (Shopify/Woo, PRD §2.3) can subscribe to votes only — not all messages.
+      await this.webhookService.fire('poll.vote', sessionId, {
+        pollMessageId: creationKey.id,
+        pollName: pollContent.pollCreationMessage?.name ?? pollContent.pollCreationMessageV3?.name,
+        selectedOptions: selected,
+        voter: {
+          jid: displayJid,
+          phone: (displaySenderPn ?? msg.key.remoteJid ?? '').split('@')[0].replace(/[^0-9]/g, ''),
+        },
+        messageId: msg.key.id,
+        timestamp: msg.messageTimestamp,
+      });
     } catch (err) {
       console.warn(`[PollVote] decode failed session=${sessionId}: ${String(err)}`);
     }
