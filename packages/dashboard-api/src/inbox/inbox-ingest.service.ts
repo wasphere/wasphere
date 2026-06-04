@@ -89,8 +89,15 @@ export class InboxIngestService {
     const waMessageId: string | undefined = data.messageId ?? m?.key?.id;
     if (!rawJid || !waMessageId) return;
 
-    // v1.1 is 1:1 only — groups are deferred to v1.2.
-    if (rawJid.endsWith('@g.us') || data.isGroup === true) return;
+    // v1.1 is 1:1 only — skip groups, status updates and broadcast lists.
+    if (
+      rawJid.endsWith('@g.us') ||
+      rawJid.endsWith('@broadcast') ||
+      rawJid === 'status@broadcast' ||
+      data.isGroup === true
+    ) {
+      return;
+    }
 
     // LID addressing: WhatsApp now sends an opaque "<id>@lid" as the chat id.
     // The real phone-number JID arrives as senderJid/senderPn — prefer it so we
