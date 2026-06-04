@@ -736,17 +736,45 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
       const sock = this.sessions.get(sessionId);
       const meId = sock?.user?.id ? jidNormalizedUser(sock.user.id) : '';
-      // Mirror Baileys' own (commented-out) decryption: authors come from the
-      // message keys via getKeyAuthor, which keeps the LID form when present.
-      const pollCreatorJid = getKeyAuthor(creationKey, meId);
-      const voterJid = getKeyAuthor(msg.key, meId);
+      const myLid = (sock?.user as { lid?: string } | undefined)?.lid;
+      const meLid = myLid ? jidNormalizedUser(myLid) : '';
 
-      const voteMsg = decryptPollVote(update.vote, {
-        pollEncKey: encKey,
-        pollCreatorJid,
-        pollMsgId: creationKey.id,
-        voterJid,
-      });
+      // Voter + creator can each be addressed by LID or phone-number (PN).
+      // Per Baileys issue #2342 the winning combo for current WhatsApp is
+      // creator=LID + voter=PN, so we try that first and fall back to the
+      // others until GCM auth succeeds.
+      const vk = msg.key as typeof msg.key & { senderPn?: string | null };
+      const voterPn = vk.senderPn ? jidNormalizedUser(vk.senderPn) : '';
+      const voterLid = msg.key.remoteJid?.endsWith('@lid')
+        ? jidNormalizedUser(msg.key.remoteJid)
+        : '';
+      const voterAuthor = getKeyAuthor(msg.key, meId);
+      const creatorAuthor = getKeyAuthor(creationKey, meId);
+      const creatorLid = creationKey.fromMe ? meLid : voterLid;
+
+      const creators = [...new Set([creatorLid, creatorAuthor].filter(Boolean))];
+      const voters = [...new Set([voterPn, voterLid, voterAuthor].filter(Boolean))];
+
+      let voteMsg: ReturnType<typeof decryptPollVote> | undefined;
+      outer: for (const pollCreatorJid of creators) {
+        for (const voterJid of voters) {
+          try {
+            voteMsg = decryptPollVote(update.vote, {
+              pollEncKey: encKey,
+              pollCreatorJid,
+              pollMsgId: creationKey.id,
+              voterJid,
+            });
+            break outer;
+          } catch {
+            /* wrong JID combo — try the next one */
+          }
+        }
+      }
+      if (!voteMsg) {
+        console.warn(`[PollVote] all JID combos failed session=${sessionId}`);
+        return;
+      }
 
       const aggregated = getAggregateVotesInPollMessage(
         { message: pollContent, pollUpdates: [{ pollUpdateMessageKey: msg.key, vote: voteMsg }] },
@@ -754,16 +782,15 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       );
       const selected = aggregated.filter((a) => a.voters.length > 0).map((a) => a.name);
 
-      const voterKey = msg.key as typeof msg.key & { senderPn?: string | null };
-      const voterPn = voterKey.senderPn ?? null;
-      const displayJid = voterPn ?? msg.key.remoteJid ?? '';
+      const displaySenderPn = vk.senderPn ?? null;
+      const displayJid = displaySenderPn ?? msg.key.remoteJid ?? '';
 
       await this.webhookService.fire('message.received', sessionId, {
         messageId: msg.key.id,
         from: msg.key.remoteJid,
         sender: msg.key.participant || msg.key.remoteJid,
         senderJid: displayJid,
-        senderPn: voterPn,
+        senderPn: displaySenderPn,
         senderLid: msg.key.remoteJid?.endsWith('@lid') ? msg.key.remoteJid : null,
         avatarUrl: await this.getAvatarUrl(sessionId, displayJid),
         isGroup: false,
