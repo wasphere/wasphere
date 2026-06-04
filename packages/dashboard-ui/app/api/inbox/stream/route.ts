@@ -1,11 +1,30 @@
 import { cookies } from "next/headers"
 import { API_BASE, resolveWorkspaceId } from "@/lib/server-fetch"
+import { DEMO_MODE } from "@/lib/demo"
 
 export const dynamic = "force-dynamic"
 
 // SSE proxy: browser EventSource('/api/inbox/stream') -> here -> dashboard-api
 // stream with a Bearer header (EventSource can't set headers itself).
 export async function GET(req: Request) {
+  // Demo: no backend — return an open, event-less stream so the inbox shows
+  // "live" without errors (data is static).
+  if (DEMO_MODE) {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("retry: 3000\n: connected\n\n"))
+        const hb = setInterval(() => {
+          try { controller.enqueue(new TextEncoder().encode(": ping\n\n")) } catch { clearInterval(hb) }
+        }, 25_000)
+        req.signal.addEventListener("abort", () => { clearInterval(hb); try { controller.close() } catch {} })
+      },
+    })
+    return new Response(stream, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" },
+    })
+  }
+
   const token = (await cookies()).get("wa_access")?.value
   if (!token) return new Response("Unauthorized", { status: 401 })
 
