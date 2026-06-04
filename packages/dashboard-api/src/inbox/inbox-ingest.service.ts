@@ -75,6 +75,8 @@ export class InboxIngestService {
       case 'session.deleted':
       case 'session.logged_out':
         return this.archiveSession(workspaceId, dto.sessionId);
+      case 'session.connected':
+        return this.restoreSession(workspaceId, dto.sessionId);
       default:
         return;
     }
@@ -83,32 +85,73 @@ export class InboxIngestService {
   private async ingestInbound(workspaceId: string, dto: WebhookEventDto): Promise<void> {
     const data = dto.data as Record<string, any>;
     const m = data.message as Record<string, any> | undefined;
-    const jid: string | undefined = data.from ?? m?.key?.remoteJid;
+    const rawJid: string | undefined = data.from ?? m?.key?.remoteJid;
     const waMessageId: string | undefined = data.messageId ?? m?.key?.id;
-    if (!jid || !waMessageId) return;
+    if (!rawJid || !waMessageId) return;
 
-    // v1.1 is 1:1 only — groups are deferred to v1.2.
-    if (jid.endsWith('@g.us') || data.isGroup === true) return;
+    // v1.1 is 1:1 only — skip groups, status, broadcast lists and channels.
+    if (
+      rawJid.endsWith('@g.us') ||
+      rawJid.endsWith('@broadcast') ||
+      rawJid.endsWith('@newsletter') ||
+      rawJid === 'status@broadcast' ||
+      data.isGroup === true
+    ) {
+      return;
+    }
+
+    // LID addressing: WhatsApp now sends an opaque "<id>@lid" as the chat id.
+    // The real phone-number JID arrives as senderJid/senderPn — prefer it so we
+    // store/display the true number and reply to a deliverable address.
+    const senderPn: string | undefined = data.senderPn ?? m?.key?.senderPn ?? undefined;
+    const isLid = rawJid.endsWith('@lid');
+    const jid: string = data.senderJid ?? (isLid && senderPn ? senderPn : rawJid);
 
     const fromMe = Boolean(m?.key?.fromMe);
     const pushName: string | null = (m?.pushName as string) ?? null;
+    const avatarUrl: string | null = (data.avatarUrl as string) ?? null;
     const phone = jid.split('@')[0].replace(/[^0-9]/g, '');
     const waTimestamp = new Date(toUnixSeconds(data.timestamp ?? m?.messageTimestamp) * 1000);
     const type = mapType(data.type);
-    const body: string | null = data.content?.text ?? data.content?.caption ?? null;
+    const body: string | null =
+      data.content?.text ?? data.content?.caption ?? data.content?.reaction ?? null;
+    // Downloaded media arrives as a base64 data URI; keep it in mediaUrl, not
+    // in payload (so the JSON column stays small).
+    const content: Record<string, unknown> = { ...(data.content ?? {}) };
+    const mediaUrl: string | null = (content.dataUri as string) ?? null;
+    delete content.dataUri;
 
     // Idempotency guard (the @@unique constraint is the ultimate backstop).
     const dup = await this.prisma.message.findUnique({
       where: { workspaceId_waMessageId: { workspaceId, waMessageId } },
-      select: { id: true },
+      select: { id: true, type: true, conversationId: true },
     });
-    if (dup) return;
+    if (dup) {
+      // A message can arrive first as an undecryptable placeholder (envelope
+      // failed) and then again decrypted after a Signal retry — same waMessageId.
+      // Upgrade the placeholder in place instead of dropping the real content.
+      if (dup.type === 'unknown' && type !== 'unknown') {
+        await this.prisma.message.update({
+          where: { id: dup.id },
+          data: { type, body, payload: content as Prisma.InputJsonValue, mediaUrl },
+        });
+        await this.prisma.conversation.update({
+          where: { id: dup.conversationId },
+          data: { lastPreview: previewFor(type, body) },
+        });
+        this.events.emit({ type: 'message.new', workspaceId, conversationId: dup.conversationId });
+      }
+      return;
+    }
 
     const conversationId = await this.prisma.$transaction(async (tx) => {
       const contact = await tx.contact.upsert({
         where: { workspaceId_jid: { workspaceId, jid } },
-        update: pushName ? { whatsappName: pushName } : {},
-        create: { workspaceId, jid, phone, whatsappName: pushName },
+        update: {
+          ...(pushName ? { whatsappName: pushName } : {}),
+          ...(avatarUrl ? { avatarUrl } : {}),
+        },
+        create: { workspaceId, jid, phone, whatsappName: pushName, avatarUrl },
       });
 
       const convo = await tx.conversation.upsert({
@@ -131,7 +174,8 @@ export class InboxIngestService {
           direction: fromMe ? 'OUTBOUND' : 'INBOUND',
           type,
           body,
-          payload: (data.content as Prisma.InputJsonValue) ?? undefined,
+          payload: content as Prisma.InputJsonValue,
+          mediaUrl,
           status: fromMe ? 'SENT' : 'DELIVERED',
           fromMe,
           waTimestamp,
@@ -144,6 +188,8 @@ export class InboxIngestService {
           lastPreview: previewFor(type, body),
           // max() semantics — never move lastMessageAt backwards
           lastMessageAt: waTimestamp > convo.lastMessageAt ? waTimestamp : convo.lastMessageAt,
+          // a live message proves the session is back — clear any stale archive flag
+          ...(convo.sessionDeletedAt ? { sessionDeletedAt: null } : {}),
           ...(fromMe ? {} : { unreadCount: { increment: 1 } }),
         },
       });
@@ -170,6 +216,18 @@ export class InboxIngestService {
       if (res.count > 0) {
         this.events.emit({ type: 'message.status', workspaceId, payload: { waMessageId, status } });
       }
+    }
+  }
+
+  // Re-link / reconnect of a session un-archives its conversations so the
+  // operator can reply again (mirror of archiveSession).
+  private async restoreSession(workspaceId: string, sessionId: string): Promise<void> {
+    const res = await this.prisma.conversation.updateMany({
+      where: { workspaceId, sessionId, sessionDeletedAt: { not: null } },
+      data: { sessionDeletedAt: null },
+    });
+    if (res.count > 0) {
+      this.logger.log(`[Inbox] restored ${res.count} conversation(s) for reconnected session=${sessionId}`);
     }
   }
 

@@ -24,10 +24,10 @@ export default async function DashboardLayout({
     <AuthProvider>
       <SidebarProvider defaultOpen={false}>
         <AppSidebar demoMode={DEMO_MODE} />
-        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="flex h-screen min-h-0 flex-1 flex-col overflow-hidden">
           <AppHeader />
           {DEMO_MODE && <DemoBanner />}
-          <main className="flex flex-1 flex-col gap-4 p-6 overflow-auto">
+          <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-6">
             {children}
           </main>
         </div>

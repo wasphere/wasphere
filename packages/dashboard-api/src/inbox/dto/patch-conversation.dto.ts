@@ -15,4 +15,10 @@ export class PatchConversationDto {
   @IsString({ each: true })
   @MaxLength(40, { each: true })
   tags?: string[];
+
+  @ApiPropertyOptional({ description: 'Private operator notes about this customer' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
 }

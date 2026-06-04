@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Smartphone,
+  Inbox,
   MessageSquare,
   Webhook,
   Code,
@@ -39,6 +40,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const NAV_ITEMS = [
   { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard },
   { label: "Sessions", href: "/dashboard/sessions", icon: Smartphone },
+  { label: "Inbox", href: "/dashboard/inbox", icon: Inbox },
   { label: "Messages", href: "/dashboard/messages", icon: MessageSquare },
   { label: "Webhooks", href: "/dashboard/webhooks", icon: Webhook },
   { label: "Developer", href: "/dashboard/developer", icon: Code },

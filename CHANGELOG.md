@@ -10,6 +10,62 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.0] - 2026-06-04
+
+The **Inbox** release — a realtime, two-pane WhatsApp inbox in the dashboard, plus
+the WhatsApp-correctness work needed to make it production-grade. Built on the
+existing REST + SSE layer (no mocks); verified live against real WhatsApp numbers.
+See PR #115 (implementation) and PR #110 (design doc).
+
+### Added
+
+- **Inbox UI** (`/dashboard/inbox`) — responsive two-pane layout (conversation
+  list · thread · contact panel), built on ShadCN; fixed-height app shell so only
+  the chat scrolls; WhatsApp-style empty state; mobile drawers + tappable actions
+- **Realtime** via SSE (`message.new` / `conversation.update` / `message.status`),
+  with 429→15s polling fallback and auto-reconnect; per-user sound toggle
+- **Send** from the inbox — text, image, document (base64 data URI ≤16 MB), **poll**
+  (single or multi-select), **reactions** (6 quick + full emoji picker), **forward**
+  (to any active chat), copy
+- **Receive + render** — image (lightbox + download), **voice/audio** player,
+  **video** player + full-view lightbox, document download, sticker, **poll votes**
+  ("🗳️ Voted: …"), reactions
+- **Conversation management** — search (name / phone / preview), Open/Resolved
+  tabs, unread badges, avatars, delivery ticks (sent/delivered/read/failed)
+- **Tags** (add/remove), **Notes** (private per-customer), **Mute** (per chat),
+  **Media & docs** gallery, editable **quick replies** (manage dialog)
+- **Session filter** — universal inbox ("All sessions") or per-session
+- **`poll.vote` webhook event** — dedicated, decrypted poll-vote delivery
+  (`{ pollMessageId, pollName, selectedOptions, voter: { jid, phone } }`) for
+  Shopify/WooCommerce order-confirmation flows; also delivered via `message.received`
+- **Inbox integration test suite** — 13 tests against a real PostgreSQL test DB
+  (`pnpm test:setup` / `pnpm test`); see `docs/testing/v1.1-inbox-test-plan.md`
+
+### Fixed (WhatsApp correctness, from live testing)
+
+- **LID addressing** — WhatsApp now sends an opaque `<id>@lid`; the real phone is
+  on `key.senderPn`. Resolved for display **and** as the reply target (replies
+  were silently failing before)
+- **Poll-vote decryption** — correct LID/PN JID derivation (creator = our LID via
+  the cached poll's `fromMe`, voter = PN/LID combos) per Baileys #2342; votes now
+  decrypt and display, and undecryptable retries upgrade in place
+- **Re-link recovery** — logging out then re-linking a session no longer leaves
+  conversations stuck "read-only" (`session.connected` un-archives)
+- **Avatars** fetched + shown; **undecryptable** placeholders hidden; **album/
+  wrapper** messages (`associatedChildMessage` etc.) skipped; groups / status /
+  broadcast / **newsletter** filtered (1:1 only)
+- Composer crash (Base UI group), name-search matching all rows, reaction-bar
+  clipping, and mobile hover-only actions
+
+### Deferred to v1.2
+
+- Streaming media endpoint for files > 16 MB (avoids base64/DB bloat)
+- Location-map and contact-card (vCard) previews
+- Poll-resolve helper (grace-window + delete-to-lock) for order flows
+- Cross-session "Customer view" (merge a number across sessions)
+
+---
+
 ## [1.0.0] - 2026-05-27
 
 ### Added
@@ -52,5 +108,6 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/wasphere/wasphere/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/wasphere/wasphere/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/wasphere/wasphere/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/wasphere/wasphere/releases/tag/v1.0.0
