@@ -89,10 +89,11 @@ export class InboxIngestService {
     const waMessageId: string | undefined = data.messageId ?? m?.key?.id;
     if (!rawJid || !waMessageId) return;
 
-    // v1.1 is 1:1 only — skip groups, status updates and broadcast lists.
+    // v1.1 is 1:1 only — skip groups, status, broadcast lists and channels.
     if (
       rawJid.endsWith('@g.us') ||
       rawJid.endsWith('@broadcast') ||
+      rawJid.endsWith('@newsletter') ||
       rawJid === 'status@broadcast' ||
       data.isGroup === true
     ) {

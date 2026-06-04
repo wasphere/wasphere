@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { Bell, BellOff, Inbox as InboxIcon, PanelRight, ArrowLeft } from "lucide-react"
+import { Bell, BellOff, Inbox as InboxIcon, PanelRight, ArrowLeft, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StatusDot } from "@/components/ui/status-dot"
 import { cn } from "@/lib/utils"
@@ -15,6 +15,7 @@ import { ForwardDialog } from "./forward-dialog"
 import type { Conversation, ConversationStatus, InboxMessage, OutboundReply, Paginated } from "./types"
 
 const SOUND_KEY = "wasphere.inbox.soundEnabled"
+const MUTED_KEY = "wasphere.inbox.mutedConversations"
 
 function beep() {
   try {
@@ -43,14 +44,31 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
   const [showContact, setShowContact] = React.useState(true)
   const [connected, setConnected] = React.useState(false)
   const [sound, setSound] = React.useState(true)
+  const [mutedIds, setMutedIds] = React.useState<Set<string>>(new Set())
 
   const selectedId = selected?.id ?? null
   const selectedIdRef = React.useRef<string | null>(null)
   selectedIdRef.current = selectedId
+  const mutedIdsRef = React.useRef(mutedIds)
+  mutedIdsRef.current = mutedIds
 
   React.useEffect(() => {
     setSound(localStorage.getItem(SOUND_KEY) !== "false")
+    try {
+      const raw = localStorage.getItem(MUTED_KEY)
+      if (raw) setMutedIds(new Set(JSON.parse(raw) as string[]))
+    } catch { /* ignore */ }
   }, [])
+
+  const toggleMute = (convId: string, muted: boolean) => {
+    setMutedIds((prev) => {
+      const next = new Set(prev)
+      if (muted) next.add(convId)
+      else next.delete(convId)
+      try { localStorage.setItem(MUTED_KEY, JSON.stringify([...next])) } catch { /* ignore */ }
+      return next
+    })
+  }
 
   const refreshList = React.useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setListLoading(true)
@@ -97,7 +115,11 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
       const activeId = selectedIdRef.current
       if (ev.conversationId === activeId) {
         void loadMessages(activeId, { silent: true })
-      } else if (sound && document.visibilityState !== "visible") {
+      } else if (
+        sound &&
+        !mutedIdsRef.current.has(ev.conversationId ?? "") &&
+        document.visibilityState !== "visible"
+      ) {
         beep()
       }
     },
@@ -137,6 +159,16 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
 
   const reactToMessage = (m: InboxMessage, emoji: string) => {
     void sendReply({ kind: "reaction", targetMessageId: m.waMessageId, emoji })
+  }
+
+  const updateNotes = async (notes: string) => {
+    if (!selected) return
+    setSelected((s) => (s ? { ...s, notes } : s))
+    await fetch(`/api/inbox/conversations/${selected.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    }).catch(() => null)
   }
 
   const updateTags = async (tags: string[]) => {
@@ -196,8 +228,8 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
 
       {/* panes */}
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border bg-card">
-        {/* list */}
-        <div className={cn("min-w-0 flex-col border-r md:flex md:w-80 md:shrink-0", selected ? "hidden md:flex" : "flex flex-1")}>
+        {/* list — fixed width on desktop; full-width on mobile only when no chat is open */}
+        <div className={cn("min-w-0 flex-col border-r md:flex md:w-80 md:shrink-0 md:flex-none", selected ? "hidden md:flex" : "flex flex-1")}>
           <ConversationList
             conversations={conversations}
             selectedId={selectedId}
@@ -231,9 +263,21 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
               </>
             </ThreadView>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-              <InboxIcon className="size-10 opacity-40" />
-              <p className="text-sm">Select a conversation to start chatting</p>
+            <div className="flex h-full flex-col items-center justify-center gap-5 bg-muted/20 px-6 text-center">
+              <div className="flex size-28 items-center justify-center rounded-full bg-primary/5">
+                <InboxIcon className="size-14 text-primary/40" strokeWidth={1.5} />
+              </div>
+              <div className="max-w-md">
+                <h2 className="text-2xl font-semibold text-foreground">WaSphere Inbox</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Select a conversation to start messaging. Send and receive WhatsApp
+                  texts, media, and polls — all from your dashboard, in real time.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80">
+                <Lock className="size-3" />
+                End-to-end encrypted by WhatsApp
+              </div>
             </div>
           )}
         </div>
@@ -241,7 +285,14 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
         {/* contact panel (desktop) */}
         {selected && showContact && (
           <div className="hidden w-72 shrink-0 border-l lg:flex">
-            <ContactPanel conversation={selected} recent={messages} onTagsChange={updateTags} />
+            <ContactPanel
+              conversation={selected}
+              recent={messages}
+              onTagsChange={updateTags}
+              onNotesChange={updateNotes}
+              muted={mutedIds.has(selected.id)}
+              onToggleMute={(v) => toggleMute(selected.id, v)}
+            />
           </div>
         )}
       </div>

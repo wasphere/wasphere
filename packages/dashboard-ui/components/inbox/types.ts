@@ -18,6 +18,7 @@ export interface Conversation {
   unreadCount: number
   tags: string[]
   sessionDeletedAt: string | null
+  notes?: string | null
   contact: InboxContact
 }
 

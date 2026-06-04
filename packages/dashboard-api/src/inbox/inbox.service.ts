@@ -140,6 +140,10 @@ export class InboxService {
     const data: Prisma.ConversationUpdateInput = {};
     if (dto.status) data.status = dto.status;
     if (dto.tags) data.tags = dto.tags as Prisma.InputJsonValue;
+    if (dto.notes !== undefined) {
+      const existing = (convo.metadata as Record<string, unknown> | null) ?? {};
+      data.metadata = { ...existing, notes: dto.notes } as Prisma.InputJsonValue;
+    }
 
     const updated = await this.prisma.conversation.update({
       where: { id: convo.id },
@@ -305,6 +309,7 @@ export class InboxService {
     unreadCount: number;
     tags: Prisma.JsonValue;
     sessionDeletedAt: Date | null;
+    metadata?: Prisma.JsonValue;
     contact: { id: string; jid: string; phone: string; whatsappName: string | null; savedName: string | null; avatarUrl: string | null };
   }) {
     return {
@@ -316,6 +321,7 @@ export class InboxService {
       unreadCount: c.unreadCount,
       tags: c.tags ?? [],
       sessionDeletedAt: c.sessionDeletedAt,
+      notes: (c.metadata as { notes?: string } | null)?.notes ?? null,
       contact: {
         id: c.contact.id,
         phone: c.contact.phone,
