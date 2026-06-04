@@ -68,11 +68,14 @@ export class InboxService {
     if (q.status) where.status = q.status;
     if (q.q) {
       const term = q.q.trim();
+      const digits = term.replace(/[^0-9]/g, '');
       where.OR = [
         { lastPreview: { contains: term, mode: 'insensitive' } },
         { contact: { is: { whatsappName: { contains: term, mode: 'insensitive' } } } },
         { contact: { is: { savedName: { contains: term, mode: 'insensitive' } } } },
-        { contact: { is: { phone: { contains: term.replace(/[^0-9]/g, '') } } } },
+        // only match on phone when the query actually has digits — otherwise
+        // `contains: ""` matches every row and the search returns everything.
+        ...(digits ? [{ contact: { is: { phone: { contains: digits } } } } as const] : []),
       ];
     }
 
