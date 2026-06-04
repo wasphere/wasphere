@@ -277,25 +277,27 @@ wasphere/
 
 ## 🗺️ Roadmap
 
-### v1.1 — ✅ shipped ([release notes](CHANGELOG.md))
-- **Inbox** — realtime two-pane WhatsApp inbox: send/receive text + media, **polls with decrypted vote tracking**, reactions, forward, tags, notes, multi-session, mobile
-- `poll.vote` webhook for Shopify / WooCommerce order-confirmation flows
-- 13 integration tests against real PostgreSQL
+**WaSphere Core is MIT and free forever.** Commercial products are built *on top of* the Core as a dependency — the Core never becomes paid.
 
-### v1.2 — Scale & Reliability
-- Streaming media endpoint for large files · location-map + contact-card previews
-- Meta Cloud API option · multi-session auto-failover · browser notifications · conversation assignment
+### 🆓 Open-source Core (MIT)
 
-### v1.5
-- MySQL / SQLite support (PostgreSQL-only today)
-- Full message log with search & filter
-- Workspace rename · real-time WebSocket events
-- Multiple workspaces per deployment
+| Version | Theme | Status |
+| --- | --- | --- |
+| **v1.0** | Foundation — WhatsApp API platform (multi-session, 14 send types, webhooks, scoped API keys, dashboard) | ✅ shipped |
+| **v1.1** | **Inbox** — realtime inbox: send/receive media, polls + decrypted votes, reactions, tags/notes, multi-session ([notes](CHANGELOG.md)) | ✅ shipped |
+| **v1.2** | **Reliability & Trust** — **Meta Cloud API** as an alternative backend (per-session provider choice + Baileys→Meta auto-failover) · inbox polish (streaming media, location/contact-card previews, poll-resolve helper) · browser notifications | 🚧 in progress |
+| **v1.3** | Team & Multi-agent — assign conversations, agent roles, internal notes & @mentions | planned |
+| **v1.5** | Platform — MySQL / SQLite support, multiple workspaces per deployment, basic AI replies | planned |
+| **v2.0** | Mature Core | planned |
 
-### v2.0 — WaSphere Pro
-- Campaigns, Automations, CRM & Inbox, AI replies
-- Email/SMS notifications, multi-language SDK snippets
-- First-class WHMCS integration · premium support
+### 💼 Commercial products (paid · closed-source · built on the Core)
+
+These run **on top of** WaSphere Core and are developed separately — the Core stays MIT and self-hostable on its own.
+
+- **WaSphere for Shopify** — WhatsApp order confirmation, abandoned-cart and shipping flows *(after v1.2)*
+- **WaSphere for WooCommerce** *(after Shopify)*
+- **WaSphere for WHMCS** — billing & client notifications
+- **WaSphere Pro (hosted SaaS)** — fully managed cloud, no self-hosting
 
 > Have a request? [Open an issue](https://github.com/wasphere/wasphere/issues).
 
