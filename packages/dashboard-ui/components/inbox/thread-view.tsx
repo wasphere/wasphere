@@ -186,7 +186,7 @@ function ReactButton({ m, onReact }: { m: InboxMessage; onReact: (m: InboxMessag
   return (
     <DropdownMenu onOpenChange={(o) => !o && setShowAll(false)}>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon" className="size-7 shrink-0 opacity-0 transition group-hover:opacity-100" />}
+        render={<Button variant="ghost" size="icon" className="size-7 shrink-0 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100" />}
       >
         <SmilePlus className="size-4 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -206,7 +206,7 @@ function ReactButton({ m, onReact }: { m: InboxMessage; onReact: (m: InboxMessag
           </div>
         </DropdownMenuContent>
       ) : (
-        <DropdownMenuContent align={m.fromMe ? "end" : "start"} className="flex items-center gap-0.5 rounded-full p-1.5 shadow-md">
+        <DropdownMenuContent align={m.fromMe ? "end" : "start"} className="flex w-fit items-center gap-0.5 overflow-visible rounded-full p-1.5 shadow-md">
           {QUICK_REACTIONS.map((e) => (
             <button
               key={e}
@@ -236,7 +236,7 @@ function MsgMenu({ m, onForward }: { m: InboxMessage; onForward: (m: InboxMessag
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon" className="size-7 shrink-0 opacity-0 transition group-hover:opacity-100" />}
+        render={<Button variant="ghost" size="icon" className="size-7 shrink-0 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100" />}
       >
         <MoreHorizontal className="size-4 text-muted-foreground" />
       </DropdownMenuTrigger>
