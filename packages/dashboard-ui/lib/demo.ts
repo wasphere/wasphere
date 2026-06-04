@@ -68,13 +68,19 @@ const avatar = (seed: string) => `https://api.dicebear.com/7.x/avataaars/svg?see
 const contact = (id: string, phone: string, name: string, avatarUrl: string | null) =>
   ({ id, phone, name, savedName: null, whatsappName: name, avatarUrl });
 
+// Public sample media so the demo players actually render.
+const DEMO_IMG = "https://picsum.photos/seed/wasphere-demo/440/300";
+const DEMO_IMG2 = "https://picsum.photos/seed/wasphere-shop/440/300";
+const DEMO_VIDEO = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
+const DEMO_AUDIO = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
 function demoConversations() {
   return [
-    { id: "conv-1", sessionId: "sales-team", status: "OPEN", lastMessageAt: mins(3), lastPreview: "Perfect, I just sent the brief 📎", unreadCount: 2, tags: ["lead", "website"], sessionDeletedAt: null, notes: "Interested in the Growth plan — follow up Friday.", contact: contact("ct-1", "923001234567", "Ayesha Khan", avatar("Ayesha")) },
-    { id: "conv-2", sessionId: "support-bot", status: "OPEN", lastMessageAt: mins(64), lastPreview: "🗳️ Voted: Growth", unreadCount: 0, tags: ["support"], sessionDeletedAt: null, notes: null, contact: contact("ct-2", "14155550133", "Daniel Reyes", avatar("Daniel")) },
-    { id: "conv-3", sessionId: "sales-team", status: "OPEN", lastMessageAt: mins(180), lastPreview: "📷 Photo", unreadCount: 1, tags: ["vip"], sessionDeletedAt: null, notes: null, contact: contact("ct-3", "923219876543", "Fatima Noor", null) },
-    { id: "conv-4", sessionId: "support-bot", status: "OPEN", lastMessageAt: mins(330), lastPreview: "🎙️ Voice note", unreadCount: 0, tags: [], sessionDeletedAt: null, notes: null, contact: contact("ct-4", "447700900123", "Mark Chen", avatar("Mark")) },
-    { id: "conv-5", sessionId: "sales-team", status: "RESOLVED", lastMessageAt: mins(1440), lastPreview: "Thank you so much! ⭐", unreadCount: 0, tags: ["vip", "lead"], sessionDeletedAt: null, notes: null, contact: contact("ct-5", "393331112233", "Sofia Rossi", avatar("Sofia")) },
+    { id: "conv-1", sessionId: "sales-team", status: "OPEN", lastMessageAt: mins(2), lastPreview: "🎥 Video", unreadCount: 2, tags: ["lead", "website"], sessionDeletedAt: null, notes: "Interested in the Growth plan — follow up Friday.", contact: contact("ct-1", "923001234567", "Liam Carter", avatar("Liam")) },
+    { id: "conv-2", sessionId: "support-bot", status: "OPEN", lastMessageAt: mins(64), lastPreview: "🗳️ Voted: Growth", unreadCount: 0, tags: ["support"], sessionDeletedAt: null, notes: null, contact: contact("ct-2", "14155550133", "Olivia Stone", avatar("Olivia")) },
+    { id: "conv-3", sessionId: "sales-team", status: "OPEN", lastMessageAt: mins(180), lastPreview: "📷 Photo", unreadCount: 1, tags: ["vip"], sessionDeletedAt: null, notes: null, contact: contact("ct-3", "447700900123", "Noah Price", avatar("Noah")) },
+    { id: "conv-4", sessionId: "support-bot", status: "OPEN", lastMessageAt: mins(330), lastPreview: "🎙️ Voice note", unreadCount: 0, tags: [], sessionDeletedAt: null, notes: null, contact: contact("ct-4", "923219876543", "Mia Foster", avatar("Mia")) },
+    { id: "conv-5", sessionId: "sales-team", status: "RESOLVED", lastMessageAt: mins(1440), lastPreview: "Thank you so much! ⭐", unreadCount: 0, tags: ["vip", "lead"], sessionDeletedAt: null, notes: null, contact: contact("ct-5", "393331112233", "Ethan Ward", avatar("Ethan")) },
   ];
 }
 
@@ -86,12 +92,14 @@ function demoMessages(cid: string) {
   });
   const out = (i: number, o: Record<string, unknown>) => mk(i, { direction: "OUTBOUND", fromMe: true, status: "READ", ...o });
   const map: Record<string, ReturnType<typeof mk>[]> = {
+    // Rich media thread — image · video · voice note
     "conv-1": [
-      mk(1, { body: "Hi! Do you build WhatsApp automations?", waTimestamp: mins(20) }),
-      out(2, { body: "Absolutely — what's your use case?", waTimestamp: mins(18) }),
-      mk(3, { type: "image", mediaUrl: "https://picsum.photos/seed/wasphere-brief/420/280", body: "Here's our current flow", payload: { caption: "Here's our current flow" }, waTimestamp: mins(6) }),
-      mk(4, { body: "Perfect, I just sent the brief 📎", waTimestamp: mins(3) }),
+      mk(1, { body: "Hey, loved the new collection! 😍", waTimestamp: mins(22) }),
+      out(2, { type: "image", mediaUrl: DEMO_IMG, body: "Here's the full lookbook", payload: { caption: "Here's the full lookbook" }, waTimestamp: mins(18) }),
+      mk(3, { type: "video", mediaUrl: DEMO_VIDEO, body: "Quick unboxing 🎥", payload: { caption: "Quick unboxing 🎥", mimetype: "video/mp4" }, waTimestamp: mins(6) }),
+      mk(4, { type: "audio", mediaUrl: DEMO_AUDIO, payload: { seconds: 18, mimetype: "audio/mpeg" }, waTimestamp: mins(2) }),
     ],
+    // Order-confirmation poll thread — document · poll · poll vote
     "conv-2": [
       mk(1, { body: "Hey, my last invoice looks wrong.", waTimestamp: mins(190) }),
       out(2, { type: "document", body: "Invoice_2026_05.pdf", payload: { fileName: "Invoice_2026_05.pdf", mimetype: "application/pdf" }, waTimestamp: mins(175) }),
@@ -99,11 +107,11 @@ function demoMessages(cid: string) {
       mk(4, { type: "poll_vote", body: "🗳️ Voted: Growth", payload: { pollName: "Which plan works best for you?", selectedOptions: ["Growth"] }, waTimestamp: mins(64) }),
     ],
     "conv-3": [
-      mk(1, { type: "image", mediaUrl: "https://picsum.photos/seed/wasphere-product/420/300", body: "Is this still in stock?", payload: { caption: "Is this still in stock?" }, waTimestamp: mins(180) }),
+      mk(1, { type: "image", mediaUrl: DEMO_IMG2, body: "Is this still in stock?", payload: { caption: "Is this still in stock?" }, waTimestamp: mins(180) }),
     ],
     "conv-4": [
       mk(1, { body: "Can you give me a call?", waTimestamp: mins(335) }),
-      mk(2, { type: "audio", payload: { seconds: 24, mimetype: "audio/ogg" }, waTimestamp: mins(330) }),
+      mk(2, { type: "audio", mediaUrl: DEMO_AUDIO, payload: { seconds: 24, mimetype: "audio/mpeg" }, waTimestamp: mins(330) }),
     ],
     "conv-5": [
       out(1, { body: "Your order #4821 has shipped 🚚", waTimestamp: mins(1500) }),
