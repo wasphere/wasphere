@@ -640,8 +640,15 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         content.replyMessageId = msg.message?.reactionMessage?.key?.id;
       }
 
-      // Download visual media (image/sticker) inline so the inbox can show it.
-      if (contentType === 'imageMessage' || contentType === 'stickerMessage') {
+      // Download media (image/sticker/video/voice/audio/document) inline so the
+      // inbox can show or play it.
+      if (
+        contentType === 'imageMessage' ||
+        contentType === 'stickerMessage' ||
+        contentType === 'videoMessage' ||
+        contentType === 'audioMessage' ||
+        contentType === 'documentMessage'
+      ) {
         const dataUri = await this.downloadInboundMedia(sessionId, msg, contentType);
         if (dataUri) content.dataUri = dataUri;
       }
@@ -693,13 +700,21 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     msg: proto.IWebMessageInfo,
     type: string,
   ): Promise<string | null> {
+    const CAP = 10 * 1024 * 1024; // 10 MB inline cap (data URI); larger -> skip
     try {
       const sock = this.sessions.get(sessionId);
       if (!sock) return null;
+      const m = msg.message;
       const media =
-        type === 'imageMessage' ? msg.message?.imageMessage : msg.message?.stickerMessage;
-      const declared = Number(media?.fileLength ?? 0);
-      if (declared && declared > 5 * 1024 * 1024) return null; // skip large files
+        type === 'imageMessage' ? m?.imageMessage
+        : type === 'stickerMessage' ? m?.stickerMessage
+        : type === 'videoMessage' ? m?.videoMessage
+        : type === 'audioMessage' ? m?.audioMessage
+        : type === 'documentMessage' ? m?.documentMessage
+        : null;
+      if (!media) return null;
+      const declared = Number((media as { fileLength?: number | Long }).fileLength ?? 0);
+      if (declared && declared > CAP) return null; // skip large files
 
       const buffer = (await downloadMediaMessage(
         msg,
@@ -707,9 +722,15 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         {},
         { logger: console as never, reuploadRequest: sock.updateMediaMessage },
       )) as Buffer;
-      if (!buffer || buffer.length > 5 * 1024 * 1024) return null;
+      if (!buffer || buffer.length > CAP) return null;
 
-      const mime = media?.mimetype || (type === 'stickerMessage' ? 'image/webp' : 'image/jpeg');
+      const fallback =
+        type === 'stickerMessage' ? 'image/webp'
+        : type === 'videoMessage' ? 'video/mp4'
+        : type === 'audioMessage' ? 'audio/ogg'
+        : type === 'documentMessage' ? 'application/octet-stream'
+        : 'image/jpeg';
+      const mime = (media as { mimetype?: string }).mimetype || fallback;
       return `data:${mime};base64,${buffer.toString('base64')}`;
     } catch (err) {
       console.warn(`[Media] download failed session=${sessionId} type=${type}: ${String(err)}`);

@@ -79,12 +79,33 @@ function MediaBlock({ m }: { m: InboxMessage }) {
     : m.type === "poll" ? { Icon: BarChart3, text: (p.name as string) || "Poll" }
     : { Icon: FileText, text: m.type }
   const pollOptions = m.type === "poll" && Array.isArray(p.options) ? (p.options as string[]) : null
-  // Images/stickers carry their data URI in mediaUrl (sent or downloaded).
-  const imgSrc = (m.type === "image" || m.type === "sticker") && m.mediaUrl ? m.mediaUrl : null
+  // Media carries its data URI in mediaUrl (sent or downloaded).
+  const src = m.mediaUrl ?? null
+  const isImage = (m.type === "image" || m.type === "sticker") && src
+  const isVideo = m.type === "video" && src
+  const isAudio = m.type === "audio" && src
+  const isDoc = m.type === "document" && src
+  const fileName = (p.fileName as string) || "file"
   return (
     <div className="flex flex-col gap-1">
-      {imgSrc ? (
-        <ImageView src={imgSrc} alt={(p.fileName as string) || cap || "image"} />
+      {isImage ? (
+        <ImageView src={src!} alt={fileName || cap || "image"} />
+      ) : isVideo ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video src={src!} controls className="max-h-72 max-w-full rounded-md" />
+      ) : isAudio ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <audio src={src!} controls className="w-56 max-w-full" />
+      ) : isDoc ? (
+        <a
+          href={src!}
+          download={fileName}
+          className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5 transition hover:bg-background/60"
+        >
+          <FileText className="size-4 shrink-0 opacity-80" />
+          <span className="truncate text-xs">{label.text}</span>
+          <Download className="ml-auto size-3.5 shrink-0 opacity-70" />
+        </a>
       ) : (
         <div className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5">
           <label.Icon className="size-4 shrink-0 opacity-80" />
