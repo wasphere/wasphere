@@ -172,7 +172,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
   const [forwardMsg, setForwardMsg] = React.useState<InboxMessage | null>(null)
 
   const reactToMessage = (m: InboxMessage, emoji: string) => {
-    void sendReply({ kind: "reaction", targetMessageId: m.waMessageId, emoji })
+    void sendReply({ kind: "reaction", targetMessageId: m.waMessageId, emoji, targetFromMe: m.fromMe })
   }
 
   const updateNotes = async (notes: string) => {
