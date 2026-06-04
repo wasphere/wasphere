@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { serverGet } from "@/lib/server-fetch"
+import { DEMO_MODE } from "@/lib/demo"
 import { InboxView } from "@/components/inbox/inbox-view"
 import type { Conversation, Paginated } from "@/components/inbox/types"
 
@@ -12,8 +13,9 @@ async function fetchWorkspaceId(token: string): Promise<string | null> {
 }
 
 export default async function InboxPage() {
+  // DEMO_MODE serves seeded fixtures with no auth (serverGet returns demo data).
   const token = (await cookies()).get("wa_access")?.value ?? ""
-  if (!token) redirect("/login?reason=expired")
+  if (!DEMO_MODE && !token) redirect("/login?reason=expired")
 
   const workspaceId = await fetchWorkspaceId(token)
   if (!workspaceId) redirect("/login?reason=expired")

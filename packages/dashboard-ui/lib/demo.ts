@@ -61,6 +61,60 @@ const workspace = {
   waServerConfigured: true,
 };
 
+// ─── Inbox demo fixtures (fake numbers, recomputed fresh each request) ─────────
+
+const mins = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
+const avatar = (seed: string) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+const contact = (id: string, phone: string, name: string, avatarUrl: string | null) =>
+  ({ id, phone, name, savedName: null, whatsappName: name, avatarUrl });
+
+function demoConversations() {
+  return [
+    { id: "conv-1", sessionId: "sales-team", status: "OPEN", lastMessageAt: mins(3), lastPreview: "Perfect, I just sent the brief 📎", unreadCount: 2, tags: ["lead", "website"], sessionDeletedAt: null, notes: "Interested in the Growth plan — follow up Friday.", contact: contact("ct-1", "923001234567", "Ayesha Khan", avatar("Ayesha")) },
+    { id: "conv-2", sessionId: "support-bot", status: "OPEN", lastMessageAt: mins(64), lastPreview: "🗳️ Voted: Growth", unreadCount: 0, tags: ["support"], sessionDeletedAt: null, notes: null, contact: contact("ct-2", "14155550133", "Daniel Reyes", avatar("Daniel")) },
+    { id: "conv-3", sessionId: "sales-team", status: "OPEN", lastMessageAt: mins(180), lastPreview: "📷 Photo", unreadCount: 1, tags: ["vip"], sessionDeletedAt: null, notes: null, contact: contact("ct-3", "923219876543", "Fatima Noor", null) },
+    { id: "conv-4", sessionId: "support-bot", status: "OPEN", lastMessageAt: mins(330), lastPreview: "🎙️ Voice note", unreadCount: 0, tags: [], sessionDeletedAt: null, notes: null, contact: contact("ct-4", "447700900123", "Mark Chen", avatar("Mark")) },
+    { id: "conv-5", sessionId: "sales-team", status: "RESOLVED", lastMessageAt: mins(1440), lastPreview: "Thank you so much! ⭐", unreadCount: 0, tags: ["vip", "lead"], sessionDeletedAt: null, notes: null, contact: contact("ct-5", "393331112233", "Sofia Rossi", avatar("Sofia")) },
+  ];
+}
+
+function demoMessages(cid: string) {
+  const mk = (i: number, o: Record<string, unknown>) => ({
+    id: `${cid}-m${i}`, conversationId: cid, waMessageId: `wamid-${cid}-${i}`,
+    direction: "INBOUND", type: "text", body: null, mediaUrl: null, payload: null,
+    status: "DELIVERED", fromMe: false, waTimestamp: mins(60), createdAt: mins(60), ...o,
+  });
+  const out = (i: number, o: Record<string, unknown>) => mk(i, { direction: "OUTBOUND", fromMe: true, status: "READ", ...o });
+  const map: Record<string, ReturnType<typeof mk>[]> = {
+    "conv-1": [
+      mk(1, { body: "Hi! Do you build WhatsApp automations?", waTimestamp: mins(20) }),
+      out(2, { body: "Absolutely — what's your use case?", waTimestamp: mins(18) }),
+      mk(3, { type: "image", mediaUrl: "https://picsum.photos/seed/wasphere-brief/420/280", body: "Here's our current flow", payload: { caption: "Here's our current flow" }, waTimestamp: mins(6) }),
+      mk(4, { body: "Perfect, I just sent the brief 📎", waTimestamp: mins(3) }),
+    ],
+    "conv-2": [
+      mk(1, { body: "Hey, my last invoice looks wrong.", waTimestamp: mins(190) }),
+      out(2, { type: "document", body: "Invoice_2026_05.pdf", payload: { fileName: "Invoice_2026_05.pdf", mimetype: "application/pdf" }, waTimestamp: mins(175) }),
+      out(3, { type: "poll", status: "DELIVERED", body: "Which plan works best for you?", payload: { name: "Which plan works best for you?", options: ["Starter", "Growth", "Scale"], selectableCount: 1 }, waTimestamp: mins(70) }),
+      mk(4, { type: "poll_vote", body: "🗳️ Voted: Growth", payload: { pollName: "Which plan works best for you?", selectedOptions: ["Growth"] }, waTimestamp: mins(64) }),
+    ],
+    "conv-3": [
+      mk(1, { type: "image", mediaUrl: "https://picsum.photos/seed/wasphere-product/420/300", body: "Is this still in stock?", payload: { caption: "Is this still in stock?" }, waTimestamp: mins(180) }),
+    ],
+    "conv-4": [
+      mk(1, { body: "Can you give me a call?", waTimestamp: mins(335) }),
+      mk(2, { type: "audio", payload: { seconds: 24, mimetype: "audio/ogg" }, waTimestamp: mins(330) }),
+    ],
+    "conv-5": [
+      out(1, { body: "Your order #4821 has shipped 🚚", waTimestamp: mins(1500) }),
+      mk(2, { body: "Thank you so much! ⭐", waTimestamp: mins(1440) }),
+      mk(3, { type: "reaction", body: "❤️", waTimestamp: mins(1438) }),
+    ],
+  };
+  // API returns newest-first; the UI reverses for display.
+  return (map[cid] ?? []).slice().reverse();
+}
+
 interface DemoResult { ok: boolean; status: number; data: unknown }
 const ok = (data: unknown): DemoResult => ({ ok: true, status: 200, data });
 
@@ -93,6 +147,35 @@ export function demoApiResponse(path: string, method: string): DemoResult {
   if (/\/webhooks\/[^/]+\/test$/.test(p)) return ok({ success: true, statusCode: 200, error: null });
   if (/\/api-keys$/.test(p)) return ok(apiKeys);
   if (/\/audit-logs$/.test(p)) return ok(auditLogs);
+
+  // Inbox
+  if (/\/conversations$/.test(p)) {
+    const qs = new URLSearchParams(path.split("?")[1] ?? "");
+    const status = qs.get("status");
+    const sessionId = qs.get("sessionId");
+    const q = (qs.get("q") ?? "").toLowerCase();
+    let items = demoConversations();
+    if (status) items = items.filter((c) => c.status === status);
+    if (sessionId) items = items.filter((c) => c.sessionId === sessionId);
+    if (q) {
+      const digits = q.replace(/[^0-9]/g, "");
+      items = items.filter(
+        (c) =>
+          c.contact.name.toLowerCase().includes(q) ||
+          (c.lastPreview ?? "").toLowerCase().includes(q) ||
+          (digits && c.contact.phone.includes(digits)),
+      );
+    }
+    return ok({ items, nextCursor: null });
+  }
+  if (/\/conversations\/[^/]+\/messages$/.test(p)) {
+    const cid = p.split("/").slice(-2)[0];
+    return ok({ items: demoMessages(cid), nextCursor: null });
+  }
+  if (/\/conversations\/[^/]+$/.test(p)) {
+    const cid = p.split("/").pop();
+    return ok(demoConversations().find((c) => c.id === cid) ?? demoConversations()[0]);
+  }
 
   // Unknown GET — empty success so the UI renders without errors.
   return ok({});
