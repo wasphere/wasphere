@@ -271,17 +271,25 @@ Each PR is independently reviewable + revertible; 1–3 ship the abstraction wit
 
 ---
 
-## 15. Open questions for the maintainer
+## 15. Decisions (maintainer-approved 2026-06-05)
 
-1. **One number, both providers?** A Meta number and a Baileys number are *different* WhatsApp registrations. True same-number failover isn't possible — failover means "send via a *different* configured number/provider." Confirm we frame failover as *provider/number* failover, not magic same-number.
-2. **App Secret requirement.** Verifying `X-Hub-Signature-256` needs the Meta **App Secret**. Require it, or allow Meta sessions without signature verification (verify-token only) for simpler setup? (Recommend: require app secret for production; allow a documented "unverified" dev mode.)
-3. **Media handling for Meta.** Send media by **public link** (simplest) or **upload to `/media` first** (works for private files, costs a round-trip)? v1.2 default = link, with upload as a follow-up?
-4. **Cost surfacing depth.** "Cost transparency" in v1.2 = show Meta's conversation-category + a per-session counter from status webhooks? Or just link to Meta's billing? (Recommend: a simple counter; full analytics is Pro.)
-5. **Templates UX.** v1.2 has a template *send* path + a placeholder; do we also list approved templates (read-only via the Business Management API) in v1.2, or defer all template UX to v1.3?
-6. **Feature flag default.** Ship `META_PROVIDER_ENABLED=false` by default in v1.2.0 (opt-in) and flip to on in v1.2.1 once soaked? Or on from v1.2.0?
-7. **Interactive vs poll for confirmations.** On Meta, order-confirmation must use interactive buttons (no polls). Should the Inbox "send poll" composer auto-offer "send buttons" when the active session is Meta? (Small polish, but affects the Shopify-on-Meta story.)
-8. **Graph API version pinning.** Pin a specific `GRAPH_VERSION` (e.g. `v21.0`) in config and document the upgrade cadence?
+1. **Failover framing — provider/number failover.** Same-number failover is impossible (Meta and Baileys are different registrations). Failover = "send via a *different* configured session (different number)." UI copy: *"Configure a backup session (different number) for automatic failover."* Documented to prevent unrealistic expectations.
+2. **App Secret — required in production.** `X-Hub-Signature-256` verification is mandatory in prod. A dev-only **"unverified mode"** is allowed with explicit warnings, **blocked when `NODE_ENV=production`**, and a warning logged on every unverified webhook receipt.
+3. **Media — link mode first.** v1.2 default is **public link**; a `mediaUploadMode` config flag is added (`'link'` default, `'upload'` reserved for v1.3). The trade-off is documented in the setup wizard.
+4. **Cost surfacing — simple counter only.** Per-session/day message count from Meta status webhooks + a monthly estimate using Meta's published rates, with a clear **"Estimate only"** disclaimer and a link to Meta Business Manager. **No** optimization / savings calculator (those are Pro).
+5. **Templates — read-only list + send.** v1.2 ships the `sendTemplate` path, a **read-only** list of approved templates (Business Management API), and template metadata in responses. Create/edit/approval UX is **v1.3**.
+6. **Feature flag — off in v1.2.0.** Ship `META_PROVIDER_ENABLED=false` (opt-in for early adopters), soak 1–2 weeks, flip default to `true` in **v1.2.1**. Existing deployments are unaffected (sessions default to Baileys).
+7. **Confirmations on Meta — auto-suggest buttons.** On Meta sessions the composer **disables "Send poll"** (tooltip) and **recommends "Send buttons"** for confirmation flows, with an inline suggestion. Documented as the Shopify-on-Meta foundation.
+8. **Graph API version — pin `v22.0`.** `GRAPH_VERSION` env var (default `v22.0`, configurable per deployment). Document Meta's deprecation schedule; plan version bumps ~every 6 months; CI tests against the last 2 versions.
 
 ---
 
-*Once approved, implementation follows the §14 PR plan — branch per commit-group, CI green, no merge to main without maintainer sign-off.*
+## 16. Testing discipline
+
+- **Real PostgreSQL** (Docker) — no DB mocks. The 13 existing inbox integration tests stay green throughout.
+- **Baileys** — real test WhatsApp number (existing).
+- **Meta** — a real Meta Business test account for end-to-end; in integration tests, **mock only the Graph HTTP boundary** (not WhatsApp behaviour — the no-mock rule is about Baileys, not an HTTP API we call).
+
+---
+
+*Approved — implementation follows the §14 PR plan: branch per commit-group, CI green, no merge to main without maintainer sign-off. Estimated 3–4 weeks across the 8 PRs; PRs 1–3 (the abstraction) are the load-bearing ones.*
