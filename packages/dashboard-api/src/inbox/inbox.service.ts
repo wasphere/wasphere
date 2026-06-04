@@ -219,10 +219,14 @@ export class InboxService {
         break;
       case 'poll':
         endpoint = `${base}/poll`;
-        sendBody = { to, name: dto.pollName, options: dto.options };
+        sendBody = { to, name: dto.pollName, options: dto.options, selectableCount: dto.selectableCount ?? 1 };
         msgType = 'poll';
         msgBody = dto.pollName ?? null;
-        msgPayload = { name: dto.pollName ?? null, options: dto.options ?? [] };
+        msgPayload = {
+          name: dto.pollName ?? null,
+          options: dto.options ?? [],
+          selectableCount: dto.selectableCount ?? 1,
+        };
         break;
       case 'reaction':
         endpoint = `${base}/reaction`;

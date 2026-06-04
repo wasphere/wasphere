@@ -94,6 +94,7 @@ export function ContactPanel({
   onToggleMute?: (muted: boolean) => void
 }) {
   const c = conversation.contact
+  const visible = recent.filter((m) => m.type !== "unknown")
   const images = recent.filter((m) => (m.type === "image" || m.type === "sticker") && m.mediaUrl)
   const docs = recent.filter((m) => m.type === "document")
   const mediaCount = images.length + docs.length
@@ -176,11 +177,11 @@ export function ContactPanel({
 
       {/* recent activity */}
       <Section title="Recent activity">
-        {recent.length === 0 ? (
+        {visible.length === 0 ? (
           <span className="text-xs text-muted-foreground">No messages yet</span>
         ) : (
           <ul className="flex flex-col gap-2.5">
-            {recent.slice(0, 8).map((m) => (
+            {visible.slice(0, 8).map((m) => (
               <li key={m.id} className="flex items-start gap-2 text-xs">
                 <span className="mt-0.5 shrink-0 text-muted-foreground">{m.fromMe ? "↗" : "↘"}</span>
                 <span className="line-clamp-2 flex-1 text-foreground/80">{m.body ?? `[${m.type}]`}</span>

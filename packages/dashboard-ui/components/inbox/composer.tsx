@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
@@ -64,6 +65,7 @@ export function Composer({
   const [pollOpen, setPollOpen] = React.useState(false)
   const [pollName, setPollName] = React.useState("")
   const [pollOptions, setPollOptions] = React.useState<string[]>(["", ""])
+  const [pollMulti, setPollMulti] = React.useState(false)
   const [pollSending, setPollSending] = React.useState(false)
 
   const busy = sending || sessionOffline
@@ -118,9 +120,14 @@ export function Composer({
     if (!name) { toast.error("Poll needs a question."); return }
     if (opts.length < 2) { toast.error("Poll needs at least 2 options."); return }
     setPollSending(true)
-    const ok = await onSend({ kind: "poll", pollName: name, options: opts })
+    const ok = await onSend({
+      kind: "poll",
+      pollName: name,
+      options: opts,
+      selectableCount: pollMulti ? opts.length : 1,
+    })
     setPollSending(false)
-    if (ok) { setPollOpen(false); setPollName(""); setPollOptions(["", ""]) }
+    if (ok) { setPollOpen(false); setPollName(""); setPollOptions(["", ""]); setPollMulti(false) }
   }
 
   return (
@@ -245,6 +252,10 @@ export function Composer({
                 </Button>
               )}
             </div>
+            <label className="flex cursor-pointer items-center justify-between rounded-md border p-2.5">
+              <span className="text-sm text-foreground">Allow multiple answers</span>
+              <Switch checked={pollMulti} onCheckedChange={(v) => setPollMulti(!!v)} />
+            </label>
           </div>
           <DialogFooter>
             <Button onClick={() => void sendPoll()} disabled={pollSending}>

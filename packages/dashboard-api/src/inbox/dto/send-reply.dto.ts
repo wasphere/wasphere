@@ -3,10 +3,13 @@ import {
   ArrayMinSize,
   IsArray,
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -77,6 +80,14 @@ export class SendReplyDto {
   @IsString({ each: true })
   @MaxLength(100, { each: true })
   options?: string[];
+
+  @ApiPropertyOptional({ description: 'Max selectable poll options (1 = single choice, default)' })
+  @ValidateIf((o) => o.kind === 'poll')
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  selectableCount?: number;
 
   // reaction — WA message id to react to + the emoji (empty string clears it)
   @ApiPropertyOptional({ description: 'WA message id to react to' })

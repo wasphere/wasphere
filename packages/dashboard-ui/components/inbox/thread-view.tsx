@@ -249,8 +249,12 @@ export function ThreadView({
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = React.useState(true)
 
-  // newest-last for display (API returns newest-first)
-  const ordered = React.useMemo(() => [...messages].reverse(), [messages])
+  // newest-last for display (API returns newest-first). Hide undecryptable
+  // placeholders ("unknown") — they're transient noise that decode on retry.
+  const ordered = React.useMemo(
+    () => [...messages].reverse().filter((m) => m.type !== "unknown"),
+    [messages],
+  )
 
   React.useEffect(() => {
     if (atBottom && scrollRef.current) {
