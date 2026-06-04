@@ -123,9 +123,25 @@ export class InboxIngestService {
     // Idempotency guard (the @@unique constraint is the ultimate backstop).
     const dup = await this.prisma.message.findUnique({
       where: { workspaceId_waMessageId: { workspaceId, waMessageId } },
-      select: { id: true },
+      select: { id: true, type: true, conversationId: true },
     });
-    if (dup) return;
+    if (dup) {
+      // A message can arrive first as an undecryptable placeholder (envelope
+      // failed) and then again decrypted after a Signal retry — same waMessageId.
+      // Upgrade the placeholder in place instead of dropping the real content.
+      if (dup.type === 'unknown' && type !== 'unknown') {
+        await this.prisma.message.update({
+          where: { id: dup.id },
+          data: { type, body, payload: content as Prisma.InputJsonValue, mediaUrl },
+        });
+        await this.prisma.conversation.update({
+          where: { id: dup.conversationId },
+          data: { lastPreview: previewFor(type, body) },
+        });
+        this.events.emit({ type: 'message.new', workspaceId, conversationId: dup.conversationId });
+      }
+      return;
+    }
 
     const conversationId = await this.prisma.$transaction(async (tx) => {
       const contact = await tx.contact.upsert({

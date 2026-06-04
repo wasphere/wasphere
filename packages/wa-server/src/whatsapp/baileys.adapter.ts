@@ -729,8 +729,12 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       const creationKey = update?.pollCreationMessageKey;
       if (!creationKey?.id || !update?.vote) return;
 
-      // The original poll message holds the encryption secret + option names.
-      const pollContent = this.messageCache.get(sessionId)?.get(creationKey.id)?.message;
+      // The CACHED poll message holds the secret + the true author. Its
+      // key.fromMe tells us who created the poll — the vote's
+      // pollCreationMessageKey does NOT (it's from the voter's perspective, so
+      // fromMe is always false there).
+      const cachedPoll = this.messageCache.get(sessionId)?.get(creationKey.id);
+      const pollContent = cachedPoll?.message;
       const encKey = pollContent?.messageContextInfo?.messageSecret;
       if (!pollContent || !encKey) return; // poll not in cache — cannot decrypt
 
@@ -741,21 +745,21 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
       // Voter + creator can each be addressed by LID or phone-number (PN).
       // Per Baileys issue #2342 the winning combo for current WhatsApp is
-      // creator=LID + voter=PN, so we try that first and fall back to the
-      // others until GCM auth succeeds.
+      // creator=LID + voter=PN, so we list those first.
       const vk = msg.key as typeof msg.key & { senderPn?: string | null };
       const voterPn = vk.senderPn ? jidNormalizedUser(vk.senderPn) : '';
       const voterLid = msg.key.remoteJid?.endsWith('@lid')
         ? jidNormalizedUser(msg.key.remoteJid)
         : '';
-      const voterAuthor = getKeyAuthor(msg.key, meId);
-      const creatorAuthor = getKeyAuthor(creationKey, meId);
-      const creatorLid = creationKey.fromMe ? meLid : voterLid;
 
-      const creators = [...new Set([creatorLid, creatorAuthor].filter(Boolean))];
-      const voters = [...new Set([voterPn, voterLid, voterAuthor].filter(Boolean))];
+      const pollFromMe = cachedPoll?.key?.fromMe ?? false;
+      const creators = pollFromMe
+        ? [...new Set([meLid, meId].filter(Boolean))] // we created the poll
+        : [...new Set([voterLid, voterPn, getKeyAuthor(creationKey, meId)].filter(Boolean))];
+      const voters = [...new Set([voterPn, voterLid].filter(Boolean))];
 
       let voteMsg: ReturnType<typeof decryptPollVote> | undefined;
+      let lastErr: unknown;
       outer: for (const pollCreatorJid of creators) {
         for (const voterJid of voters) {
           try {
@@ -765,14 +769,21 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
               pollMsgId: creationKey.id,
               voterJid,
             });
+            console.log(`[PollVote] OK creator=${pollCreatorJid} voter=${voterJid}`);
             break outer;
-          } catch {
-            /* wrong JID combo — try the next one */
+          } catch (e) {
+            lastErr = e;
           }
         }
       }
       if (!voteMsg) {
-        console.warn(`[PollVote] all JID combos failed session=${sessionId}`);
+        console.warn(
+          `[PollVote] all combos failed session=${sessionId} ` +
+            `meId=${meId} meLid=${meLid || '(none)'} encKey=${encKey ? 'yes' : 'NO'} ` +
+            `creators=${JSON.stringify(creators)} voters=${JSON.stringify(voters)} ` +
+            `creationKey=${JSON.stringify({ id: creationKey.id, fromMe: creationKey.fromMe, participant: creationKey.participant, remoteJid: creationKey.remoteJid })} ` +
+            `err=${String(lastErr)}`,
+        );
         return;
       }
 
