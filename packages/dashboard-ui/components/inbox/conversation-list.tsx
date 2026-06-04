@@ -1,10 +1,11 @@
 "use client"
 
-import { Search } from "lucide-react"
+import { Search, Smartphone } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { cn } from "@/lib/utils"
@@ -26,6 +27,9 @@ export function ConversationList({
   statusTab,
   onStatusTab,
   loading,
+  sessions = [],
+  sessionFilter = "",
+  onSessionFilter,
 }: {
   conversations: Conversation[]
   selectedId: string | null
@@ -35,6 +39,9 @@ export function ConversationList({
   statusTab: ConversationStatus
   onStatusTab: (s: ConversationStatus) => void
   loading: boolean
+  sessions?: string[]
+  sessionFilter?: string
+  onSessionFilter?: (s: string) => void
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -48,6 +55,25 @@ export function ConversationList({
             className="pl-8"
           />
         </div>
+        {sessions.length > 1 && onSessionFilter && (
+          <Select
+            value={sessionFilter || "__all__"}
+            onValueChange={(v) => onSessionFilter(v === "__all__" ? "" : (v ?? ""))}
+          >
+            <SelectTrigger className="h-8 w-full text-xs">
+              <span className="flex items-center gap-1.5 truncate">
+                <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{sessionFilter || "All sessions"}</span>
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All sessions</SelectItem>
+              {sessions.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Tabs value={statusTab} onValueChange={(v) => onStatusTab(v as ConversationStatus)}>
           <TabsList className="w-full">
             <TabsTrigger value="OPEN" className="flex-1">Open</TabsTrigger>

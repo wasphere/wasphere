@@ -129,9 +129,14 @@ function ReactButton({ m, onReact }: { m: InboxMessage; onReact: (m: InboxMessag
       >
         <SmilePlus className="size-4 text-muted-foreground" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={m.fromMe ? "end" : "start"} className="flex gap-0.5 p-1">
+      <DropdownMenuContent align={m.fromMe ? "end" : "start"} className="flex gap-0.5 rounded-full p-1.5 shadow-md">
         {QUICK_REACTIONS.map((e) => (
-          <button key={e} onClick={() => onReact(m, e)} className="rounded p-1 text-lg leading-none hover:bg-muted" type="button">
+          <button
+            key={e}
+            onClick={() => onReact(m, e)}
+            className="rounded-full p-1.5 text-xl leading-none transition-transform hover:scale-125 hover:bg-muted"
+            type="button"
+          >
             {e}
           </button>
         ))}

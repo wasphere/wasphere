@@ -45,6 +45,8 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
   const [connected, setConnected] = React.useState(false)
   const [sound, setSound] = React.useState(true)
   const [mutedIds, setMutedIds] = React.useState<Set<string>>(new Set())
+  const [sessions, setSessions] = React.useState<string[]>([])
+  const [sessionFilter, setSessionFilter] = React.useState<string>("") // "" = all sessions (universal inbox)
 
   const selectedId = selected?.id ?? null
   const selectedIdRef = React.useRef<string | null>(null)
@@ -74,13 +76,23 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
     if (!opts?.silent) setListLoading(true)
     const qs = new URLSearchParams({ status: statusTab, limit: "50" })
     if (search.trim()) qs.set("q", search.trim())
+    if (sessionFilter) qs.set("sessionId", sessionFilter)
     try {
       const res = await fetch(`/api/inbox/conversations?${qs}`)
       const data = (await res.json()) as Paginated<Conversation>
       setConversations(data.items ?? [])
+      // keep the session-filter dropdown populated from all sessions that have
+      // chats (only when viewing the universal inbox, so we never lose options).
+      if (!sessionFilter && !search.trim()) {
+        setSessions((prev) => {
+          const ids = new Set(prev)
+          for (const c of data.items ?? []) ids.add(c.sessionId)
+          return [...ids]
+        })
+      }
     } catch { /* keep current */ }
     finally { setListLoading(false) }
-  }, [statusTab, search])
+  }, [statusTab, search, sessionFilter])
 
   // refetch list when tab or (debounced) search changes
   React.useEffect(() => {
@@ -239,6 +251,9 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
             statusTab={statusTab}
             onStatusTab={setStatusTab}
             loading={listLoading}
+            sessions={sessions}
+            sessionFilter={sessionFilter}
+            onSessionFilter={setSessionFilter}
           />
         </div>
 

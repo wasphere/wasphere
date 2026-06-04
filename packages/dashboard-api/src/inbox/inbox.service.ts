@@ -66,6 +66,7 @@ export class InboxService {
 
     const where: Prisma.ConversationWhereInput = { workspaceId };
     if (q.status) where.status = q.status;
+    if (q.sessionId) where.sessionId = q.sessionId;
     if (q.q) {
       const term = q.q.trim();
       const digits = term.replace(/[^0-9]/g, '');

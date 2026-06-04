@@ -32,4 +32,10 @@ export class ListConversationsQueryDto {
   @IsString()
   @MaxLength(200)
   q?: string;
+
+  @ApiPropertyOptional({ description: 'Filter to a single WA session (omit for the universal inbox)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  sessionId?: string;
 }
