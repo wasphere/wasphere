@@ -4,6 +4,8 @@ export const WEBHOOK_EVENTS = [
   'message.read',
   'message.failed',
   'message.received',
+  // decrypted poll vote — used by Shopify/Woo order-confirmation flows (PRD §2.3)
+  'poll.vote',
   'session.connected',
   'session.disconnected',
   'session.qr',

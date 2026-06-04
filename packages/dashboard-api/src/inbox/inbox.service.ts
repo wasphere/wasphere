@@ -15,6 +15,13 @@ import { ListMessagesQueryDto } from './dto/list-messages-query.dto';
 import { PatchConversationDto } from './dto/patch-conversation.dto';
 import { SendReplyDto } from './dto/send-reply.dto';
 
+// List/preview labels for outbound non-text replies (no body text to show).
+const OUTBOUND_PREVIEW: Record<string, string> = {
+  image: '📷 Photo',
+  document: '📄 Document',
+  poll: '📊 Poll',
+};
+
 @Injectable()
 export class InboxService {
   private readonly logger = new Logger(InboxService.name);
@@ -59,13 +66,17 @@ export class InboxService {
 
     const where: Prisma.ConversationWhereInput = { workspaceId };
     if (q.status) where.status = q.status;
+    if (q.sessionId) where.sessionId = q.sessionId;
     if (q.q) {
       const term = q.q.trim();
+      const digits = term.replace(/[^0-9]/g, '');
       where.OR = [
         { lastPreview: { contains: term, mode: 'insensitive' } },
         { contact: { is: { whatsappName: { contains: term, mode: 'insensitive' } } } },
         { contact: { is: { savedName: { contains: term, mode: 'insensitive' } } } },
-        { contact: { is: { phone: { contains: term.replace(/[^0-9]/g, '') } } } },
+        // only match on phone when the query actually has digits — otherwise
+        // `contains: ""` matches every row and the search returns everything.
+        ...(digits ? [{ contact: { is: { phone: { contains: digits } } } } as const] : []),
       ];
     }
 
@@ -130,6 +141,10 @@ export class InboxService {
     const data: Prisma.ConversationUpdateInput = {};
     if (dto.status) data.status = dto.status;
     if (dto.tags) data.tags = dto.tags as Prisma.InputJsonValue;
+    if (dto.notes !== undefined) {
+      const existing = (convo.metadata as Record<string, unknown> | null) ?? {};
+      data.metadata = { ...existing, notes: dto.notes } as Prisma.InputJsonValue;
+    }
 
     const updated = await this.prisma.conversation.update({
       where: { id: convo.id },
@@ -172,16 +187,68 @@ export class InboxService {
     // getDecryptedToken re-checks membership + that the WA server is configured.
     const { waServerUrl, token } = await this.workspaces.getDecryptedToken(userId, workspaceId);
     const to = convo.contact.phone;
-    const url =
+    const base =
       `${waServerUrl.replace(/\/+$/, '')}/api/sessions/` +
-      `${encodeURIComponent(convo.sessionId)}/messages/text`;
+      `${encodeURIComponent(convo.sessionId)}/messages`;
+    const kind = dto.kind ?? 'text';
+
+    // Map the reply kind -> (wa-server endpoint, request body, persisted shape).
+    let endpoint: string;
+    let sendBody: Record<string, unknown>;
+    let msgType: string;
+    let msgBody: string | null;
+    let msgPayload: Prisma.InputJsonValue | undefined;
+    // For sent images we keep the data URI so the thread can show the picture.
+    let msgMediaUrl: string | null = null;
+
+    switch (kind) {
+      case 'image':
+        endpoint = `${base}/image`;
+        sendBody = { to, url: dto.media, caption: dto.caption };
+        msgType = 'image';
+        msgBody = dto.caption ?? null;
+        msgPayload = dto.caption ? { caption: dto.caption } : undefined;
+        msgMediaUrl = dto.media ?? null;
+        break;
+      case 'document':
+        endpoint = `${base}/document`;
+        sendBody = { to, url: dto.media, fileName: dto.fileName, mimetype: dto.mimetype };
+        msgType = 'document';
+        msgBody = dto.fileName ?? null;
+        msgPayload = { fileName: dto.fileName ?? null, mimetype: dto.mimetype ?? null };
+        break;
+      case 'poll':
+        endpoint = `${base}/poll`;
+        sendBody = { to, name: dto.pollName, options: dto.options, selectableCount: dto.selectableCount ?? 1 };
+        msgType = 'poll';
+        msgBody = dto.pollName ?? null;
+        msgPayload = {
+          name: dto.pollName ?? null,
+          options: dto.options ?? [],
+          selectableCount: dto.selectableCount ?? 1,
+        };
+        break;
+      case 'reaction':
+        endpoint = `${base}/reaction`;
+        sendBody = { to, messageId: dto.targetMessageId, emoji: dto.emoji ?? '' };
+        msgType = 'reaction';
+        msgBody = dto.emoji ?? null;
+        msgPayload = undefined;
+        break;
+      default:
+        endpoint = `${base}/text`;
+        sendBody = { to, text: dto.text };
+        msgType = 'text';
+        msgBody = dto.text ?? '';
+        msgPayload = undefined;
+    }
 
     let resp: globalThis.Response;
     try {
-      resp = await fetch(url, {
+      resp = await fetch(endpoint, {
         method: 'POST',
         headers: { 'X-Api-Token': token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, text: dto.text }),
+        body: JSON.stringify(sendBody),
       });
     } catch (err) {
       this.logger.warn(`[Inbox] reply send transport error: ${String(err)}`);
@@ -189,16 +256,26 @@ export class InboxService {
     }
 
     if (!resp.ok) {
-      // 404 (session not found) / 5xx (disconnected) -> tell the UI to reconnect
-      this.logger.warn(`[Inbox] reply send failed status=${resp.status} session=${convo.sessionId}`);
+      // 404 (session not found) / 4xx (bad media) / 5xx (disconnected)
+      this.logger.warn(
+        `[Inbox] reply send failed status=${resp.status} kind=${kind} session=${convo.sessionId}`,
+      );
       throw new ServiceUnavailableException(
         'Session disconnected — reconnect to send.',
       );
     }
 
+    // Reactions attach to an existing message — nothing to persist in the thread.
+    if (kind === 'reaction') {
+      await this.writeAudit(convo.sessionId, 'POST', `/inbox/conversations/${conversationId}/messages`);
+      return { ok: true };
+    }
+
     const result = (await resp.json().catch(() => ({}))) as { messageId?: string };
     const waMessageId = result.messageId ?? `local-${randomUUID()}`;
     const waTimestamp = new Date();
+    const preview =
+      msgBody && msgBody.length ? msgBody.slice(0, 140) : OUTBOUND_PREVIEW[msgType] ?? msgType;
 
     const message = await this.prisma.message.create({
       data: {
@@ -206,8 +283,10 @@ export class InboxService {
         conversationId: convo.id,
         waMessageId,
         direction: 'OUTBOUND',
-        type: 'text',
-        body: dto.text,
+        type: msgType,
+        body: msgBody,
+        payload: msgPayload,
+        mediaUrl: msgMediaUrl,
         status: 'SENT',
         fromMe: true,
         waTimestamp,
@@ -216,7 +295,7 @@ export class InboxService {
 
     await this.prisma.conversation.update({
       where: { id: convo.id },
-      data: { lastPreview: dto.text.slice(0, 140), lastMessageAt: waTimestamp },
+      data: { lastPreview: preview, lastMessageAt: waTimestamp },
     });
 
     await this.writeAudit(convo.sessionId, 'POST', `/inbox/conversations/${conversationId}/messages`);
@@ -235,6 +314,7 @@ export class InboxService {
     unreadCount: number;
     tags: Prisma.JsonValue;
     sessionDeletedAt: Date | null;
+    metadata?: Prisma.JsonValue;
     contact: { id: string; jid: string; phone: string; whatsappName: string | null; savedName: string | null; avatarUrl: string | null };
   }) {
     return {
@@ -246,6 +326,7 @@ export class InboxService {
       unreadCount: c.unreadCount,
       tags: c.tags ?? [],
       sessionDeletedAt: c.sessionDeletedAt,
+      notes: (c.metadata as { notes?: string } | null)?.notes ?? null,
       contact: {
         id: c.contact.id,
         phone: c.contact.phone,

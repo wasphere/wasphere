@@ -12,6 +12,11 @@ import makeWASocket, {
   BaileysEventMap,
   proto,
   getContentType,
+  decryptPollVote,
+  getAggregateVotesInPollMessage,
+  getKeyAuthor,
+  jidNormalizedUser,
+  downloadMediaMessage,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
@@ -89,6 +94,11 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   private readonly messageCache = new Map<string, Map<string, proto.IWebMessageInfo>>();
   private readonly MESSAGE_CACHE_LIMIT = 100;
   private readonly qrMeta = new Map<string, { generatedAt: Date }>();
+  // Profile-picture URL cache keyed by `${sessionId}:${jid}`. WhatsApp pic URLs
+  // are temporary, so entries are refreshed after AVATAR_TTL_MS. A null url is
+  // cached too (contact has no pic / pic is private) to avoid re-fetching.
+  private readonly avatarCache = new Map<string, { url: string | null; at: number }>();
+  private readonly AVATAR_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
   constructor(private webhookService: WebhookService) {
     // Ensure sessions directory exists
@@ -556,13 +566,48 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         }
       }
 
+      // Poll votes arrive as an encrypted pollUpdateMessage — decrypt + emit
+      // a dedicated event, then skip the generic content path.
+      if (msg.message?.pollUpdateMessage) {
+        await this.handlePollVote(sessionId, msg);
+        continue;
+      }
+
       const contentType = getContentType(msg.message || {});
+      // Skip non-renderable wrapper/protocol messages (e.g. album child wrappers,
+      // sender-key distribution) — they leak in when sending media and otherwise
+      // show up as an empty "associatedChildMessage" bubble.
+      if (
+        contentType === 'associatedChildMessage' ||
+        contentType === 'senderKeyDistributionMessage' ||
+        contentType === 'protocolMessage' ||
+        contentType === 'messageContextInfo'
+      ) {
+        continue;
+      }
       const isGroup = msg.key.remoteJid?.endsWith('@g.us');
+
+      // LID addressing: remoteJid may be an opaque "<id>@lid". The real phone
+      // number (PN) is on key.senderPn. Forward both so the dashboard resolves
+      // the true number for display + as the reply target.
+      const lidKey = msg.key as typeof msg.key & {
+        senderPn?: string | null;
+        senderLid?: string | null;
+      };
+      const senderPn = lidKey.senderPn ?? null;
+
+      const senderJid = senderPn ?? msg.key.remoteJid ?? '';
+      const avatarUrl = await this.getAvatarUrl(sessionId, senderJid);
 
       const basePayload = {
         messageId: msg.key.id,
         from: msg.key.remoteJid,
         sender: msg.key.participant || msg.key.remoteJid,
+        // canonical phone-number JID (falls back to remoteJid when not @lid)
+        senderJid,
+        senderPn,
+        senderLid: lidKey.senderLid ?? (msg.key.remoteJid?.endsWith('@lid') ? msg.key.remoteJid : null),
+        avatarUrl,
         isGroup,
         timestamp: msg.messageTimestamp,
         type: contentType,
@@ -606,6 +651,19 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         content.replyMessageId = msg.message?.reactionMessage?.key?.id;
       }
 
+      // Download media (image/sticker/video/voice/audio/document) inline so the
+      // inbox can show or play it.
+      if (
+        contentType === 'imageMessage' ||
+        contentType === 'stickerMessage' ||
+        contentType === 'videoMessage' ||
+        contentType === 'audioMessage' ||
+        contentType === 'documentMessage'
+      ) {
+        const dataUri = await this.downloadInboundMedia(sessionId, msg, contentType);
+        if (dataUri) content.dataUri = dataUri;
+      }
+
       // Check if it's a reply/quoted message
       const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
       if (quotedMsg) {
@@ -617,6 +675,194 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
         content,
         message: sanitizeMessage(msg),
       });
+    }
+  }
+
+  /**
+   * Best-effort WhatsApp profile-picture URL for a contact, cached per session
+   * with a TTL. Returns null when the contact has no picture or it is private.
+   * Never throws — avatars are non-critical and must not block ingestion.
+   */
+  private async getAvatarUrl(sessionId: string, jid: string): Promise<string | null> {
+    if (!jid) return null;
+    const cacheKey = `${sessionId}:${jid}`;
+    const hit = this.avatarCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < this.AVATAR_TTL_MS) return hit.url;
+
+    const sock = this.sessions.get(sessionId);
+    if (!sock) return hit?.url ?? null;
+
+    let url: string | null = null;
+    try {
+      url = (await sock.profilePictureUrl(jid, 'image')) ?? null;
+    } catch {
+      url = null; // 404 (no pic) / 401 (private) / rate-limited
+    }
+    this.avatarCache.set(cacheKey, { url, at: Date.now() });
+    return url;
+  }
+
+  /**
+   * Downloads inbound visual media (image/sticker) and returns it as a base64
+   * data URI (≤5 MB) for inline display. Best-effort: never throws.
+   */
+  private async downloadInboundMedia(
+    sessionId: string,
+    msg: proto.IWebMessageInfo,
+    type: string,
+  ): Promise<string | null> {
+    const CAP = 16 * 1024 * 1024; // 16 MB inline cap (data URI); larger -> skip
+    try {
+      const sock = this.sessions.get(sessionId);
+      if (!sock) return null;
+      const m = msg.message;
+      const media =
+        type === 'imageMessage' ? m?.imageMessage
+        : type === 'stickerMessage' ? m?.stickerMessage
+        : type === 'videoMessage' ? m?.videoMessage
+        : type === 'audioMessage' ? m?.audioMessage
+        : type === 'documentMessage' ? m?.documentMessage
+        : null;
+      if (!media) return null;
+      const declared = Number((media as { fileLength?: number | Long }).fileLength ?? 0);
+      if (declared && declared > CAP) return null; // skip large files
+
+      const buffer = (await downloadMediaMessage(
+        msg,
+        'buffer',
+        {},
+        { logger: console as never, reuploadRequest: sock.updateMediaMessage },
+      )) as Buffer;
+      if (!buffer || buffer.length > CAP) return null;
+
+      const fallback =
+        type === 'stickerMessage' ? 'image/webp'
+        : type === 'videoMessage' ? 'video/mp4'
+        : type === 'audioMessage' ? 'audio/ogg'
+        : type === 'documentMessage' ? 'application/octet-stream'
+        : 'image/jpeg';
+      const mime = (media as { mimetype?: string }).mimetype || fallback;
+      return `data:${mime};base64,${buffer.toString('base64')}`;
+    } catch (err) {
+      console.warn(`[Media] download failed session=${sessionId} type=${type}: ${String(err)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Decrypts an inbound poll vote against the cached original poll message and
+   * emits a `message.received` event of type `poll_vote` carrying the resolved
+   * option names. Best-effort: poll decryption is fragile (needs the original
+   * poll's secret in cache), so any failure is logged and swallowed.
+   */
+  private async handlePollVote(sessionId: string, msg: proto.IWebMessageInfo): Promise<void> {
+    try {
+      const update = msg.message?.pollUpdateMessage;
+      const creationKey = update?.pollCreationMessageKey;
+      if (!creationKey?.id || !update?.vote) return;
+
+      // The CACHED poll message holds the secret + the true author. Its
+      // key.fromMe tells us who created the poll — the vote's
+      // pollCreationMessageKey does NOT (it's from the voter's perspective, so
+      // fromMe is always false there).
+      const cachedPoll = this.messageCache.get(sessionId)?.get(creationKey.id);
+      const pollContent = cachedPoll?.message;
+      const encKey = pollContent?.messageContextInfo?.messageSecret;
+      if (!pollContent || !encKey) return; // poll not in cache — cannot decrypt
+
+      const sock = this.sessions.get(sessionId);
+      const meId = sock?.user?.id ? jidNormalizedUser(sock.user.id) : '';
+      const myLid = (sock?.user as { lid?: string } | undefined)?.lid;
+      const meLid = myLid ? jidNormalizedUser(myLid) : '';
+
+      // Voter + creator can each be addressed by LID or phone-number (PN).
+      // Per Baileys issue #2342 the winning combo for current WhatsApp is
+      // creator=LID + voter=PN, so we list those first.
+      const vk = msg.key as typeof msg.key & { senderPn?: string | null };
+      const voterPn = vk.senderPn ? jidNormalizedUser(vk.senderPn) : '';
+      const voterLid = msg.key.remoteJid?.endsWith('@lid')
+        ? jidNormalizedUser(msg.key.remoteJid)
+        : '';
+
+      const pollFromMe = cachedPoll?.key?.fromMe ?? false;
+      const creators = pollFromMe
+        ? [...new Set([meLid, meId].filter(Boolean))] // we created the poll
+        : [...new Set([voterLid, voterPn, getKeyAuthor(creationKey, meId)].filter(Boolean))];
+      const voters = [...new Set([voterPn, voterLid].filter(Boolean))];
+
+      let voteMsg: ReturnType<typeof decryptPollVote> | undefined;
+      let lastErr: unknown;
+      outer: for (const pollCreatorJid of creators) {
+        for (const voterJid of voters) {
+          try {
+            voteMsg = decryptPollVote(update.vote, {
+              pollEncKey: encKey,
+              pollCreatorJid,
+              pollMsgId: creationKey.id,
+              voterJid,
+            });
+            console.log(`[PollVote] OK creator=${pollCreatorJid} voter=${voterJid}`);
+            break outer;
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+      }
+      if (!voteMsg) {
+        console.warn(
+          `[PollVote] all combos failed session=${sessionId} ` +
+            `meId=${meId} meLid=${meLid || '(none)'} encKey=${encKey ? 'yes' : 'NO'} ` +
+            `creators=${JSON.stringify(creators)} voters=${JSON.stringify(voters)} ` +
+            `creationKey=${JSON.stringify({ id: creationKey.id, fromMe: creationKey.fromMe, participant: creationKey.participant, remoteJid: creationKey.remoteJid })} ` +
+            `err=${String(lastErr)}`,
+        );
+        return;
+      }
+
+      const aggregated = getAggregateVotesInPollMessage(
+        { message: pollContent, pollUpdates: [{ pollUpdateMessageKey: msg.key, vote: voteMsg }] },
+        meId,
+      );
+      const selected = aggregated.filter((a) => a.voters.length > 0).map((a) => a.name);
+
+      const displaySenderPn = vk.senderPn ?? null;
+      const displayJid = displaySenderPn ?? msg.key.remoteJid ?? '';
+
+      await this.webhookService.fire('message.received', sessionId, {
+        messageId: msg.key.id,
+        from: msg.key.remoteJid,
+        sender: msg.key.participant || msg.key.remoteJid,
+        senderJid: displayJid,
+        senderPn: displaySenderPn,
+        senderLid: msg.key.remoteJid?.endsWith('@lid') ? msg.key.remoteJid : null,
+        avatarUrl: await this.getAvatarUrl(sessionId, displayJid),
+        isGroup: false,
+        timestamp: msg.messageTimestamp,
+        type: 'poll_vote',
+        content: {
+          pollMessageId: creationKey.id,
+          pollName: pollContent.pollCreationMessage?.name ?? pollContent.pollCreationMessageV3?.name,
+          selectedOptions: selected,
+          text: selected.length ? `🗳️ Voted: ${selected.join(', ')}` : '🗳️ Cleared their vote',
+        },
+        message: sanitizeMessage(msg),
+      });
+
+      // Dedicated, integration-friendly event so order-confirmation flows
+      // (Shopify/Woo, PRD §2.3) can subscribe to votes only — not all messages.
+      await this.webhookService.fire('poll.vote', sessionId, {
+        pollMessageId: creationKey.id,
+        pollName: pollContent.pollCreationMessage?.name ?? pollContent.pollCreationMessageV3?.name,
+        selectedOptions: selected,
+        voter: {
+          jid: displayJid,
+          phone: (displaySenderPn ?? msg.key.remoteJid ?? '').split('@')[0].replace(/[^0-9]/g, ''),
+        },
+        messageId: msg.key.id,
+        timestamp: msg.messageTimestamp,
+      });
+    } catch (err) {
+      console.warn(`[PollVote] decode failed session=${sessionId}: ${String(err)}`);
     }
   }
 
