@@ -85,26 +85,32 @@ export function ConversationList({
             {conversations.map((c) => {
               const active = c.id === selectedId
               return (
-                <li key={c.id}>
+                <li key={c.id} className="border-b last:border-0">
                   <button
                     type="button"
                     onClick={() => onSelect(c)}
                     className={cn(
-                      "flex w-full items-center gap-3 border-b px-3 py-2.5 text-left transition-colors",
-                      active ? "bg-accent" : "hover:bg-muted/60",
+                      "flex w-full items-center gap-3 border-l-2 px-3 py-2.5 text-left transition-colors",
+                      active ? "border-l-primary bg-primary/5" : "border-l-transparent hover:bg-muted/50",
                     )}
                   >
                     <Avatar className="size-10 shrink-0">
                       {c.contact.avatarUrl ? <AvatarImage src={c.contact.avatarUrl} alt="" /> : null}
                       <AvatarFallback className="text-xs">{initials(c.contact.name)}</AvatarFallback>
                     </Avatar>
-                    <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium text-foreground">{c.contact.name}</span>
-                        <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(c.lastMessageAt)}</span>
+                        <span className={cn("truncate text-sm text-foreground", c.unreadCount > 0 ? "font-semibold" : "font-medium")}>
+                          {c.contact.name}
+                        </span>
+                        <span className={cn("shrink-0 text-[11px]", c.unreadCount > 0 ? "font-medium text-primary" : "text-muted-foreground")}>
+                          {relativeTime(c.lastMessageAt)}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-xs text-muted-foreground">{c.lastPreview ?? "—"}</span>
+                        <span className={cn("truncate text-xs", c.unreadCount > 0 ? "text-foreground/80" : "text-muted-foreground")}>
+                          {c.lastPreview ?? "—"}
+                        </span>
                         {c.unreadCount > 0 && (
                           <Badge className="h-5 min-w-5 shrink-0 justify-center rounded-full px-1.5 text-[11px]">
                             {c.unreadCount}

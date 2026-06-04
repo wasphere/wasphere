@@ -5,7 +5,6 @@ import { X } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { clockTime } from "./relative-time"
 import type { Conversation, InboxMessage } from "./types"
 
@@ -60,22 +59,25 @@ export function ContactPanel({
 }) {
   const c = conversation.contact
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto p-4">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <Avatar className="size-16">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-muted/30 p-3">
+      {/* contact card */}
+      <div className="flex flex-col items-center gap-2 rounded-xl border bg-card p-4 text-center shadow-sm">
+        <Avatar className="size-16 ring-2 ring-primary/10">
           {c.avatarUrl ? <AvatarImage src={c.avatarUrl} alt="" /> : null}
-          <AvatarFallback>{initials(c.name)}</AvatarFallback>
+          <AvatarFallback className="text-lg">{initials(c.name)}</AvatarFallback>
         </Avatar>
         <div>
           <div className="text-sm font-semibold text-foreground">{c.name}</div>
           <div className="text-xs text-muted-foreground">+{c.phone}</div>
         </div>
+        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-medium text-primary">
+          WhatsApp contact
+        </span>
       </div>
 
-      <Separator className="my-4" />
-
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Tags</span>
+      {/* tags card */}
+      <div className="flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-sm">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tags</span>
         {onTagsChange ? (
           <TagEditor tags={conversation.tags} onChange={onTagsChange} />
         ) : conversation.tags.length ? (
@@ -89,14 +91,13 @@ export function ContactPanel({
         )}
       </div>
 
-      <Separator className="my-4" />
-
-      <div className="flex flex-col gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Recent activity</span>
+      {/* recent activity card */}
+      <div className="flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-sm">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Recent activity</span>
         {recent.length === 0 ? (
           <span className="text-xs text-muted-foreground">No messages yet</span>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-2.5">
             {recent.slice(0, 8).map((m) => (
               <li key={m.id} className="flex items-start gap-2 text-xs">
                 <span className="mt-0.5 shrink-0 text-muted-foreground">{m.fromMe ? "↗" : "↘"}</span>
@@ -108,8 +109,7 @@ export function ContactPanel({
         )}
       </div>
 
-      <Separator className="my-4" />
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
+      <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
         A unified <span className="font-medium">Customer view</span> — all conversations for this number across
         your sessions — is coming in a future release.
       </p>

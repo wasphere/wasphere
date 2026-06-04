@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, SmilePlus, Download } from "lucide-react"
+import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -140,10 +140,44 @@ function ReactButton({ m, onReact }: { m: InboxMessage; onReact: (m: InboxMessag
   )
 }
 
-function Bubble({ m, onReact }: { m: InboxMessage; onReact?: (m: InboxMessage, emoji: string) => void }) {
+function MsgMenu({ m, onForward }: { m: InboxMessage; onForward: (m: InboxMessage) => void }) {
+  const canForward = m.type === "text" || m.type === "image" || m.type === "sticker" || m.type === "poll"
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size="icon" className="size-7 shrink-0 opacity-0 transition group-hover:opacity-100" />}
+      >
+        <MoreHorizontal className="size-4 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={m.fromMe ? "end" : "start"}>
+        {canForward && (
+          <DropdownMenuItem onClick={() => onForward(m)}>
+            <Forward className="mr-2 size-4" /> Forward
+          </DropdownMenuItem>
+        )}
+        {m.body && (
+          <DropdownMenuItem onClick={() => void navigator.clipboard.writeText(m.body ?? "")}>
+            <Copy className="mr-2 size-4" /> Copy text
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function Bubble({
+  m,
+  onReact,
+  onForward,
+}: {
+  m: InboxMessage
+  onReact?: (m: InboxMessage, emoji: string) => void
+  onForward?: (m: InboxMessage) => void
+}) {
   const isTextual = m.type === "text"
   return (
     <div className={cn("group flex items-center gap-1.5", m.fromMe ? "justify-end" : "justify-start")}>
+      {m.fromMe && onForward && <MsgMenu m={m} onForward={onForward} />}
       {onReact && m.fromMe && <ReactButton m={m} onReact={onReact} />}
       <div
         className={cn(
@@ -164,6 +198,7 @@ function Bubble({ m, onReact }: { m: InboxMessage; onReact?: (m: InboxMessage, e
         </div>
       </div>
       {onReact && !m.fromMe && <ReactButton m={m} onReact={onReact} />}
+      {!m.fromMe && onForward && <MsgMenu m={m} onForward={onForward} />}
     </div>
   )
 }
@@ -174,6 +209,7 @@ export function ThreadView({
   loading,
   onResolveToggle,
   onReact,
+  onForward,
   children,
 }: {
   conversation: Conversation
@@ -181,6 +217,7 @@ export function ThreadView({
   loading: boolean
   onResolveToggle: () => void
   onReact?: (m: InboxMessage, emoji: string) => void
+  onForward?: (m: InboxMessage) => void
   children: React.ReactNode // composer
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -248,7 +285,7 @@ export function ThreadView({
               m.type === "reaction" || m.type === "poll_vote" ? (
                 <SystemLine key={m.id} m={m} />
               ) : (
-                <Bubble key={m.id} m={m} onReact={onReact} />
+                <Bubble key={m.id} m={m} onReact={onReact} onForward={onForward} />
               ),
             )}
           </div>

@@ -11,6 +11,7 @@ import { ConversationList } from "./conversation-list"
 import { ThreadView } from "./thread-view"
 import { Composer } from "./composer"
 import { ContactPanel } from "./contact-panel"
+import { ForwardDialog } from "./forward-dialog"
 import type { Conversation, ConversationStatus, InboxMessage, OutboundReply, Paginated } from "./types"
 
 const SOUND_KEY = "wasphere.inbox.soundEnabled"
@@ -132,6 +133,8 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
     }
   }
 
+  const [forwardMsg, setForwardMsg] = React.useState<InboxMessage | null>(null)
+
   const reactToMessage = (m: InboxMessage, emoji: string) => {
     void sendReply({ kind: "reaction", targetMessageId: m.waMessageId, emoji })
   }
@@ -216,6 +219,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
               loading={msgLoading}
               onResolveToggle={toggleResolve}
               onReact={reactToMessage}
+              onForward={setForwardMsg}
             >
               <>
                 <div className="flex items-center gap-1 border-t px-2 py-1 md:hidden">
@@ -241,6 +245,13 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
           </div>
         )}
       </div>
+
+      <ForwardDialog
+        message={forwardMsg}
+        conversations={conversations}
+        currentId={selectedId}
+        onClose={() => setForwardMsg(null)}
+      />
     </div>
   )
 }
