@@ -25,10 +25,14 @@ npm-debug.log*
 .idea/
 .vscode/
 
-# internal — agent definitions and design docs (contains PRD)
+# ─── INTERNAL DOCS — NEVER COMMIT TO PUBLIC REPO (NO EXCEPTIONS) ───
+# Design docs, PRDs, strategy, roadmaps, competitive analysis stay LOCAL only.
+# See CLAUDE.md "Public Repo Hygiene". Public-facing docs go in README/CHANGELOG.
 .claude/
+docs/
 /docs/*
-# …but public testing docs are committed for contributors
-!/docs/testing/
+docs/designs/
+docs/internal/
+*.PRD.md
 CLAUDE.md
 docker-compose.test-ports.yml
