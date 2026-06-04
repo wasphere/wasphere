@@ -122,8 +122,9 @@ export class MessagesService implements OnApplicationShutdown {
     to: string,
     messageId: string,
     emoji: string,
+    fromMe?: boolean,
   ): Promise<SendResult> {
-    return this.adapter.sendReaction(sessionId, to, messageId, emoji);
+    return this.adapter.sendReaction(sessionId, to, messageId, emoji, fromMe);
   }
 
   async sendGif(sessionId: string, to: string, gifUrl: string, caption?: string): Promise<SendResult> {

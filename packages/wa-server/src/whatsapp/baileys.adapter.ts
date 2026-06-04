@@ -1172,6 +1172,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     to: string,
     messageId: string,
     emoji: string,
+    fromMe?: boolean,
   ): Promise<SendResult> {
     const sock = this.getSocket(sessionId);
     await this.applyRandomDelay(sessionId);
@@ -1179,7 +1180,10 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     const result = await sock.sendMessage(jid, {
       react: {
         text: emoji,
-        key: { remoteJid: jid, id: messageId },
+        // fromMe must be true to react to a message WE sent — otherwise WhatsApp
+        // looks for a (non-existent) inbound message with that id and the
+        // reaction silently no-ops.
+        key: { remoteJid: jid, id: messageId, fromMe: fromMe ?? false },
       },
     });
     return { messageId: result?.key?.id, status: 'sent' };

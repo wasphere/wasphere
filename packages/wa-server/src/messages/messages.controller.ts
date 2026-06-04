@@ -244,7 +244,7 @@ export class MessagesController {
     @Param('sessionId', ValidateSessionIdPipe) sid: string,
     @Body() body: SendReactionDto,
   ) {
-    return this.messagesService.sendReaction(sid, body.to, body.messageId, body.emoji);
+    return this.messagesService.sendReaction(sid, body.to, body.messageId, body.emoji, body.fromMe);
   }
 
   @Post('gif')
