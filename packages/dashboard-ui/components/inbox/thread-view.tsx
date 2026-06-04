@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, SmilePlus } from "lucide-react"
+import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, SmilePlus, Download } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot } from "@/components/ui/status-dot"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,34 @@ function Ticks({ status }: { status: InboxMessage["status"] }) {
   if (status === "DELIVERED") return <CheckCheck className="size-3.5 opacity-70" />
   if (status === "FAILED") return <span className="text-[10px] text-destructive">failed</span>
   return <Check className="size-3.5 opacity-70" />
+}
+
+// Tap an image to open a lightbox with a Download button.
+function ImageView({ src, alt }: { src: string; alt: string }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="block cursor-zoom-in">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={alt} className="max-h-64 max-w-full rounded-md object-cover" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent showCloseButton className="max-w-3xl gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={alt} className="max-h-[78vh] w-full rounded object-contain" />
+          <div className="flex justify-end">
+            <a
+              href={src}
+              download={alt && alt !== "image" ? alt : "wasphere-image.jpg"}
+              className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              <Download className="size-4" /> Download
+            </a>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
 }
 
 function MediaBlock({ m }: { m: InboxMessage }) {
@@ -55,8 +84,7 @@ function MediaBlock({ m }: { m: InboxMessage }) {
   return (
     <div className="flex flex-col gap-1">
       {imgSrc ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imgSrc} alt={cap ?? "image"} className="max-h-64 max-w-full rounded-md object-cover" />
+        <ImageView src={imgSrc} alt={(p.fileName as string) || cap || "image"} />
       ) : (
         <div className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5">
           <label.Icon className="size-4 shrink-0 opacity-80" />
