@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://github.com/wasphere/wasphere/actions/workflows/ci.yml"><img src="https://github.com/wasphere/wasphere/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <img src="https://img.shields.io/badge/version-1.0.0-10b981.svg" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-1.1.0--rc1-10b981.svg" alt="Version"/>
   <img src="https://img.shields.io/badge/license-MIT-10b981.svg" alt="License"/>
   <img src="https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg" alt="Node"/>
   <img src="https://img.shields.io/badge/NestJS-10.x-E0234E.svg" alt="NestJS"/>
@@ -78,6 +78,32 @@ WaSphere is two cleanly separated services so the GPL-licensed WhatsApp engine s
 ---
 
 ## 🎯 Features
+
+### 📥 Inbox — *new in v1.1*
+
+A realtime, two-pane WhatsApp **Inbox** right in your dashboard — send, receive, and manage conversations without leaving WaSphere.
+
+<p align="center">
+  <img src="packages/dashboard-ui/public/screenshots/inbox-desktop.png" alt="WaSphere Inbox — desktop: conversation list, a thread with image/video/voice note, and a contact panel with tags, notes and media" width="100%"/>
+</p>
+
+| Capability | What you get |
+| --- | --- |
+| Send & receive | text · image · video · voice notes · documents · stickers — inline players + download |
+| **Polls + vote tracking** | send a poll, receive the **decrypted vote** on a `poll.vote` webhook — powers Shopify / WooCommerce order confirmation |
+| Reactions · forward · copy | react to any message (inbound **or** your own), forward to another chat |
+| Tags · notes · mute | organise customers · private per-contact notes · per-chat mute |
+| Realtime | live updates over SSE with automatic polling fallback |
+| Multi-session filter | one universal inbox, or filter to a single WhatsApp number |
+| Mobile-ready | responsive layout, slide-in panels, tap-friendly actions |
+
+<p align="center">
+  <img src="packages/dashboard-ui/public/screenshots/inbox-poll.png" alt="WaSphere Inbox — order-confirmation poll with a decrypted vote" width="60%"/>
+  &nbsp;
+  <img src="packages/dashboard-ui/public/screenshots/inbox-mobile.png" alt="WaSphere Inbox — mobile view with media" width="27%"/>
+</p>
+
+> 📖 Full v1.1 release notes: [CHANGELOG → 1.1.0](CHANGELOG.md) · try it live: **[demo.wasphere.com](https://demo.wasphere.com)**
 
 ### Core
 
@@ -251,11 +277,14 @@ wasphere/
 
 ## 🗺️ Roadmap
 
-### v1.1
-- Inbox UI — receive messages and view threads in the dashboard
-- Rich per-message-type phone preview
-- Per-webhook recent-events log + custom signing secret input
-- New-workspace onboarding checklist + real-time Overview event ticker
+### v1.1 — ✅ shipped ([release notes](CHANGELOG.md))
+- **Inbox** — realtime two-pane WhatsApp inbox: send/receive text + media, **polls with decrypted vote tracking**, reactions, forward, tags, notes, multi-session, mobile
+- `poll.vote` webhook for Shopify / WooCommerce order-confirmation flows
+- 13 integration tests against real PostgreSQL
+
+### v1.2 — Scale & Reliability
+- Streaming media endpoint for large files · location-map + contact-card previews
+- Meta Cloud API option · multi-session auto-failover · browser notifications · conversation assignment
 
 ### v1.5
 - MySQL / SQLite support (PostgreSQL-only today)
