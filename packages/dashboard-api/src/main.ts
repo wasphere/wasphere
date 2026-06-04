@@ -81,15 +81,18 @@ async function bootstrap(): Promise<void> {
   });
 
   const { json: expressJson, urlencoded: expressUrlEncoded } = await import('express');
+  // 25mb accommodates inbound media forwarded as base64 from wa-server (e.g. a
+  // ~16MB WhatsApp video inflates to ~21MB as base64). Larger media is skipped
+  // inline; a streaming media endpoint is the v1.2 fix for big files.
   app.use(
     expressJson({
-      limit: '10mb',
+      limit: '25mb',
       verify: (req: import('http').IncomingMessage & { rawBody?: Buffer }, _res, buf) => {
         (req as { rawBody?: Buffer }).rawBody = buf;
       },
     }),
   );
-  app.use(expressUrlEncoded({ extended: true, limit: '10mb' }));
+  app.use(expressUrlEncoded({ extended: true, limit: '25mb' }));
 
   // Security headers. CSP and COEP are disabled because the Scalar docs UI
   // (/api/reference) needs inline scripts and cross-origin embeds — revisit in

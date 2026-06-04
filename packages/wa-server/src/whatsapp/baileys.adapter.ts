@@ -700,7 +700,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     msg: proto.IWebMessageInfo,
     type: string,
   ): Promise<string | null> {
-    const CAP = 10 * 1024 * 1024; // 10 MB inline cap (data URI); larger -> skip
+    const CAP = 16 * 1024 * 1024; // 16 MB inline cap (data URI); larger -> skip
     try {
       const sock = this.sessions.get(sessionId);
       if (!sock) return null;
