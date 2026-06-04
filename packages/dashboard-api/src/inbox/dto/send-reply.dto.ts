@@ -2,6 +2,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -102,4 +103,10 @@ export class SendReplyDto {
   @IsString()
   @MaxLength(16)
   emoji?: string;
+
+  @ApiPropertyOptional({ description: 'True if reacting to a message we sent (outbound)' })
+  @ValidateIf((o) => o.kind === 'reaction')
+  @IsOptional()
+  @IsBoolean()
+  targetFromMe?: boolean;
 }

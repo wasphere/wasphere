@@ -167,6 +167,7 @@ export interface IWhatsAppAdapter {
     to: string,
     messageId: string,
     emoji: string,
+    fromMe?: boolean,
   ): Promise<SendResult>;
 
   sendGif(

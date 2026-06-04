@@ -230,7 +230,7 @@ export class InboxService {
         break;
       case 'reaction':
         endpoint = `${base}/reaction`;
-        sendBody = { to, messageId: dto.targetMessageId, emoji: dto.emoji ?? '' };
+        sendBody = { to, messageId: dto.targetMessageId, emoji: dto.emoji ?? '', fromMe: dto.targetFromMe ?? false };
         msgType = 'reaction';
         msgBody = dto.emoji ?? null;
         msgPayload = undefined;
