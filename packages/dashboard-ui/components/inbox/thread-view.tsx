@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy } from "lucide-react"
+import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy, Maximize2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -58,6 +58,40 @@ function ImageView({ src, alt }: { src: string; alt: string }) {
   )
 }
 
+// Inline video player + a "full view" lightbox (big player + download).
+function VideoView({ src }: { src: string }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <div className="relative w-fit">
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      <video src={src} controls className="max-h-72 max-w-full rounded-md" />
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title="Full view"
+        className="absolute right-1.5 top-1.5 rounded-full bg-black/50 p-1 text-white transition hover:bg-black/70"
+      >
+        <Maximize2 className="size-3.5" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent showCloseButton className="max-w-4xl gap-2">
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video src={src} controls autoPlay className="max-h-[78vh] w-full rounded" />
+          <div className="flex justify-end">
+            <a
+              href={src}
+              download="wasphere-video.mp4"
+              className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              <Download className="size-4" /> Download
+            </a>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 function MediaBlock({ m }: { m: InboxMessage }) {
   const p = (m.payload ?? {}) as Record<string, unknown>
   const cap = (p.caption as string) || m.body
@@ -91,8 +125,7 @@ function MediaBlock({ m }: { m: InboxMessage }) {
       {isImage ? (
         <ImageView src={src!} alt={fileName || cap || "image"} />
       ) : isVideo ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <video src={src!} controls className="max-h-72 max-w-full rounded-md" />
+        <VideoView src={src!} />
       ) : isAudio ? (
         // eslint-disable-next-line jsx-a11y/media-has-caption
         <audio src={src!} controls className="w-56 max-w-full" />
