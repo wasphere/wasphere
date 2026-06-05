@@ -47,12 +47,14 @@ export class SessionsController {
   @ApiResponse({ status: 401, description: 'Missing or invalid X-Api-Token.' })
   @ApiResponse({ status: 422, description: 'Session with this ID already exists.' })
   create(@Body() body: CreateSessionDto) {
-    const { id, proxy, random_delay_min_ms, random_delay_max_ms, auto_read_on_receive, receive_enabled } = body;
+    const { id, proxy, random_delay_min_ms, random_delay_max_ms, auto_read_on_receive, receive_enabled, provider, fallbackProvider } = body;
     const config: Record<string, any> = {};
     if (random_delay_min_ms !== undefined) config['random_delay_min_ms'] = random_delay_min_ms;
     if (random_delay_max_ms !== undefined) config['random_delay_max_ms'] = random_delay_max_ms;
     if (auto_read_on_receive !== undefined) config['auto_read_on_receive'] = auto_read_on_receive;
     if (receive_enabled !== undefined) config['receive_enabled'] = receive_enabled;
+    if (provider !== undefined) config['provider'] = provider;
+    if (fallbackProvider !== undefined) config['fallbackProvider'] = fallbackProvider;
     return this.sessionsService.createSession(id, proxy, Object.keys(config).length > 0 ? config : undefined);
   }
 
