@@ -6,3 +6,5 @@
 export * from './provider.types';
 export * from './capabilities';
 export * from './capability-error';
+export * from './baileys.provider';
+export * from './provider-registry';
