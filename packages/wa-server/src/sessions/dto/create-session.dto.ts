@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, MaxLength, Matches, IsInt, Min, Max, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MaxLength, Matches, IsInt, Min, Max, IsBoolean, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSessionDto {
@@ -61,4 +61,21 @@ export class CreateSessionDto {
   @IsOptional()
   @IsBoolean()
   receive_enabled?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'WhatsApp engine for this session. "baileys" (default) uses the unofficial web protocol via QR. "meta" (official Cloud API) lands in a later release.',
+    enum: ['baileys', 'meta'],
+    default: 'baileys',
+  })
+  @IsOptional()
+  @IsIn(['baileys', 'meta'])
+  provider?: 'baileys' | 'meta';
+
+  @ApiPropertyOptional({
+    description: 'Optional backup provider used for opt-in send failover (failover behaviour is wired in a later release).',
+    enum: ['baileys', 'meta'],
+  })
+  @IsOptional()
+  @IsIn(['baileys', 'meta'])
+  fallbackProvider?: 'baileys' | 'meta';
 }
