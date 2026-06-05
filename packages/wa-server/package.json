@@ -5,6 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
+    "test": "tsc && node --test test/*.test.js",
     "start": "node dist/main.js",
     "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "pkg:linux": "pkg dist/main.js --target node20-linux-x64 --output builds/wa-server-linux",

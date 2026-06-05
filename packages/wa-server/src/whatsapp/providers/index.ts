@@ -5,5 +5,7 @@
 export * from './provider.types';
 export * from './capabilities';
 export * from './capability-error';
+export * from './meta-api-error';
 export * from './baileys.provider';
+export * from './meta-cloud.provider';
 export * from './provider-registry';
