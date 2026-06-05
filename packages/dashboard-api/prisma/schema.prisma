@@ -196,7 +196,7 @@ model PasswordResetToken {
 }
 
 // ===========================================================================
-// Inbox (v1.1 — "Receive & Observe"). See docs/designs/inbox.md (PR #110).
+// Inbox (v1.1 — "Receive & Observe").
 // Net-new, greenfield tables. Ingestion + REST + SSE land in later commits.
 // ===========================================================================
 

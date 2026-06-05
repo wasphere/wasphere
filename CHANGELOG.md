@@ -10,7 +10,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.1.0] - 2026-06-04
+## [1.1.0] - 2026-06-05
 
 The **Inbox** release — a realtime, two-pane WhatsApp inbox in the dashboard, plus
 the WhatsApp-correctness work needed to make it production-grade. Built on the
@@ -39,7 +39,7 @@ See PR #115 (implementation) and PR #110 (design doc).
   (`{ pollMessageId, pollName, selectedOptions, voter: { jid, phone } }`) for
   Shopify/WooCommerce order-confirmation flows; also delivered via `message.received`
 - **Inbox integration test suite** — 13 tests against a real PostgreSQL test DB
-  (`pnpm test:setup` / `pnpm test`); see `docs/testing/v1.1-inbox-test-plan.md`
+  (`pnpm test:setup` / `pnpm test`)
 
 ### Fixed (WhatsApp correctness, from live testing)
 
