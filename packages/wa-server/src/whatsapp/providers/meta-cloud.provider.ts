@@ -112,6 +112,21 @@ export class MetaCloudProvider implements MessageProvider {
   }
 
   /**
+   * Validate credentials without creating a session (the setup wizard's
+   * "Test connection"). Never throws — returns a typed result.
+   */
+  async testConnection(
+    creds: MetaCredentials,
+  ): Promise<{ ok: boolean; verifiedName?: string; phoneNumber?: string; error?: string }> {
+    try {
+      const v = await this.validateCreds(creds);
+      return { ok: true, verifiedName: v.verified_name, phoneNumber: v.display_phone_number };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' };
+    }
+  }
+
+  /**
    * Download inbound media by Graph media id → a base64 data URI (mirrors the
    * Baileys inbound-media path so the Inbox renders it identically). Two hops:
    * `GET /{mediaId}` → a short-lived URL, then fetch the bytes. Returns null on
