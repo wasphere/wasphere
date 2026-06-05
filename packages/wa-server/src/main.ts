@@ -192,7 +192,15 @@ async function bootstrap() {
     }),
   );
 
-  app.use(expressJson({ limit: '10mb' }));
+  app.use(
+    expressJson({
+      limit: '10mb',
+      // Preserve the raw bytes so the Meta webhook can verify X-Hub-Signature-256.
+      verify: (req, _res, buf) => {
+        (req as import('express').Request & { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
   app.use(expressUrlEncoded({ extended: true, limit: '10mb' }));
 
   // Raw Express middleware — must run before NestJS routing so it catches all requests

@@ -31,6 +31,8 @@ interface MetaSession {
 const GRAPH_HOST = 'https://graph.facebook.com';
 // Graph error code for "message outside the 24-hour customer-service window".
 const RE_ENGAGEMENT_CODE = 131047;
+// Inbound media is inlined as a data URI; cap it like the Baileys path.
+const MEDIA_CAP_BYTES = 16 * 1024 * 1024;
 
 /**
  * The Meta WhatsApp Cloud API engine as a {@link MessageProvider} (design §4).
@@ -102,6 +104,40 @@ export class MetaCloudProvider implements MessageProvider {
 
   status(sessionId: string): SessionStatus {
     return this.sessions.get(sessionId)?.status ?? 'disconnected';
+  }
+
+  /** The stored Meta credentials for a session (used by the webhook receiver). */
+  getCredentials(sessionId: string): MetaCredentials | undefined {
+    return this.sessions.get(sessionId)?.creds;
+  }
+
+  /**
+   * Download inbound media by Graph media id → a base64 data URI (mirrors the
+   * Baileys inbound-media path so the Inbox renders it identically). Two hops:
+   * `GET /{mediaId}` → a short-lived URL, then fetch the bytes. Returns null on
+   * any failure or when over the size cap — media is non-critical to ingestion.
+   */
+  async downloadMedia(sessionId: string, mediaId: string): Promise<string | null> {
+    const creds = this.sessions.get(sessionId)?.creds;
+    if (!creds || !mediaId) return null;
+    const auth = { Authorization: `Bearer ${creds.accessToken}` };
+    try {
+      const metaRes = await fetch(`${GRAPH_HOST}/${this.graphVersion}/${mediaId}`, { headers: auth });
+      if (!metaRes.ok) return null;
+      const meta = (await metaRes.json()) as { url?: string; mime_type?: string };
+      if (!meta.url) return null;
+      const binRes = await fetch(meta.url, { headers: auth });
+      if (!binRes.ok) return null;
+      const buf = Buffer.from(await binRes.arrayBuffer());
+      if (buf.length > MEDIA_CAP_BYTES) {
+        this.logger.warn(`[${sessionId}] Meta media ${mediaId} exceeds ${MEDIA_CAP_BYTES} bytes — skipped`);
+        return null;
+      }
+      return `data:${meta.mime_type || 'application/octet-stream'};base64,${buf.toString('base64')}`;
+    } catch (err) {
+      this.logger.warn(`[${sessionId}] Meta media download failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
   }
 
   // ── outbound ───────────────────────────────────────────────────────────

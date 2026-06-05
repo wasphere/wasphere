@@ -57,6 +57,10 @@ export class AppModule implements NestModule {
       .exclude(
         { path: 'health/live', method: RequestMethod.GET },
         { path: 'health/ready', method: RequestMethod.GET },
+        // Meta sends no API token — the webhook is authenticated by its
+        // verify-token handshake (GET) and X-Hub-Signature-256 HMAC (POST).
+        { path: 'meta/webhook/:sessionId', method: RequestMethod.GET },
+        { path: 'meta/webhook/:sessionId', method: RequestMethod.POST },
         ...docsPaths,
       )
       .forRoutes('*');
