@@ -8,6 +8,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### v1.2 "Reliability & Trust" — in progress (on `develop`)
+
+#### Added
+- **Meta WhatsApp Cloud API provider** (opt-in — `META_PROVIDER_ENABLED=false` by default). Run a session on the official Cloud API alongside Baileys behind one unified API:
+  - Send path: text · media (link mode) · location · contact · reaction · interactive (buttons/list) · template; `sendPoll` → capability error.
+  - Inbound webhook receiver `POST/GET /api/meta/webhook/:sessionId` — verify-token handshake + `X-Hub-Signature-256` HMAC (required in production); translates Meta events into the same internal events the Inbox already consumes; downloads inbound media.
+  - Capabilities introspection: `GET /api/sessions/:id/capabilities`.
+  - Setup wizard: provider radio (Baileys / Meta) + credentials form + **Test connection** + copy-paste callback URL.
+  - `GRAPH_VERSION` env (default `v22.0`).
+- **Anti-ban session controls** — new sessions default to a **4–12s** human-like random send delay; per-session **per-minute message cap** (`max_messages_per_minute`, enforced by a rolling-window limiter); the Anti-Ban controls are now always visible in Settings.
+- **Custom logo branding** — upload a workspace logo (Settings → Branding); shown in the sidebar.
+- **Update notifications** — the dashboard shows an "Update available vX.Y.Z" banner (compares the running version to the latest GitHub release) with release notes + Docker update steps.
+- **Opt-in send failover** — a session may set a `fallbackProvider`; a *retryable* send failure retries once on the backup provider (`via` recorded on the result).
+- **Auto version display** — the app shows its real version everywhere (single source from `package.json`); login footer credit.
+
+#### Notes
+- The Meta provider ships **dormant** (flag off) — existing Baileys deployments are unaffected until you opt in.
+
 ---
 
 ## [1.1.0] - 2026-06-05
