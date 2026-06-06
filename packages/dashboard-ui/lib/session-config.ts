@@ -3,6 +3,7 @@ export interface SessionConfig {
   random_delay_max_ms: number
   auto_read_on_receive: boolean
   receive_enabled: boolean
+  max_messages_per_minute: number
 }
 
 export interface SessionSummary {

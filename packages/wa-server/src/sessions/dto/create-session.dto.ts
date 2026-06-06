@@ -33,7 +33,7 @@ export class CreateSessionDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(60000)
+  @Max(300000)
   random_delay_min_ms?: number;
 
   @ApiPropertyOptional({
@@ -43,7 +43,7 @@ export class CreateSessionDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(60000)
+  @Max(300000)
   random_delay_max_ms?: number;
 
   @ApiPropertyOptional({
@@ -61,6 +61,16 @@ export class CreateSessionDto {
   @IsOptional()
   @IsBoolean()
   receive_enabled?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Maximum outgoing messages per rolling 60 seconds for this session (0 = unlimited). An anti-ban throughput cap — the server paces sends so this rate is never exceeded.',
+    example: 20,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1000)
+  max_messages_per_minute?: number;
 
   @ApiPropertyOptional({
     description: 'WhatsApp engine for this session. "baileys" (default) uses the unofficial web protocol via QR. "meta" (official Cloud API) lands in a later release.',

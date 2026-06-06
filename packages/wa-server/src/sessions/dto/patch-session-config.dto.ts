@@ -9,7 +9,7 @@ export class PatchSessionConfigDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(60000)
+  @Max(300000)
   random_delay_min_ms?: number;
 
   @ApiPropertyOptional({
@@ -19,7 +19,7 @@ export class PatchSessionConfigDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(60000)
+  @Max(300000)
   random_delay_max_ms?: number;
 
   @ApiPropertyOptional({
@@ -37,4 +37,14 @@ export class PatchSessionConfigDto {
   @IsOptional()
   @IsBoolean()
   receive_enabled?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Maximum outgoing messages per rolling 60 seconds (0 = unlimited). The server paces sends so this rate is never exceeded.',
+    example: 20,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1000)
+  max_messages_per_minute?: number;
 }

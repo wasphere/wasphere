@@ -25,6 +25,7 @@ interface FormState {
   random_delay_max_ms: number
   auto_read_on_receive: boolean
   receive_enabled: boolean
+  max_messages_per_minute: number
 }
 
 function msToSeconds(ms: number): string {
@@ -37,6 +38,7 @@ function configToForm(config: SessionConfig): FormState {
     random_delay_max_ms: config.random_delay_max_ms,
     auto_read_on_receive: config.auto_read_on_receive,
     receive_enabled: config.receive_enabled,
+    max_messages_per_minute: config.max_messages_per_minute ?? 0,
   }
 }
 
@@ -45,7 +47,8 @@ function formEqual(a: FormState, b: FormState): boolean {
     a.random_delay_min_ms === b.random_delay_min_ms &&
     a.random_delay_max_ms === b.random_delay_max_ms &&
     a.auto_read_on_receive === b.auto_read_on_receive &&
-    a.receive_enabled === b.receive_enabled
+    a.receive_enabled === b.receive_enabled &&
+    a.max_messages_per_minute === b.max_messages_per_minute
   )
 }
 
@@ -59,6 +62,16 @@ export function AntiBanControls({ sessions }: AntiBanControlsProps) {
   const [form, setForm] = React.useState<FormState | null>(null)
 
   const isDirty = form !== null && original !== null && !formEqual(form, original)
+
+  // Auto-select the first session on mount so the controls are always visible
+  // (users no longer have to discover the dropdown to see any settings).
+  React.useEffect(() => {
+    if (!selectedId && sessions.length > 0) {
+      setSelectedId(sessions[0].id)
+      loadSessionConfig(sessions[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions])
 
   async function loadSessionConfig(sessionId: string) {
     setLoading(true)
@@ -75,6 +88,7 @@ export function AntiBanControls({ sessions }: AntiBanControlsProps) {
         random_delay_max_ms: 0,
         auto_read_on_receive: false,
         receive_enabled: true,
+        max_messages_per_minute: 0,
       }
       const fs = configToForm(config)
       setOriginal(fs)
@@ -184,6 +198,13 @@ export function AntiBanControls({ sessions }: AntiBanControlsProps) {
           </Select>
         </div>
 
+        {/* Empty state — no sessions to configure yet */}
+        {sessions.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No sessions yet — create a session first, and its anti-ban controls will appear here.
+          </p>
+        )}
+
         {/* Loading state — skeleton placeholders */}
         {loading && (
           <div className="flex flex-col gap-6">
@@ -233,8 +254,9 @@ export function AntiBanControls({ sessions }: AntiBanControlsProps) {
               <div>
                 <Label>Random Send Delay</Label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Adds a random pause between messages. 0 = disabled.
-                  Recommended: 2000–5000ms.
+                  Adds a human-like random pause before each message so sends
+                  don&apos;t look automated. 0 = disabled. New sessions default to
+                  4000–12000ms; raise it for heavier anti-ban safety.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4 max-w-sm">
@@ -246,7 +268,7 @@ export function AntiBanControls({ sessions }: AntiBanControlsProps) {
                     id="delay-min"
                     type="number"
                     min={0}
-                    max={60000}
+                    max={300000}
                     step={100}
                     value={form.random_delay_min_ms}
                     onChange={(e) =>
@@ -262,7 +284,7 @@ export function AntiBanControls({ sessions }: AntiBanControlsProps) {
                     id="delay-max"
                     type="number"
                     min={0}
-                    max={60000}
+                    max={300000}
                     step={100}
                     value={form.random_delay_max_ms}
                     onChange={(e) =>
@@ -279,6 +301,37 @@ export function AntiBanControls({ sessions }: AntiBanControlsProps) {
                   Each message will pause randomly between{" "}
                   {msToSeconds(form.random_delay_min_ms)} and{" "}
                   {msToSeconds(form.random_delay_max_ms)}
+                </p>
+              )}
+            </div>
+
+            {/* Field — Per-Minute Message Limit */}
+            <div className="flex flex-col gap-2">
+              <div>
+                <Label htmlFor="max-per-min">Per-Minute Message Limit</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Caps how many messages this session sends per minute. 0 = unlimited.
+                  The server automatically paces sends so this rate is never exceeded —
+                  a strong anti-ban guard for bulk sending.
+                </p>
+              </div>
+              <div className="max-w-sm">
+                <Input
+                  id="max-per-min"
+                  type="number"
+                  min={0}
+                  max={1000}
+                  step={1}
+                  value={form.max_messages_per_minute}
+                  onChange={(e) =>
+                    setField("max_messages_per_minute", Number(e.target.value))
+                  }
+                />
+              </div>
+              {form.max_messages_per_minute > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Up to {form.max_messages_per_minute} messages/min
+                  {" "}(≈ {form.max_messages_per_minute * 60} per hour max).
                 </p>
               )}
             </div>
