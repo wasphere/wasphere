@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   SendResult,
   SessionInfo,
@@ -45,15 +47,59 @@ const MEDIA_CAP_BYTES = 16 * 1024 * 1024;
  * `META_PROVIDER_ENABLED=true` and a session's `provider` is `meta`.
  */
 @Injectable()
-export class MetaCloudProvider implements MessageProvider {
+export class MetaCloudProvider implements MessageProvider, OnApplicationBootstrap {
   readonly id: ProviderId = 'meta';
   readonly capabilities: ProviderCapabilities = META_CAPABILITIES;
 
   private readonly logger = new Logger(MetaCloudProvider.name);
   private readonly sessions = new Map<string, MetaSession>();
+  // Meta creds persist as JSON under the same gitignored sessions/ dir that
+  // already holds Baileys account credentials — same trust boundary.
+  private readonly sessionsDir = './sessions';
 
   private get graphVersion(): string {
     return process.env.GRAPH_VERSION || 'v22.0';
+  }
+
+  /** Restore persisted Meta sessions on boot so they survive restarts. */
+  onApplicationBootstrap(): void {
+    let entries: string[] = [];
+    try {
+      entries = fs.existsSync(this.sessionsDir) ? fs.readdirSync(this.sessionsDir) : [];
+    } catch {
+      return;
+    }
+    for (const id of entries) {
+      const file = path.join(this.sessionsDir, id, 'meta.json');
+      try {
+        if (!fs.existsSync(file) || fs.lstatSync(file).isSymbolicLink()) continue;
+        const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as { creds: MetaCredentials; config?: SessionConfig };
+        if (parsed?.creds?.kind !== 'meta') continue;
+        const info: SessionInfo = {
+          id,
+          status: 'connected',
+          retryCount: 0,
+          lastDisconnectReason: null,
+          config: { ...(parsed.config as SessionConfig), provider: 'meta' } as SessionConfig,
+        };
+        this.sessions.set(id, { creds: parsed.creds, status: 'connected', info });
+        this.logger.log(`[${id}] Restored Meta session`);
+      } catch (err) {
+        this.logger.warn(`[${id}] Failed to restore Meta session: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+
+  private persist(sessionId: string, creds: MetaCredentials, config: SessionConfig): void {
+    try {
+      const dir = path.join(this.sessionsDir, sessionId);
+      fs.mkdirSync(dir, { recursive: true });
+      const tmp = path.join(dir, 'meta.json.tmp');
+      fs.writeFileSync(tmp, JSON.stringify({ creds, config }), 'utf8');
+      fs.renameSync(tmp, path.join(dir, 'meta.json'));
+    } catch (err) {
+      this.logger.warn(`[${sessionId}] Failed to persist Meta creds: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   // ── lifecycle ────────────────────────────────────────────────────────────
@@ -95,15 +141,35 @@ export class MetaCloudProvider implements MessageProvider {
     };
 
     this.sessions.set(sessionId, { creds, status, info });
+    if (status === 'connected') this.persist(sessionId, creds, info.config);
     return info;
   }
 
   async destroy(sessionId: string): Promise<void> {
     this.sessions.delete(sessionId);
+    try {
+      fs.rmSync(path.join(this.sessionsDir, sessionId, 'meta.json'), { force: true });
+    } catch {
+      /* best-effort */
+    }
   }
 
   status(sessionId: string): SessionStatus {
     return this.sessions.get(sessionId)?.status ?? 'disconnected';
+  }
+
+  has(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
+  /** All Meta sessions (for the unified session list). */
+  getAllSessions(): SessionInfo[] {
+    return Array.from(this.sessions.values()).map((s) => s.info);
+  }
+
+  /** Info for a single Meta session, or undefined if not a Meta session. */
+  getSessionInfo(sessionId: string): SessionInfo | undefined {
+    return this.sessions.get(sessionId)?.info;
   }
 
   /** The stored Meta credentials for a session (used by the webhook receiver). */

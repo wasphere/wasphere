@@ -88,4 +88,36 @@ export class CreateSessionDto {
   @IsOptional()
   @IsIn(['baileys', 'meta'])
   fallbackProvider?: 'baileys' | 'meta';
+
+  // ── Meta Cloud API credentials (required when provider = 'meta') ──────────
+
+  @ApiPropertyOptional({ description: 'Meta WhatsApp Phone Number ID (provider=meta).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  metaPhoneNumberId?: string;
+
+  @ApiPropertyOptional({ description: 'Meta permanent access token (provider=meta).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
+  metaAccessToken?: string;
+
+  @ApiPropertyOptional({ description: 'Meta WhatsApp Business Account ID (provider=meta).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  metaWabaId?: string;
+
+  @ApiPropertyOptional({ description: 'Webhook verify token you choose (provider=meta).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  metaVerifyToken?: string;
+
+  @ApiPropertyOptional({ description: 'Meta app secret for webhook signature verification (provider=meta; required in production).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  metaAppSecret?: string;
 }
