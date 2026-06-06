@@ -1,6 +1,6 @@
 {
   "name": "@wasphere/wa-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "WaSphere WA Server - Standalone WhatsApp binary",
   "main": "dist/main.js",
   "scripts": {

@@ -2,6 +2,7 @@
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
+import { APP_VERSION } from "@/lib/version";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -52,7 +53,7 @@ export function AppHeader() {
           </>
         )}
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 rounded-sm font-medium">
-          v1.0
+          v{APP_VERSION}
         </Badge>
       </div>
 

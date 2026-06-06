@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MessageSquare } from "lucide-react";
+import { APP_VERSION } from "@/lib/version";
 
 function SessionNotice() {
   const searchParams = useSearchParams();
@@ -148,9 +149,22 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground">
-          WaSphere — Self-hosted WhatsApp automation
-        </p>
+        <div className="text-center text-xs text-muted-foreground">
+          <p>
+            Made with <span className="text-red-500" aria-hidden>❤</span> by{" "}
+            <a
+              href="https://github.com/waqasahmedwaseer"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground/70 hover:text-primary hover:underline"
+            >
+              Waqas Ahmed Waseer
+            </a>
+          </p>
+          <p className="mt-1 text-muted-foreground/70">
+            WaSphere · Self-hosted WhatsApp automation · v{APP_VERSION}
+          </p>
+        </div>
       </div>
 
       {/* ── Right panel — dark brand panel ───────────────── */}
