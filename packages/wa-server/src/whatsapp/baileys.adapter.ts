@@ -85,6 +85,8 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   private sessions = new Map<string, WASocket>();
   private sessionInfo = new Map<string, SessionInfo>();
   private readonly sessionConfigs = new Map<string, SessionConfig>();
+  // Per-session outgoing-send timestamps (ms) for the per-minute rate cap.
+  private readonly sendWindow = new Map<string, number[]>();
   private readonly sessionsDir = './sessions';
   private readonly MAX_RETRIES = 5;
   private readonly RETRY_DELAY_MS = 5000;
@@ -173,11 +175,36 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
   }
 
   private async applyRandomDelay(sessionId: string): Promise<void> {
+    // Per-minute throughput cap first, then the human-like random pause.
+    await this.applyRateLimit(sessionId);
     const config = this.sessionConfigs.get(sessionId) ?? SESSION_CONFIG_DEFAULTS;
     const { random_delay_min_ms: min, random_delay_max_ms: max } = config;
     if (min === 0 && max === 0) return;
     const delay = min + Math.floor(Math.random() * (max - min + 1));
     await new Promise(r => setTimeout(r, delay));
+  }
+
+  /**
+   * Enforce the per-session `max_messages_per_minute` cap with a rolling 60s
+   * window. When the cap is hit, pace the send by waiting until the oldest send
+   * in the window ages out — so the configured rate is never exceeded. 0 = off.
+   */
+  private async applyRateLimit(sessionId: string): Promise<void> {
+    const max = (this.sessionConfigs.get(sessionId) ?? SESSION_CONFIG_DEFAULTS).max_messages_per_minute ?? 0;
+    if (!max || max <= 0) return;
+    const WINDOW = 60_000;
+    const prune = (arr: number[], now: number) => arr.filter((t) => now - t < WINDOW);
+
+    let now = Date.now();
+    let win = prune(this.sendWindow.get(sessionId) ?? [], now);
+    if (win.length >= max) {
+      const waitMs = WINDOW - (now - win[0]) + 1;
+      await new Promise((r) => setTimeout(r, waitMs));
+      now = Date.now();
+      win = prune(win, now);
+    }
+    win.push(now);
+    this.sendWindow.set(sessionId, win);
   }
 
   // ─── Proxy helpers ─────────────────────────────────────────────────────
@@ -291,6 +318,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
     this.sessionInfo.delete(sessionId);
     this.messageCache.delete(sessionId);
     this.qrMeta.delete(sessionId);
+    this.sendWindow.delete(sessionId);
 
     // Delete stored auth files
     const sessionPath = this.resolveSessionPath(sessionId);
