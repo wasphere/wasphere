@@ -4,6 +4,7 @@ import { SessionsService } from './sessions.service';
 import { ValidateSessionIdPipe } from '../common/validate-session-id.pipe';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { PatchSessionConfigDto } from './dto/patch-session-config.dto';
+import { MetaTestConnectionDto } from './dto/meta-test-connection.dto';
 
 @ApiTags('Sessions')
 @Controller('sessions')
@@ -34,6 +35,30 @@ export class SessionsController {
   @ApiResponse({ status: 404, description: 'Session not found.' })
   getOne(@Param('id', ValidateSessionIdPipe) id: string) {
     return this.sessionsService.getSessionInfo(id);
+  }
+
+  // GET /api/sessions/:id/capabilities — provider capabilities for the session
+  @Get(':id/capabilities')
+  @ApiOperation({
+    summary: 'Get provider capabilities',
+    description: 'Returns which message features this session\'s provider supports (groups, polls, templates, …) so the UI can hide unsupported actions.',
+  })
+  @ApiParam({ name: 'id', description: 'Session identifier', example: 'my-session' })
+  @ApiResponse({ status: 200, description: '{ provider, capabilities }.' })
+  @ApiResponse({ status: 404, description: 'Session not found.' })
+  getCapabilities(@Param('id', ValidateSessionIdPipe) id: string) {
+    return this.sessionsService.getCapabilities(id);
+  }
+
+  // POST /api/sessions/meta/test-connection — validate Meta creds (setup wizard)
+  @Post('meta/test-connection')
+  @ApiOperation({
+    summary: 'Test Meta Cloud API credentials',
+    description: 'Validates a Phone Number ID + access token against the Graph API without creating a session. Returns the verified business name on success.',
+  })
+  @ApiResponse({ status: 200, description: '{ ok, verifiedName?, phoneNumber?, error? }.' })
+  testMetaConnection(@Body() dto: MetaTestConnectionDto) {
+    return this.sessionsService.testMetaConnection(dto);
   }
 
   // POST /api/sessions — create new session (starts QR process)

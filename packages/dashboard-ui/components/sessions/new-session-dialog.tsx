@@ -1,9 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { Check, Copy, ExternalLink, Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -11,8 +13,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { cn } from "@/lib/utils"
 
 const SESSION_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/
+const META_DOCS = "https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
+
+type Provider = "baileys" | "meta"
 
 interface NewSession {
   id: string
@@ -26,30 +33,87 @@ export interface NewSessionDialogProps {
   onCreated: (session: NewSession) => void
 }
 
-export function NewSessionDialog({
-  open,
-  onClose,
-  onCreated,
-}: NewSessionDialogProps) {
+const PROVIDERS: { value: Provider; title: string; tradeoff: string }[] = [
+  {
+    value: "baileys",
+    title: "Baileys",
+    tradeoff: "Unofficial · free · scan a QR. Full features — groups, polls, all media.",
+  },
+  {
+    value: "meta",
+    title: "Meta Cloud API",
+    tradeoff: "Official · paid per conversation · no ban risk. Templates & buttons; no groups/polls.",
+  },
+]
+
+export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogProps) {
+  const [provider, setProvider] = React.useState<Provider>("baileys")
   const [sessionId, setSessionId] = React.useState("")
   const [proxy, setProxy] = React.useState("")
-  const [validationError, setValidationError] = React.useState<string | null>(
-    null
-  )
+
+  const [phoneNumberId, setPhoneNumberId] = React.useState("")
+  const [accessToken, setAccessToken] = React.useState("")
+  const [wabaId, setWabaId] = React.useState("")
+  const [verifyToken, setVerifyToken] = React.useState("")
+
+  const [validationError, setValidationError] = React.useState<string | null>(null)
   const [serverError, setServerError] = React.useState<string | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
 
+  const [test, setTest] = React.useState<{ state: "idle" | "testing" | "ok" | "error"; message?: string }>({ state: "idle" })
+  const [copied, setCopied] = React.useState(false)
+
+  const isMeta = provider === "meta"
+
   const reset = () => {
+    setProvider("baileys")
     setSessionId("")
     setProxy("")
+    setPhoneNumberId("")
+    setAccessToken("")
+    setWabaId("")
+    setVerifyToken("")
     setValidationError(null)
     setServerError(null)
     setSubmitting(false)
+    setTest({ state: "idle" })
+    setCopied(false)
   }
 
   const handleClose = () => {
     reset()
     onClose()
+  }
+
+  const callbackUrl = `https://<your-wa-server>/api/meta/webhook/${sessionId || "<session-id>"}`
+
+  const copyCallback = async () => {
+    try {
+      await navigator.clipboard.writeText(callbackUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  const testConnection = async () => {
+    setTest({ state: "testing" })
+    try {
+      const res = await fetch("/api/sessions/meta-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumberId, accessToken }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        setTest({ state: "ok", message: data.verifiedName ? `Verified: ${data.verifiedName}` : "Connection OK" })
+      } else {
+        setTest({ state: "error", message: data.error ?? data.message ?? "Connection failed" })
+      }
+    } catch {
+      setTest({ state: "error", message: "Could not reach the server." })
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,27 +122,21 @@ export function NewSessionDialog({
     setServerError(null)
 
     if (!SESSION_ID_REGEX.test(sessionId)) {
-      setValidationError(
-        "Session ID must be 1–64 characters: letters, numbers, hyphens, underscores."
-      )
+      setValidationError("Session ID must be 1–64 characters: letters, numbers, hyphens, underscores.")
       return
     }
 
     setSubmitting(true)
     try {
       const body: { id: string; proxy?: string } = { id: sessionId }
-      if (proxy.trim()) {
-        body.proxy = proxy.trim()
-      }
+      if (proxy.trim()) body.proxy = proxy.trim()
 
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-
       const data = await res.json().catch(() => ({}))
-
       if (!res.ok) {
         const msg = Array.isArray(data.message)
           ? (data.message as string[]).join("\n")
@@ -86,7 +144,6 @@ export function NewSessionDialog({
         setServerError(msg)
         return
       }
-
       reset()
       onCreated(data as NewSession)
     } catch {
@@ -98,14 +155,39 @@ export function NewSessionDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <DialogContent showCloseButton>
+      <DialogContent
+        showCloseButton
+        className={cn("max-h-[88vh] overflow-y-auto", isMeta ? "sm:max-w-2xl" : "sm:max-w-md")}
+      >
         <DialogHeader>
           <DialogTitle>New Session</DialogTitle>
+          <DialogDescription>Choose an engine and connect a WhatsApp number.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="session-id" className="text-sm font-medium text-foreground">Session ID</Label>
+        <div className="flex flex-col gap-5">
+          {/* Provider — two side-by-side cards */}
+          <RadioGroup
+            value={provider}
+            onValueChange={(v) => setProvider(v as Provider)}
+            className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          >
+            {PROVIDERS.map((p) => (
+              <label
+                key={p.value}
+                htmlFor={`provider-${p.value}`}
+                className="flex cursor-pointer items-start gap-3 rounded-lg border border-input p-3.5 transition-colors hover:bg-muted/40 has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary/5"
+              >
+                <RadioGroupItem id={`provider-${p.value}`} value={p.value} className="mt-0.5" />
+                <span className="flex flex-col gap-1">
+                  <span className="text-sm font-semibold text-foreground">{p.title}</span>
+                  <span className="text-xs text-muted-foreground leading-snug">{p.tradeoff}</span>
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
+
+          {/* Session ID */}
+          <Field id="session-id" label="Session ID">
             <Input
               id="session-id"
               placeholder="my-session-1"
@@ -113,40 +195,105 @@ export function NewSessionDialog({
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
               autoFocus
-              required
             />
-            {validationError && (
-              <p className="text-xs text-destructive">{validationError}</p>
-            )}
-          </div>
+            {validationError && <p className="text-xs text-destructive">{validationError}</p>}
+          </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="proxy-url" className="text-sm font-medium text-foreground">
-              Proxy URL{" "}
-              <span className="text-zinc-400 font-light">
-                (optional)
-              </span>
-            </Label>
-            <Input
-              id="proxy-url"
-              placeholder="socks5://10.0.0.5:1080"
-              className="placeholder:text-zinc-400 placeholder:font-light"
-              value={proxy}
-              onChange={(e) => setProxy(e.target.value)}
-            />
-          </div>
+          {provider === "baileys" ? (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+              <Field id="proxy-url" label={<>Proxy URL <span className="text-zinc-400 font-light">(optional)</span></>}>
+                <Input
+                  id="proxy-url"
+                  placeholder="socks5://10.0.0.5:1080"
+                  className="placeholder:text-zinc-400 placeholder:font-light"
+                  value={proxy}
+                  onChange={(e) => setProxy(e.target.value)}
+                />
+              </Field>
+              {serverError && <p className="text-xs text-destructive whitespace-pre-line">{serverError}</p>}
+              <DialogFooter showCloseButton>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? "Creating…" : "Create Session"}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <div className="flex flex-col gap-5">
+              <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground leading-snug">
+                Enter your Meta Cloud API credentials and test the connection. Full Meta session
+                management ships in the v1.2 preview — for now, validate here and copy your callback URL.{" "}
+                <a href={META_DOCS} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline">
+                  Meta setup docs <ExternalLink className="size-3" />
+                </a>
+              </p>
 
-          {serverError && (
-            <p className="text-xs text-destructive whitespace-pre-line">{serverError}</p>
+              {/* Credentials — two columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+                <Field id="meta-pnid" label="Phone Number ID">
+                  <Input id="meta-pnid" placeholder="123456789012345" className="placeholder:text-zinc-400 placeholder:font-light" value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} />
+                </Field>
+                <Field id="meta-waba" label="Business Account ID">
+                  <Input id="meta-waba" placeholder="987654321098765" className="placeholder:text-zinc-400 placeholder:font-light" value={wabaId} onChange={(e) => setWabaId(e.target.value)} />
+                </Field>
+                <Field id="meta-token" label="Permanent Access Token" className="sm:col-span-2">
+                  <Input id="meta-token" type="password" autoComplete="off" placeholder="EAAG…" className="placeholder:text-zinc-400 placeholder:font-light" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} />
+                </Field>
+                <Field id="meta-verify" label="Webhook Verify Token">
+                  <Input id="meta-verify" placeholder="a value you choose" className="placeholder:text-zinc-400 placeholder:font-light" value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} />
+                </Field>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-sm font-medium text-foreground">Validate</Label>
+                  <div className="flex h-9 items-center gap-3">
+                    <Button type="button" variant="outline" size="sm" onClick={testConnection} disabled={test.state === "testing" || !phoneNumberId || !accessToken}>
+                      {test.state === "testing" && <Loader2 className="size-3.5 animate-spin" />}
+                      Test connection
+                    </Button>
+                    {test.state === "ok" && (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-500"><Check className="size-3.5" /> {test.message}</span>
+                    )}
+                    {test.state === "error" && <span className="text-xs text-destructive leading-tight">{test.message}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Callback URL — full width */}
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Webhook callback URL</Label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 truncate rounded-md border border-input bg-muted/40 px-2.5 py-2 text-xs text-muted-foreground">{callbackUrl}</code>
+                  <Button type="button" variant="outline" size="icon" onClick={copyCallback} aria-label="Copy callback URL">
+                    {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Replace <code>&lt;your-wa-server&gt;</code> with your WA Server&apos;s public URL, then paste this into
+                  your Meta app&apos;s webhook config (with the Verify Token above).
+                </p>
+              </div>
+
+              <DialogFooter showCloseButton>
+                <Button type="button" variant="secondary" onClick={handleClose}>Done</Button>
+              </DialogFooter>
+            </div>
           )}
-
-          <DialogFooter showCloseButton>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Creating…" : "Create Session"}
-            </Button>
-          </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function Field({
+  id, label, className, children,
+}: {
+  id?: string
+  label: React.ReactNode
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <Label htmlFor={id} className="text-sm font-medium text-foreground">{label}</Label>
+      {children}
+    </div>
   )
 }

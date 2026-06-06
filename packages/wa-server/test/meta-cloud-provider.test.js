@@ -218,3 +218,28 @@ test('capabilities reflect Meta limits', () => {
   assert.equal(p.capabilities.polls, false);
   assert.equal(p.capabilities.freeformAlways, false);
 });
+
+test('testConnection returns verified name on success (no session created)', async () => {
+  const s = stubFetch();
+  const p = new MetaCloudProvider();
+  try {
+    const r = await p.testConnection(CREDS);
+    assert.equal(r.ok, true);
+    assert.equal(r.verifiedName, 'My Biz');
+    assert.equal(p.status('s1'), 'disconnected'); // nothing stored
+  } finally {
+    s.restore();
+  }
+});
+
+test('testConnection returns a typed error on failure (never throws)', async () => {
+  const s = stubFetch({ getResponse: res(false, 401, { error: { code: 190, message: 'bad token' } }) });
+  const p = new MetaCloudProvider();
+  try {
+    const r = await p.testConnection(CREDS);
+    assert.equal(r.ok, false);
+    assert.match(r.error, /authentication failed/i);
+  } finally {
+    s.restore();
+  }
+});
