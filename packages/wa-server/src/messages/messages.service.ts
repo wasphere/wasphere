@@ -38,27 +38,26 @@ export class MessagesService implements OnApplicationShutdown {
     this.evictionTimer = setInterval(() => this.evictExpiredJobs(), 5 * 60 * 1000);
   }
 
-  // Shared outbound methods route through the provider registry (design §2.3).
-  // v1.2: the registry always resolves to Baileys, so behaviour is unchanged.
+  // Shared outbound methods route through the provider registry with opt-in
+  // failover (design §2.3, §11). v1.2: the registry resolves to Baileys and no
+  // fallback is configured by default, so behaviour is unchanged.
 
   async sendText(sessionId: string, to: string, text: string, quotedId?: string): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendText(sessionId, to, text, quotedId ? { quotedMessageId: quotedId } : undefined);
+    return this.registry.withFailover(sessionId, (p) =>
+      p.sendText(sessionId, to, text, quotedId ? { quotedMessageId: quotedId } : undefined),
+    );
   }
 
   async sendImage(sessionId: string, to: string, imageUrl: string, caption?: string): Promise<SendResult> {
-    return this.registry.for(sessionId).sendMedia(sessionId, to, { kind: 'image', url: imageUrl, caption });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'image', url: imageUrl, caption }));
   }
 
   async sendVideo(sessionId: string, to: string, videoUrl: string, caption?: string): Promise<SendResult> {
-    return this.registry.for(sessionId).sendMedia(sessionId, to, { kind: 'video', url: videoUrl, caption });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'video', url: videoUrl, caption }));
   }
 
   async sendAudio(sessionId: string, to: string, audioUrl: string, isVoiceNote: boolean = false): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendMedia(sessionId, to, { kind: 'audio', url: audioUrl, isVoiceNote });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'audio', url: audioUrl, isVoiceNote }));
   }
 
   async sendDocument(
@@ -68,13 +67,11 @@ export class MessagesService implements OnApplicationShutdown {
     fileName: string,
     mimetype: string,
   ): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendMedia(sessionId, to, { kind: 'document', url: docUrl, fileName, mimetype });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'document', url: docUrl, fileName, mimetype }));
   }
 
   async sendSticker(sessionId: string, to: string, stickerUrl: string): Promise<SendResult> {
-    return this.registry.for(sessionId).sendMedia(sessionId, to, { kind: 'sticker', url: stickerUrl });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'sticker', url: stickerUrl }));
   }
 
   async sendLocation(
@@ -85,9 +82,7 @@ export class MessagesService implements OnApplicationShutdown {
     name?: string,
     address?: string,
   ): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendLocation(sessionId, to, { latitude, longitude, name, address });
+    return this.registry.withFailover(sessionId, (p) => p.sendLocation(sessionId, to, { latitude, longitude, name, address }));
   }
 
   async sendContact(
@@ -96,7 +91,7 @@ export class MessagesService implements OnApplicationShutdown {
     displayName: string,
     phoneNumber: string,
   ): Promise<SendResult> {
-    return this.registry.for(sessionId).sendContact(sessionId, to, { displayName, phoneNumber });
+    return this.registry.withFailover(sessionId, (p) => p.sendContact(sessionId, to, { displayName, phoneNumber }));
   }
 
   async sendButtons(
@@ -106,9 +101,7 @@ export class MessagesService implements OnApplicationShutdown {
     footer: string,
     buttons: { id: string; text: string }[],
   ): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendInteractive(sessionId, to, { kind: 'buttons', text, footer, buttons });
+    return this.registry.withFailover(sessionId, (p) => p.sendInteractive(sessionId, to, { kind: 'buttons', text, footer, buttons }));
   }
 
   async sendList(
@@ -119,9 +112,7 @@ export class MessagesService implements OnApplicationShutdown {
     buttonText: string,
     sections: { title: string; rows: { id: string; title: string; description?: string }[] }[],
   ): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendInteractive(sessionId, to, { kind: 'list', title, text, buttonText, sections });
+    return this.registry.withFailover(sessionId, (p) => p.sendInteractive(sessionId, to, { kind: 'list', title, text, buttonText, sections }));
   }
 
   // Baileys-only (not in the shared MessageProvider contract) — direct to adapter.
@@ -142,7 +133,7 @@ export class MessagesService implements OnApplicationShutdown {
     emoji: string,
     fromMe?: boolean,
   ): Promise<SendResult> {
-    return this.registry.for(sessionId).sendReaction(sessionId, to, messageId, emoji, fromMe ?? false);
+    return this.registry.withFailover(sessionId, (p) => p.sendReaction(sessionId, to, messageId, emoji, fromMe ?? false));
   }
 
   async sendGif(sessionId: string, to: string, gifUrl: string, caption?: string): Promise<SendResult> {
@@ -239,7 +230,7 @@ export class MessagesService implements OnApplicationShutdown {
         const outcome = job.outcomes[i];
 
         try {
-          const result = await this.registry.for(sessionId).sendText(sessionId, recipient, dto.message.text);
+          const result = await this.registry.withFailover(sessionId, (p) => p.sendText(sessionId, recipient, dto.message.text));
           outcome.status = 'sent';
           outcome.messageId = result.messageId;
           outcome.timestamp = Date.now();

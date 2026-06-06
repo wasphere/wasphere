@@ -31,6 +31,8 @@ export interface SessionInfo {
 export interface SendResult {
   messageId: string | undefined;
   status: string;
+  /** Which provider actually delivered the message (set by failover routing). */
+  via?: 'primary' | 'fallback';
 }
 
 export interface GroupInfo {
