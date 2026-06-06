@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const token = cookieStore.get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
-  let body: { id: string; proxy?: string }
+  let body: Record<string, unknown>
   try {
     body = await request.json()
   } catch {

@@ -55,6 +55,7 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
   const [accessToken, setAccessToken] = React.useState("")
   const [wabaId, setWabaId] = React.useState("")
   const [verifyToken, setVerifyToken] = React.useState("")
+  const [appSecret, setAppSecret] = React.useState("")
 
   const [validationError, setValidationError] = React.useState<string | null>(null)
   const [serverError, setServerError] = React.useState<string | null>(null)
@@ -73,6 +74,7 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
     setAccessToken("")
     setWabaId("")
     setVerifyToken("")
+    setAppSecret("")
     setValidationError(null)
     setServerError(null)
     setSubmitting(false)
@@ -116,8 +118,8 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
     setValidationError(null)
     setServerError(null)
 
@@ -125,11 +127,24 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
       setValidationError("Session ID must be 1–64 characters: letters, numbers, hyphens, underscores.")
       return
     }
+    if (isMeta && (!phoneNumberId.trim() || !accessToken.trim())) {
+      setValidationError("Phone Number ID and Access Token are required for a Meta session.")
+      return
+    }
 
     setSubmitting(true)
     try {
-      const body: { id: string; proxy?: string } = { id: sessionId }
-      if (proxy.trim()) body.proxy = proxy.trim()
+      const body: Record<string, unknown> = { id: sessionId }
+      if (isMeta) {
+        body.provider = "meta"
+        body.metaPhoneNumberId = phoneNumberId.trim()
+        body.metaAccessToken = accessToken.trim()
+        if (wabaId.trim()) body.metaWabaId = wabaId.trim()
+        if (verifyToken.trim()) body.metaVerifyToken = verifyToken.trim()
+        if (appSecret.trim()) body.metaAppSecret = appSecret.trim()
+      } else if (proxy.trim()) {
+        body.proxy = proxy.trim()
+      }
 
       const res = await fetch("/api/sessions", {
         method: "POST",
@@ -220,8 +235,8 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
           ) : (
             <div className="flex flex-col gap-5">
               <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground leading-snug">
-                Enter your Meta Cloud API credentials and test the connection. Full Meta session
-                management ships in the v1.2 preview — for now, validate here and copy your callback URL.{" "}
+                Enter your Meta Cloud API credentials, test the connection, then create the session.
+                After creating, paste the callback URL below into your Meta app&apos;s webhook config.{" "}
                 <a href={META_DOCS} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline">
                   Meta setup docs <ExternalLink className="size-3" />
                 </a>
@@ -240,6 +255,9 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
                 </Field>
                 <Field id="meta-verify" label="Webhook Verify Token">
                   <Input id="meta-verify" placeholder="a value you choose" className="placeholder:text-zinc-400 placeholder:font-light" value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} />
+                </Field>
+                <Field id="meta-secret" label={<>App Secret <span className="text-zinc-400 font-light">(recommended)</span></>}>
+                  <Input id="meta-secret" type="password" autoComplete="off" placeholder="for webhook signature verification" className="placeholder:text-zinc-400 placeholder:font-light" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} />
                 </Field>
                 <div className="flex flex-col gap-1.5">
                   <Label className="text-sm font-medium text-foreground">Validate</Label>
@@ -271,8 +289,11 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
                 </p>
               </div>
 
+              {serverError && <p className="text-xs text-destructive whitespace-pre-line">{serverError}</p>}
               <DialogFooter showCloseButton>
-                <Button type="button" variant="secondary" onClick={handleClose}>Done</Button>
+                <Button type="button" onClick={() => handleSubmit()} disabled={submitting}>
+                  {submitting ? "Creating…" : "Create Session"}
+                </Button>
               </DialogFooter>
             </div>
           )}
