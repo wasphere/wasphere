@@ -109,9 +109,35 @@ export class WorkspacesService implements OnApplicationBootstrap {
       role: membership.role,
       waServerUrl: w.waServerUrl,
       waServerConfigured: w.waServerToken !== null,
+      logo: w.logo,
       createdAt: w.createdAt,
       updatedAt: w.updatedAt,
     };
+  }
+
+  /** Update dashboard branding (custom logo, name). Owner-only. */
+  async updateBranding(
+    userId: string,
+    workspaceId: string,
+    dto: { logo?: string | null; name?: string },
+  ) {
+    await this.requireOwner(userId, workspaceId);
+
+    const data: Prisma.WorkspaceUpdateInput = {};
+    if (dto.name !== undefined && dto.name.trim()) data.name = dto.name.trim();
+    if (dto.logo !== undefined) {
+      const logo = dto.logo;
+      if (logo === null || logo === '') {
+        data.logo = null; // remove
+      } else if (/^data:image\/(png|jpeg|jpg|webp|svg\+xml|gif);base64,/.test(logo)) {
+        data.logo = logo;
+      } else {
+        throw new BadRequestException('logo must be a base64 image data URI (png/jpeg/webp/svg/gif)');
+      }
+    }
+
+    await this.prisma.workspace.update({ where: { id: workspaceId }, data });
+    return { success: true };
   }
 
   async setWaServer(

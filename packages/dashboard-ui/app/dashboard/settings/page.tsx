@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { existsSync, readFileSync } from "node:fs"
 import { SettingsForm, type Workspace } from "@/components/settings/settings-form"
+import { LogoBrandingCard } from "@/components/settings/logo-branding-card"
 
 import { serverGet } from "@/lib/server-fetch"
 
@@ -57,6 +58,7 @@ export default async function SettingsPage() {
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
       <SettingsForm workspace={workspace} suggestedWaServerUrl={suggestWaServerUrl()} />
+      <LogoBrandingCard initialLogo={workspace.logo} />
     </div>
   )
 }
