@@ -62,6 +62,8 @@ model Workspace {
   waServerToken   String?  @map("wa_server_token")
   // 12-byte IV, hex-encoded. Always stored alongside the ciphertext.
   waServerTokenIv String?  @map("wa_server_token_iv")
+  // Optional custom logo (data: URI) for dashboard branding. Null = default logo.
+  logo            String?  @db.Text @map("logo")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 

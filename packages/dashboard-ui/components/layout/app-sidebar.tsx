@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -152,6 +153,18 @@ export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
   // hosted docs instead.
   const docsBase = demoMode ? "https://app.wasphere.com" : "";
 
+  // Custom workspace logo (branding). Falls back to the WaSphere wordmark.
+  const [logo, setLogo] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (demoMode) return;
+    let active = true;
+    fetch("/api/settings/workspace")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (active && d?.logo) setLogo(d.logo as string); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [demoMode]);
+
   return (
     <Sidebar
       collapsible="icon"
@@ -159,7 +172,14 @@ export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
       onMouseLeave={isMobile ? undefined : () => setOpen(false)}
     >
       <SidebarHeader className="px-4 py-3">
-        {collapsed ? (
+        {logo ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={logo}
+            alt="Logo"
+            className={collapsed ? "h-7 w-7 object-contain mx-auto" : "h-7 max-w-[150px] object-contain"}
+          />
+        ) : collapsed ? (
           <span className="text-primary font-bold text-lg flex justify-center">W</span>
         ) : (
           <span className="text-primary font-bold text-lg tracking-tight">WaSphere</span>

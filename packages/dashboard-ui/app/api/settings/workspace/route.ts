@@ -23,7 +23,7 @@ export async function PATCH(request: Request) {
   const token = cookieStore.get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
 
-  let body: { waServerUrl?: string; waServerToken?: string; name?: string }
+  let body: { waServerUrl?: string; waServerToken?: string; name?: string; logo?: string }
   try {
     body = await request.json()
   } catch {
@@ -37,6 +37,14 @@ export async function PATCH(request: Request) {
     const { data, status } = await serverPatch(`/workspaces/${workspaceId}/wa-server`, token, {
       waServerUrl: body.waServerUrl,
       waServerToken: body.waServerToken,
+    })
+    return Response.json(data ?? { message: "Upstream error" }, { status })
+  }
+
+  if (body.logo !== undefined || body.name !== undefined) {
+    const { data, status } = await serverPatch(`/workspaces/${workspaceId}/branding`, token, {
+      logo: body.logo,
+      name: body.name,
     })
     return Response.json(data ?? { message: "Upstream error" }, { status })
   }

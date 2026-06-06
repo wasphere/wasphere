@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export interface Workspace {
   id: string
   name: string
+  logo?: string | null
   waServerUrl?: string | null
   waServerToken?: string | null
   waServerConfigured: boolean

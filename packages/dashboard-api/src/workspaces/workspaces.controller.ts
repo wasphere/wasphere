@@ -24,6 +24,7 @@ import { WorkspacesService } from './workspaces.service';
 import { ProxyService } from './proxy.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { SetWaServerDto } from './dto/set-wa-server.dto';
+import { UpdateBrandingDto } from './dto/update-branding.dto';
 import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
 
 interface AuthenticatedRequest extends Request {
@@ -90,6 +91,21 @@ export class WorkspacesController {
     @Body() dto: SetWaServerDto,
   ) {
     return this.workspacesService.setWaServer(req.user.userId, id, dto);
+  }
+
+  @Patch(':id/branding')
+  @RequiresPermission('workspace:write')
+  @ApiOperation({ summary: 'Update dashboard branding (custom logo, name)' })
+  @ApiParam({ name: 'id', description: 'Workspace UUID' })
+  @ApiResponse({ status: 200, description: 'Branding updated' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 403, description: 'Owner-only' })
+  updateBranding(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateBrandingDto,
+  ) {
+    return this.workspacesService.updateBranding(req.user.userId, id, dto);
   }
 
   @Delete(':id')
