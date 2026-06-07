@@ -32,6 +32,9 @@ services:
       INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET}
       CORS_ORIGIN: ${DASHBOARD_UI_URL}
       DASHBOARD_PORT: "3000"
+      # Public API URL — webhook media download links point here (e.g.
+      # https://api.your-domain.com). Empty keeps base64 inline.
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-https://${DASHBOARD_API_DOMAIN}}
       NODE_ENV: production
     depends_on:
       postgres:
