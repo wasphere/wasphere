@@ -71,6 +71,10 @@ services:
       # Leave DASHBOARD_WEBHOOK_URL unset — the dashboard registers it automatically.
       # A manual value causes a self-referential webhook loop.
       DASHBOARD_WEBHOOK_URL: ${DASHBOARD_WEBHOOK_URL:-}
+      # Meta WhatsApp Cloud API provider (v1.2 · opt-in). Ships DISABLED — set
+      # META_PROVIDER_ENABLED=true in your env to activate. See .env.example.
+      META_PROVIDER_ENABLED: ${META_PROVIDER_ENABLED:-false}
+      GRAPH_VERSION: ${GRAPH_VERSION:-v22.0}
       NODE_ENV: production
     ports:
       - "${WA_SERVER_PORT:-3001}:3001"
