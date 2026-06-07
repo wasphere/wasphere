@@ -2,8 +2,12 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { Bell, BellOff, Inbox as InboxIcon, PanelRight, ArrowLeft, Lock } from "lucide-react"
+import { Bell, BellOff, Inbox as InboxIcon, PanelRight, ArrowLeft, Lock, PenSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { StatusDot } from "@/components/ui/status-dot"
 import { cn } from "@/lib/utils"
@@ -51,6 +55,13 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
   const [mobileContactOpen, setMobileContactOpen] = React.useState(false)
   const [capabilities, setCapabilities] = React.useState<ComposerCapabilities>(null)
   const [provider, setProvider] = React.useState<"baileys" | "meta" | null>(null)
+
+  // New-chat (message a number that hasn't written first)
+  const [newChatOpen, setNewChatOpen] = React.useState(false)
+  const [ncSession, setNcSession] = React.useState("")
+  const [ncPhone, setNcPhone] = React.useState("")
+  const [ncText, setNcText] = React.useState("")
+  const [ncSending, setNcSending] = React.useState(false)
 
   const selectedId = selected?.id ?? null
   const selectedIdRef = React.useRef<string | null>(null)
@@ -203,6 +214,40 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
     }
   }
 
+  const openNewChat = () => {
+    setNcSession((s) => s || sessionFilter || sessions[0] || "")
+    setNewChatOpen(true)
+  }
+
+  const startNewChat = async () => {
+    const sessionId = ncSession || sessions[0]
+    const phone = ncPhone.replace(/[^0-9]/g, "")
+    const text = ncText.trim()
+    if (!sessionId) { toast.error("Pick a session."); return }
+    if (phone.length < 6) { toast.error("Enter a valid number with country code."); return }
+    if (!text) { toast.error("Type a message."); return }
+    setNcSending(true)
+    try {
+      const res = await fetch("/api/inbox/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, to: phone, text }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(Array.isArray(data.message) ? data.message.join("\n") : (data.message ?? "Could not start chat."))
+        return
+      }
+      toast.success("Message sent")
+      setNewChatOpen(false); setNcPhone(""); setNcText("")
+      await refreshList({ silent: true })
+    } catch {
+      toast.error("Could not reach the server.")
+    } finally {
+      setNcSending(false)
+    }
+  }
+
   const [forwardMsg, setForwardMsg] = React.useState<InboxMessage | null>(null)
 
   const reactToMessage = (m: InboxMessage, emoji: string) => {
@@ -263,6 +308,9 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={openNewChat} title="Message a new number">
+            <PenSquare className="size-4" /> New chat
+          </Button>
           <Button variant="ghost" size="icon" className="size-8" onClick={toggleSound} title={sound ? "Mute notifications" : "Unmute notifications"}>
             {sound ? <Bell className="size-4" /> : <BellOff className="size-4" />}
           </Button>
@@ -362,6 +410,44 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
         currentId={selectedId}
         onClose={() => setForwardMsg(null)}
       />
+
+      {/* New chat — message a number that hasn't written first */}
+      <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+        <DialogContent showCloseButton className="sm:max-w-md">
+          <DialogHeader><DialogTitle>New chat</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-3">
+            {sessions.length > 1 && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="nc-session">Send from</Label>
+                <select
+                  id="nc-session"
+                  value={ncSession}
+                  onChange={(e) => setNcSession(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                >
+                  {sessions.map((s) => (<option key={s} value={s}>{s}</option>))}
+                </select>
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="nc-phone">Phone number (with country code)</Label>
+              <Input id="nc-phone" value={ncPhone} placeholder="923001234567" onChange={(e) => setNcPhone(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="nc-text">Message</Label>
+              <Textarea id="nc-text" value={ncText} rows={3} maxLength={4096} placeholder="Type your first message…" onChange={(e) => setNcText(e.target.value)} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Note: on a Meta session, messaging a new number outside the 24-hour window requires an approved template.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => void startNewChat()} disabled={ncSending}>
+              {ncSending ? "Sending…" : "Send message"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* mobile/tablet contact panel (slide-in) */}
       <Sheet open={mobileContactOpen} onOpenChange={setMobileContactOpen}>
