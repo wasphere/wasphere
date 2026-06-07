@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy, Maximize2, Plus } from "lucide-react"
+import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy, Maximize2, Plus, Contact as ContactIcon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -102,6 +102,49 @@ function MediaBlock({ m }: { m: InboxMessage }) {
       <span className="text-xs italic text-muted-foreground">
         ⚠️ This message couldn’t be loaded (unsupported or encrypted).
       </span>
+    )
+  }
+
+  // Location — render a tappable card that opens Maps.
+  if (m.type === "location") {
+    const lat = p.latitude as number | undefined
+    const lng = p.longitude as number | undefined
+    const name = (p.name as string) || (p.address as string) || "Location"
+    const addr = p.address as string | undefined
+    const maps = lat != null && lng != null ? `https://www.google.com/maps?q=${lat},${lng}` : null
+    const card = (
+      <span className="flex items-start gap-2">
+        <MapPin className="mt-0.5 size-4 shrink-0 opacity-80" />
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-xs font-medium">{name}</span>
+          {addr && <span className="truncate text-[11px] opacity-70">{addr}</span>}
+          {maps && <span className="text-[11px] text-primary underline">Open in Maps</span>}
+        </span>
+      </span>
+    )
+    return (
+      <div className="flex flex-col gap-1">
+        {maps ? (
+          <a href={maps} target="_blank" rel="noopener noreferrer" className="rounded-md bg-background/40 px-2 py-1.5 transition hover:bg-background/60">{card}</a>
+        ) : (
+          <div className="rounded-md bg-background/40 px-2 py-1.5">{card}</div>
+        )}
+      </div>
+    )
+  }
+
+  // Contact — render a name + phone card.
+  if (m.type === "contact") {
+    const name = (p.displayName as string) || (p.name as string) || m.body || "Contact"
+    const phone = (p.phoneNumber as string) || (p.phone as string) || ""
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5">
+        <ContactIcon className="size-4 shrink-0 opacity-80" />
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-xs font-medium">{name}</span>
+          {phone && <span className="truncate text-[11px] opacity-70">{phone}</span>}
+        </span>
+      </div>
     )
   }
 

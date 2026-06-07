@@ -150,6 +150,7 @@ export class MetaWebhookService {
         break;
       case 'contacts':
         content.displayName = msg.contacts?.[0]?.name?.formatted_name;
+        content.phoneNumber = msg.contacts?.[0]?.phones?.[0]?.phone;
         break;
       case 'reaction':
         content.reaction = msg.reaction?.emoji;

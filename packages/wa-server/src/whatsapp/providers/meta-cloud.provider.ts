@@ -256,22 +256,50 @@ export class MetaCloudProvider implements MessageProvider, OnApplicationBootstra
     });
   }
 
-  sendMedia(sessionId: string, to: string, m: OutboundMedia): Promise<SendResult> {
+  async sendMedia(sessionId: string, to: string, m: OutboundMedia): Promise<SendResult> {
+    const media: Record<string, unknown> = {};
     if (m.url.startsWith('data:')) {
-      // v1.2 is link-mode only (decision #3); uploaded media (data URIs) is v1.3.
-      return Promise.reject(
-        new MetaApiError(
-          'UNSUPPORTED_MEDIA_SOURCE',
-          'Meta link mode requires a public URL; inline/base64 media (upload mode) lands in v1.3',
-        ),
-      );
+      // Upload mode: push the base64 bytes to Meta and reference the media id.
+      media.id = await this.uploadMedia(sessionId, m.url, m.fileName);
+    } else {
+      // Link mode: Meta fetches the public URL itself.
+      media.link = m.url;
     }
-    const media: Record<string, unknown> = { link: m.url };
     if (m.caption && (m.kind === 'image' || m.kind === 'video' || m.kind === 'document')) {
       media.caption = m.caption;
     }
     if (m.kind === 'document' && m.fileName) media.filename = m.fileName;
     return this.send(sessionId, { type: m.kind, to: this.toPhone(to), [m.kind]: media });
+  }
+
+  /**
+   * Upload a base64 data URI to the Cloud API and return its media id
+   * (POST /{phone-number-id}/media, multipart). Used so the dashboard can send
+   * uploaded media (not just public URLs) on Meta sessions.
+   */
+  private async uploadMedia(sessionId: string, dataUri: string, fileName?: string): Promise<string> {
+    const creds = this.credsFor(sessionId);
+    const match = /^data:([^;]+);base64,(.*)$/s.exec(dataUri);
+    if (!match) {
+      throw new MetaApiError('UNSUPPORTED_MEDIA_SOURCE', 'Invalid media data URI');
+    }
+    const mime = match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    const form = new FormData();
+    form.append('messaging_product', 'whatsapp');
+    form.append('type', mime);
+    form.append('file', new Blob([buffer], { type: mime }), fileName || 'file');
+
+    const url = `${GRAPH_HOST}/${this.graphVersion}/${creds.phoneNumberId}/media`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${creds.accessToken}` },
+      body: form,
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+    if (!res.ok) throw this.mapError(res.status, data?.error);
+    if (!data?.id) throw new MetaApiError('META_API_ERROR', 'Media upload returned no id');
+    return data.id as string;
   }
 
   sendLocation(sessionId: string, to: string, loc: OutboundLocation): Promise<SendResult> {
