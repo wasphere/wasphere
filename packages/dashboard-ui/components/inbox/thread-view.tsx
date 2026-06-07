@@ -105,45 +105,54 @@ function MediaBlock({ m }: { m: InboxMessage }) {
     )
   }
 
-  // Location — render a tappable card that opens Maps.
+  // Location — WhatsApp-style: a map thumbnail with a pin, name + address below.
   if (m.type === "location") {
     const lat = p.latitude as number | undefined
     const lng = p.longitude as number | undefined
-    const name = (p.name as string) || (p.address as string) || "Location"
-    const addr = p.address as string | undefined
-    const maps = lat != null && lng != null ? `https://www.google.com/maps?q=${lat},${lng}` : null
-    const card = (
-      <span className="flex items-start gap-2">
-        <MapPin className="mt-0.5 size-4 shrink-0 opacity-80" />
-        <span className="flex min-w-0 flex-col">
-          <span className="truncate text-xs font-medium">{name}</span>
-          {addr && <span className="truncate text-[11px] opacity-70">{addr}</span>}
-          {maps && <span className="text-[11px] text-primary underline">Open in Maps</span>}
-        </span>
-      </span>
-    )
+    const name = (p.name as string) || ""
+    const addr = (p.address as string) || ""
+    const hasCoords = lat != null && lng != null
+    const maps = hasCoords ? `https://www.google.com/maps?q=${lat},${lng}` : "#"
+    const thumb = hasCoords
+      ? `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=320x150&maptype=mapnik&markers=${lat},${lng},red-pushpin`
+      : null
     return (
-      <div className="flex flex-col gap-1">
-        {maps ? (
-          <a href={maps} target="_blank" rel="noopener noreferrer" className="rounded-md bg-background/40 px-2 py-1.5 transition hover:bg-background/60">{card}</a>
-        ) : (
-          <div className="rounded-md bg-background/40 px-2 py-1.5">{card}</div>
-        )}
-      </div>
+      <a href={maps} target="_blank" rel="noopener noreferrer" className="-mx-1 block w-60 max-w-full overflow-hidden rounded-lg bg-background/40">
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumb}
+            alt="Map location"
+            className="h-32 w-full object-cover"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
+          />
+        ) : null}
+        <span className="flex items-start gap-2 px-2.5 py-2">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-red-500" />
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-xs font-medium">{name || "Location"}</span>
+            {addr && <span className="line-clamp-2 text-[11px] opacity-70">{addr}</span>}
+            {!name && !addr && hasCoords && <span className="text-[11px] opacity-70">{lat}, {lng}</span>}
+          </span>
+        </span>
+      </a>
     )
   }
 
-  // Contact — render a name + phone card.
+  // Contact — WhatsApp-style: avatar circle + name + phone.
   if (m.type === "contact") {
     const name = (p.displayName as string) || (p.name as string) || m.body || "Contact"
     const phone = (p.phoneNumber as string) || (p.phone as string) || ""
     return (
-      <div className="flex items-center gap-2 rounded-md bg-background/40 px-2 py-1.5">
-        <ContactIcon className="size-4 shrink-0 opacity-80" />
+      <div className="-mx-1 flex w-56 max-w-full items-center gap-2.5 rounded-lg bg-background/40 px-2.5 py-2">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-foreground">
+          {contactInitials(name)}
+        </span>
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-xs font-medium">{name}</span>
+          <span className="truncate text-sm font-medium">{name}</span>
           {phone && <span className="truncate text-[11px] opacity-70">{phone}</span>}
         </span>
+        <ContactIcon className="ml-auto size-4 shrink-0 opacity-50" />
       </div>
     )
   }
