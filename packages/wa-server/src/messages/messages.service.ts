@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException, OnApplicationShutdown } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, NotImplementedException, OnApplicationShutdown } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import {
   WHATSAPP_ADAPTER,
@@ -116,6 +116,18 @@ export class MessagesService implements OnApplicationShutdown {
   }
 
   // Baileys-only (not in the shared MessageProvider contract) — direct to adapter.
+  /** True when this session runs on a provider other than Baileys (i.e. Meta). */
+  private isMetaSession(sessionId: string): boolean {
+    return this.registry.for(sessionId).id === 'meta';
+  }
+
+  /** Reject a Baileys-only operation on a Meta session with a clear 501 (not a confusing 404). */
+  private assertBaileysOnly(sessionId: string, feature: string): void {
+    if (this.isMetaSession(sessionId)) {
+      throw new NotImplementedException(`${feature} is not supported on the Meta Cloud API provider.`);
+    }
+  }
+
   async sendPoll(
     sessionId: string,
     to: string,
@@ -123,6 +135,7 @@ export class MessagesService implements OnApplicationShutdown {
     options: string[],
     selectableCount: number = 1,
   ): Promise<SendResult> {
+    this.assertBaileysOnly(sessionId, 'Polls');
     return this.adapter.sendPoll(sessionId, to, name, options, selectableCount);
   }
 
@@ -137,10 +150,12 @@ export class MessagesService implements OnApplicationShutdown {
   }
 
   async sendGif(sessionId: string, to: string, gifUrl: string, caption?: string): Promise<SendResult> {
+    this.assertBaileysOnly(sessionId, 'GIF send');
     return this.adapter.sendGif(sessionId, to, gifUrl, caption);
   }
 
   async sendViewOnce(sessionId: string, to: string, imageUrl: string, caption?: string): Promise<SendResult> {
+    this.assertBaileysOnly(sessionId, 'View-once messages');
     return this.adapter.sendViewOnce(sessionId, to, imageUrl, caption);
   }
 
@@ -150,6 +165,7 @@ export class MessagesService implements OnApplicationShutdown {
     messageId: string,
     newText: string,
   ): Promise<SendResult> {
+    this.assertBaileysOnly(sessionId, 'Editing messages');
     return this.adapter.editMessage(sessionId, to, messageId, newText);
   }
 
@@ -159,14 +175,21 @@ export class MessagesService implements OnApplicationShutdown {
     messageId: string,
     forEveryone: boolean = true,
   ): Promise<{ status: string }> {
+    this.assertBaileysOnly(sessionId, 'Deleting messages');
     return this.adapter.deleteMessage(sessionId, to, messageId, forEveryone);
   }
 
   async markRead(sessionId: string, to: string, messageIds: string[]): Promise<{ status: string }> {
+    // Meta supports read receipts via the Graph API — route to the owning provider.
+    if (this.isMetaSession(sessionId)) {
+      await this.registry.for(sessionId).markRead(sessionId, to, messageIds);
+      return { status: 'ok' };
+    }
     return this.adapter.markRead(sessionId, to, messageIds);
   }
 
   async sendTyping(sessionId: string, to: string, isGroup: boolean = false): Promise<{ status: string }> {
+    this.assertBaileysOnly(sessionId, 'Typing indicators');
     return this.adapter.sendTyping(sessionId, to, isGroup);
   }
 
@@ -175,6 +198,7 @@ export class MessagesService implements OnApplicationShutdown {
     to: string,
     presence: PresenceType,
   ): Promise<{ status: string }> {
+    this.assertBaileysOnly(sessionId, 'Presence updates');
     return this.adapter.sendPresence(sessionId, to, presence);
   }
 

@@ -83,16 +83,25 @@ export class MetaWebhookService {
 
     if (!appSecret) {
       if (process.env.NODE_ENV === 'production') {
+        this.logger.warn(
+          `[meta:${sessionId}] Webhook rejected — no App Secret stored for this session. ` +
+            `Re-create the session and fill in the App Secret (Meta → App Settings → Basic).`,
+        );
         throw new ForbiddenException('Webhook signature verification is required in production (no app secret configured)');
       }
       this.logger.warn(`[meta:${sessionId}] UNVERIFIED webhook accepted — no app secret (development only)`);
       return;
     }
     if (!header || rawBody === undefined) {
+      this.logger.warn(`[meta:${sessionId}] Webhook rejected — ${!header ? 'no X-Hub-Signature-256 header' : 'raw body unavailable'}`);
       throw new ForbiddenException('Missing webhook signature');
     }
     const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
     if (!this.timingSafeEq(header, expected)) {
+      this.logger.warn(
+        `[meta:${sessionId}] Webhook signature MISMATCH — the session's App Secret does not match this Meta app. ` +
+          `Re-create the session with the exact App Secret from Meta → App Settings → Basic.`,
+      );
       throw new ForbiddenException('Invalid webhook signature');
     }
   }
