@@ -11,6 +11,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { HealthModule } from './health/health.module';
 import { InboxModule } from './inbox/inbox.module';
 import { MediaModule } from './media/media.module';
+import { ContactsModule } from './contacts/contacts.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { MediaModule } from './media/media.module';
     HealthModule,
     InboxModule,
     MediaModule,
+    ContactsModule,
   ],
   providers: [
     {
