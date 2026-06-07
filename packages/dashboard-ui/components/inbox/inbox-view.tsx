@@ -219,6 +219,14 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
     setNewChatOpen(true)
   }
 
+  // Start a chat with a number tapped from a shared contact card.
+  const startChatWith = (phone: string) => {
+    setNcSession((s) => s || selectedSessionId || sessions[0] || "")
+    setNcPhone(phone.replace(/[^0-9]/g, ""))
+    setNcText("")
+    setNewChatOpen(true)
+  }
+
   const startNewChat = async () => {
     const sessionId = ncSession || sessions[0]
     const phone = ncPhone.replace(/[^0-9]/g, "")
@@ -358,6 +366,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
               onResolveToggle={toggleResolve}
               onReact={reactToMessage}
               onForward={setForwardMsg}
+              onStartChat={startChatWith}
               provider={provider}
             >
               <>
