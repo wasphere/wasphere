@@ -101,7 +101,9 @@ services:
       - traefik.http.routers.wasphere-wa-webhook.entrypoints=websecure
       - traefik.http.routers.wasphere-wa-webhook.tls.certresolver=letsencrypt
       - traefik.http.routers.wasphere-wa-webhook.service=wasphere-wa-webhook
-      - traefik.http.routers.wasphere-wa-webhook.priority=100
+      # High priority so this beats any wildcard Host(`*.domain`) router from
+      # another app sharing the Traefik instance (e.g. a whitelabel catch-all).
+      - traefik.http.routers.wasphere-wa-webhook.priority=1000
       - traefik.http.services.wasphere-wa-webhook.loadbalancer.server.port=3001
 
   # ── Dashboard UI ─────────────────────────────────────────────────────────────
