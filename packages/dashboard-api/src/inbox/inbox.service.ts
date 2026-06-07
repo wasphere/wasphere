@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -289,13 +290,18 @@ export class InboxService {
     }
 
     if (!resp.ok) {
-      // 404 (session not found) / 4xx (bad media) / 5xx (disconnected)
+      // Surface the real reason from wa-server (Meta/Baileys errors carry a
+      // message) instead of a blanket "disconnected".
+      const body = (await resp.json().catch(() => ({}))) as { message?: string; error?: string };
+      const reason = body.message || body.error;
       this.logger.warn(
-        `[Inbox] reply send failed status=${resp.status} kind=${kind} session=${convo.sessionId}`,
+        `[Inbox] reply send failed status=${resp.status} kind=${kind} session=${convo.sessionId} reason=${reason ?? 'n/a'}`,
       );
-      throw new ServiceUnavailableException(
-        'Session disconnected — reconnect to send.',
-      );
+      if (resp.status >= 400 && resp.status < 500) {
+        // Client-side: bad media for Meta, capability not supported, etc.
+        throw new BadRequestException(reason || `Could not send ${kind} message.`);
+      }
+      throw new ServiceUnavailableException(reason || 'Session disconnected — reconnect to send.');
     }
 
     // Reactions attach to an existing message — nothing to persist in the thread.

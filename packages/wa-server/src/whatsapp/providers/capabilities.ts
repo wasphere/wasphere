@@ -33,6 +33,9 @@ export const META_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   interactiveButtons: true,
   reactions: true,
   viewOnce: false,
-  mediaUpload: true,
+  // v1.2 sends media to Meta in LINK mode only (public URL). The inbox/composer
+  // uploads base64 — not supported until upload-mode lands in v1.3. Keep false so
+  // the composer hides Photo/Document for Meta instead of failing at send.
+  mediaUpload: false,
   freeformAlways: false,
 });
