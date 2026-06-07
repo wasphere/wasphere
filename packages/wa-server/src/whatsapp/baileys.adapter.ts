@@ -677,7 +677,28 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
       } else if (contentType === 'reactionMessage') {
         content.reaction = msg.message?.reactionMessage?.text;
         content.replyMessageId = msg.message?.reactionMessage?.key?.id;
+      } else if (contentType === 'buttonsResponseMessage') {
+        // Customer tapped a reply button — expose both the visible text AND the
+        // stable button id (for automation/webhook routing).
+        content.text = msg.message?.buttonsResponseMessage?.selectedDisplayText;
+        content.selectionId = msg.message?.buttonsResponseMessage?.selectedButtonId;
+        content.interactiveKind = 'button_reply';
+      } else if (contentType === 'listResponseMessage') {
+        const lr = msg.message?.listResponseMessage;
+        content.text = lr?.title;
+        content.selectionId = lr?.singleSelectReply?.selectedRowId;
+        content.selectionDescription = lr?.description;
+        content.interactiveKind = 'list_reply';
+      } else if (contentType === 'templateButtonReplyMessage') {
+        content.text = msg.message?.templateButtonReplyMessage?.selectedDisplayText;
+        content.selectionId = msg.message?.templateButtonReplyMessage?.selectedId;
+        content.interactiveKind = 'quick_reply';
       }
+
+      // Interactive replies render as plain text in the inbox; map their type so
+      // the thread/ingest treat them like a normal text message.
+      const INTERACTIVE_REPLY = ['buttonsResponseMessage', 'listResponseMessage', 'templateButtonReplyMessage'];
+      const outType = INTERACTIVE_REPLY.includes(contentType) ? 'conversation' : contentType;
 
       // Download media (image/sticker/video/voice/audio/document) inline so the
       // inbox can show or play it.
@@ -700,6 +721,7 @@ export class BaileysAdapter implements IWhatsAppAdapter, OnModuleInit {
 
       await this.webhookService.fire('message.received', sessionId, {
         ...basePayload,
+        type: outType,
         content,
         message: sanitizeMessage(msg),
       });
