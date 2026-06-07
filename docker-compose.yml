@@ -41,6 +41,9 @@ services:
       INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET:?set INTERNAL_WEBHOOK_SECRET in .env}
       CORS_ORIGIN: ${DASHBOARD_UI_URL:-http://localhost:3004}
       DASHBOARD_PORT: "3000"
+      # Public base URL of this API — webhooks emit media download links here
+      # instead of inlining base64. Leave empty to keep inline data URIs.
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-}
       NODE_ENV: production
     ports:
       - "${DASHBOARD_API_PORT:-3000}:3000"

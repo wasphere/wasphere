@@ -7,6 +7,7 @@ import { eventMatchesFilter, WebhookEvent } from '../lib/webhook-events';
 import { deliverWebhook } from '../common/webhook-delivery';
 import { AuditEventDto } from './dto/audit-event.dto';
 import { WebhookEventDto } from './dto/webhook-event.dto';
+import { mediaUrlFor } from '../media/media-token';
 
 const RETRY_DELAYS_MS = [1_000, 5_000, 30_000]; // delays before attempt 2, 3, 4
 
@@ -66,11 +67,28 @@ export class InternalService {
     if (matching.length === 0) return;
 
     await Promise.allSettled(
-      matching.map((wh) => this.deliverWithRetry(wh, dto, 1)),
+      matching.map((wh) => this.deliverWithRetry(workspaceId, wh, dto, 1)),
     );
   }
 
+  /**
+   * Replace any inline base64 media with a fetchable download URL so consumers
+   * (n8n etc.) get a small payload + a link, not a multi-MB blob. No-op when
+   * MEDIA_BASE_URL is unset (keeps the inline data URI for backward compat).
+   */
+  private toDeliverableData(workspaceId: string, dto: WebhookEventDto): unknown {
+    const data = dto.data as Record<string, any> | undefined;
+    const content = data?.content as Record<string, any> | undefined;
+    if (!data || !content?.dataUri || typeof data.messageId !== 'string') return dto.data;
+    const url = mediaUrlFor(workspaceId, data.messageId);
+    if (!url) return dto.data;
+    const { dataUri, ...restContent } = content;
+    void dataUri;
+    return { ...data, content: { ...restContent, mediaUrl: url } };
+  }
+
   private async deliverWithRetry(
+    workspaceId: string,
     wh: { id: string; url: string; signingSecret: string; retryMax: number },
     dto: WebhookEventDto,
     attempt: number,
@@ -86,7 +104,7 @@ export class InternalService {
       sessionId: dto.sessionId,
       timestamp: dto.timestamp,
       deliveryId,
-      data: dto.data,
+      data: this.toDeliverableData(workspaceId, dto),
     });
     const signature = sign(wh.signingSecret, timestamp, rawBody);
     const start = Date.now();
@@ -125,7 +143,7 @@ export class InternalService {
 
     // Retry if attempts remain
     if (attempt < wh.retryMax) {
-      return this.deliverWithRetry(wh, dto, attempt + 1);
+      return this.deliverWithRetry(workspaceId, wh, dto, attempt + 1);
     }
 
     // Retries exhausted
