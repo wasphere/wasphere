@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { useInboxStream } from "@/lib/use-inbox-stream"
 import { ConversationList } from "./conversation-list"
 import { ThreadView } from "./thread-view"
-import { Composer } from "./composer"
+import { Composer, type ComposerCapabilities } from "./composer"
 import { ContactPanel } from "./contact-panel"
 import { ForwardDialog } from "./forward-dialog"
 import type { Conversation, ConversationStatus, InboxMessage, OutboundReply, Paginated } from "./types"
@@ -49,6 +49,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
   const [sessions, setSessions] = React.useState<string[]>([])
   const [sessionFilter, setSessionFilter] = React.useState<string>("") // "" = all sessions (universal inbox)
   const [mobileContactOpen, setMobileContactOpen] = React.useState(false)
+  const [capabilities, setCapabilities] = React.useState<ComposerCapabilities>(null)
 
   const selectedId = selected?.id ?? null
   const selectedIdRef = React.useRef<string | null>(null)
@@ -78,6 +79,19 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
       .catch(() => { /* keep conversation-derived list */ })
     return () => { cancelled = true }
   }, [])
+
+  // Load the selected conversation's provider capabilities so the composer can
+  // hide what that provider can't do (e.g. polls on Meta) and show what it can.
+  const selectedSessionId = selected?.sessionId ?? null
+  React.useEffect(() => {
+    if (!selectedSessionId) { setCapabilities(null); return }
+    let cancelled = false
+    fetch(`/api/sessions/${encodeURIComponent(selectedSessionId)}/capabilities`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled) setCapabilities(d?.capabilities ?? null) })
+      .catch(() => { if (!cancelled) setCapabilities(null) })
+    return () => { cancelled = true }
+  }, [selectedSessionId])
 
   const toggleMute = (convId: string, muted: boolean) => {
     setMutedIds((prev) => {
@@ -298,7 +312,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
                     <ArrowLeft className="mr-1 size-4" /> Back
                   </Button>
                 </div>
-                <Composer onSend={sendReply} sending={sending} sessionOffline={!!selected.sessionDeletedAt} />
+                <Composer onSend={sendReply} sending={sending} sessionOffline={!!selected.sessionDeletedAt} capabilities={capabilities} />
               </>
             </ThreadView>
           ) : (

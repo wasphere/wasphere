@@ -235,6 +235,39 @@ export class InboxService {
         msgBody = dto.emoji ?? null;
         msgPayload = undefined;
         break;
+      case 'location':
+        endpoint = `${base}/location`;
+        sendBody = { to, latitude: dto.latitude, longitude: dto.longitude, name: dto.locationName, address: dto.address };
+        msgType = 'location';
+        msgBody = dto.locationName ?? dto.address ?? '📍 Location';
+        msgPayload = {
+          latitude: dto.latitude ?? null,
+          longitude: dto.longitude ?? null,
+          name: dto.locationName ?? null,
+          address: dto.address ?? null,
+        };
+        break;
+      case 'contact':
+        endpoint = `${base}/contact`;
+        sendBody = { to, displayName: dto.contactName, phoneNumber: dto.contactPhone };
+        msgType = 'contact';
+        msgBody = dto.contactName ?? '👤 Contact';
+        msgPayload = { displayName: dto.contactName ?? null, phoneNumber: dto.contactPhone ?? null };
+        break;
+      case 'buttons':
+        endpoint = `${base}/buttons`;
+        sendBody = { to, text: dto.text, footer: dto.footer, buttons: dto.buttons };
+        msgType = 'buttons';
+        msgBody = dto.text ?? null;
+        msgPayload = { footer: dto.footer ?? null, buttons: dto.buttons ?? [] };
+        break;
+      case 'list':
+        endpoint = `${base}/list`;
+        sendBody = { to, title: dto.listTitle, text: dto.text, buttonText: dto.buttonText, sections: dto.sections };
+        msgType = 'list';
+        msgBody = dto.text ?? null;
+        msgPayload = { title: dto.listTitle ?? null, buttonText: dto.buttonText ?? null, sections: dto.sections ?? [] };
+        break;
       default:
         endpoint = `${base}/text`;
         sendBody = { to, text: dto.text };

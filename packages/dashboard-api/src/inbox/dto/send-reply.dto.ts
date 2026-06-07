@@ -6,6 +6,7 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   Max,
@@ -15,7 +16,18 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export type ReplyKind = 'text' | 'image' | 'document' | 'poll' | 'reaction';
+export type ReplyKind =
+  | 'text'
+  | 'image'
+  | 'document'
+  | 'poll'
+  | 'reaction'
+  | 'location'
+  | 'contact'
+  | 'buttons'
+  | 'list';
+
+const KINDS: ReplyKind[] = ['text', 'image', 'document', 'poll', 'reaction', 'location', 'contact', 'buttons', 'list'];
 
 /**
  * Outbound inbox reply. `kind` selects the message type; the remaining fields
@@ -23,14 +35,14 @@ export type ReplyKind = 'text' | 'image' | 'document' | 'poll' | 'reaction';
  * passed as a base64 data URI and proxied to the WA server's send endpoints.
  */
 export class SendReplyDto {
-  @ApiPropertyOptional({ enum: ['text', 'image', 'document', 'poll', 'reaction'], default: 'text' })
+  @ApiPropertyOptional({ enum: KINDS, default: 'text' })
   @IsOptional()
-  @IsIn(['text', 'image', 'document', 'poll', 'reaction'])
+  @IsIn(KINDS)
   kind?: ReplyKind;
 
-  // text (required only for text replies)
-  @ApiPropertyOptional({ description: 'Reply text', maxLength: 4096 })
-  @ValidateIf((o) => (o.kind ?? 'text') === 'text')
+  // text — required for text replies AND the body of buttons/list messages
+  @ApiPropertyOptional({ description: 'Reply / body text', maxLength: 4096 })
+  @ValidateIf((o) => ['text', 'buttons', 'list'].includes(o.kind ?? 'text'))
   @IsString()
   @IsNotEmpty()
   @MaxLength(4096)
@@ -109,4 +121,85 @@ export class SendReplyDto {
   @IsOptional()
   @IsBoolean()
   targetFromMe?: boolean;
+
+  // location
+  @ApiPropertyOptional({ description: 'Latitude (location)' })
+  @ValidateIf((o) => o.kind === 'location')
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @ApiPropertyOptional({ description: 'Longitude (location)' })
+  @ValidateIf((o) => o.kind === 'location')
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
+
+  @ApiPropertyOptional({ description: 'Location label' })
+  @ValidateIf((o) => o.kind === 'location')
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  locationName?: string;
+
+  @ApiPropertyOptional({ description: 'Location address' })
+  @ValidateIf((o) => o.kind === 'location')
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  address?: string;
+
+  // contact
+  @ApiPropertyOptional({ description: 'Contact display name' })
+  @ValidateIf((o) => o.kind === 'contact')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  contactName?: string;
+
+  @ApiPropertyOptional({ description: 'Contact phone number' })
+  @ValidateIf((o) => o.kind === 'contact')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  contactPhone?: string;
+
+  // buttons — `text` is the body; footer + up to 3 reply buttons
+  @ApiPropertyOptional({ description: 'Buttons footer' })
+  @ValidateIf((o) => o.kind === 'buttons')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  footer?: string;
+
+  @ApiPropertyOptional({ description: 'Reply buttons (1–3): [{ id, text }]' })
+  @ValidateIf((o) => o.kind === 'buttons')
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
+  buttons?: { id: string; text: string }[];
+
+  // list — `text` is the body
+  @ApiPropertyOptional({ description: 'List header title' })
+  @ValidateIf((o) => o.kind === 'list')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  listTitle?: string;
+
+  @ApiPropertyOptional({ description: 'List button label' })
+  @ValidateIf((o) => o.kind === 'list')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  buttonText?: string;
+
+  @ApiPropertyOptional({ description: 'List sections: [{ title, rows: [{ id, title, description? }] }]' })
+  @ValidateIf((o) => o.kind === 'list')
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  sections?: { title: string; rows: { id: string; title: string; description?: string }[] }[];
 }
