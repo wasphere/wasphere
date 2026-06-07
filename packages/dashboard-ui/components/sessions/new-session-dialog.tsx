@@ -63,8 +63,20 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
 
   const [test, setTest] = React.useState<{ state: "idle" | "testing" | "ok" | "error"; message?: string }>({ state: "idle" })
   const [copied, setCopied] = React.useState(false)
+  const [webhookBase, setWebhookBase] = React.useState<string | null>(null)
 
   const isMeta = provider === "meta"
+
+  // Pull the wa-server's public URL so we can show the real callback URL.
+  React.useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    fetch("/api/meta/webhook-base")
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setWebhookBase(typeof d?.base === "string" ? d.base : null) })
+      .catch(() => { /* fall back to placeholder */ })
+    return () => { cancelled = true }
+  }, [open])
 
   const reset = () => {
     setProvider("baileys")
@@ -87,7 +99,8 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
     onClose()
   }
 
-  const callbackUrl = `https://<your-wa-server>/api/meta/webhook/${sessionId || "<session-id>"}`
+  const callbackBase = webhookBase ?? "https://<your-wa-server>"
+  const callbackUrl = `${callbackBase}/api/meta/webhook/${sessionId || "<session-id>"}`
 
   const copyCallback = async () => {
     try {
@@ -284,8 +297,11 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Replace <code>&lt;your-wa-server&gt;</code> with your WA Server&apos;s public URL, then paste this into
-                  your Meta app&apos;s webhook config (with the Verify Token above).
+                  {webhookBase ? (
+                    <>Paste this into your Meta app&apos;s webhook config (with the Verify Token above), then subscribe to the <code>messages</code> field.</>
+                  ) : (
+                    <>Replace <code>&lt;your-wa-server&gt;</code> with your WA Server&apos;s public URL (set <code>WA_SERVER_PUBLIC_URL</code> to auto-fill this), then paste it into your Meta app&apos;s webhook config with the Verify Token above.</>
+                  )}
                 </p>
               </div>
 

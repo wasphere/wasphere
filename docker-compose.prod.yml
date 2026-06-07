@@ -113,6 +113,9 @@ services:
     environment:
       DASHBOARD_API_URL: http://dashboard-api:3000
       WA_SERVER_INTERNAL_URL: http://wa-server:3001
+      # Public URL of the WA Server — used only to auto-fill the Meta webhook
+      # callback URL in the New-Session dialog. Set to https://${WA_SERVER_DOMAIN}.
+      WA_SERVER_PUBLIC_URL: ${WA_SERVER_PUBLIC_URL:-}
       NODE_ENV: production
     depends_on:
       dashboard-api:

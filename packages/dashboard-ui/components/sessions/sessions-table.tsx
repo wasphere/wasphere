@@ -46,6 +46,12 @@ export interface Session {
   name?: string | null
   connectedAt?: string | null
   proxy?: string | null
+  config?: { provider?: string | null } | null
+}
+
+/** Meta Cloud API sessions have no QR — never offer Baileys "Relink" for them. */
+function isMetaSession(session: Session): boolean {
+  return session.config?.provider === "meta"
 }
 
 interface SessionsTableProps {
@@ -146,6 +152,12 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
   }
 
   const handleRelink = async (sessionId: string) => {
+    // Relink = delete + recreate via QR. Baileys only — a Meta session would be
+    // silently rebuilt as a QR/Baileys session, losing its Cloud API config.
+    if (sessions.find((s) => s.id === sessionId && isMetaSession(s))) {
+      toast.error("Meta sessions don't use QR. Delete and recreate it with your Cloud API credentials.")
+      return
+    }
     try {
       await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" })
       const res = await fetch("/api/sessions", {
@@ -234,7 +246,7 @@ export function SessionsTable({ initialSessions }: SessionsTableProps) {
                         View QR
                       </Button>
                     )}
-                    {(session.status === "failed" || session.status === "disconnected" || session.status === "logged_out" || session.status === "qr_expired") && (
+                    {!isMetaSession(session) && (session.status === "failed" || session.status === "disconnected" || session.status === "logged_out" || session.status === "qr_expired") && (
                       <Button
                         variant="outline"
                         size="sm"

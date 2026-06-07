@@ -100,6 +100,9 @@ services:
     environment:
       DASHBOARD_API_URL: http://dashboard-api:3000
       WA_SERVER_INTERNAL_URL: http://wa-server:3001
+      # Public URL of the WA Server (only for the Meta webhook callback shown in
+      # the New-Session dialog). Leave empty unless you expose the Meta webhook.
+      WA_SERVER_PUBLIC_URL: ${WA_SERVER_PUBLIC_URL:-}
       NODE_ENV: production
     ports:
       - "${DASHBOARD_UI_PORT:-3004}:3004"
