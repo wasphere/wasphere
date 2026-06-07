@@ -119,6 +119,12 @@ test('location + interactive reply map correctly', async () => {
   const it = await ingestMsg({ from: '1555', id: 'b', type: 'interactive', interactive: { button_reply: { id: 'yes', title: 'Yes' } } });
   assert.equal(it.type, 'conversation'); // shown as the tapped selection
   assert.equal(it.content.text, 'Yes');
+  assert.equal(it.content.selectionId, 'yes'); // stable id for automation
+  assert.equal(it.content.interactiveKind, 'button_reply');
+  // list reply carries its row id too
+  const lst = await ingestMsg({ from: '1555', id: 'c', type: 'interactive', interactive: { list_reply: { id: 'plan_b', title: 'Plan B' } } });
+  assert.equal(lst.content.selectionId, 'plan_b');
+  assert.equal(lst.content.interactiveKind, 'list_reply');
 });
 
 test('message without from/id is skipped', async () => {

@@ -156,18 +156,33 @@ export class MetaWebhookService {
         content.reaction = msg.reaction?.emoji;
         content.replyMessageId = msg.reaction?.message_id;
         break;
-      case 'interactive':
-        // A button/list reply the customer tapped — show their selection as text.
+      case 'interactive': {
+        // A button/list reply the customer tapped — expose the visible title AND
+        // the stable id/payload so automations can route on a fixed value.
         type = 'conversation';
-        content.text = msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title ?? '';
+        const br = msg.interactive?.button_reply;
+        const lr = msg.interactive?.list_reply;
+        content.text = br?.title ?? lr?.title ?? '';
+        content.selectionId = br?.id ?? lr?.id ?? null;
+        content.selectionTitle = br?.title ?? lr?.title ?? null;
+        if (lr?.description) content.selectionDescription = lr.description;
+        content.interactiveKind = br ? 'button_reply' : lr ? 'list_reply' : null;
         break;
+      }
       case 'button':
+        // Template quick-reply button — carries text + a developer-set payload.
         type = 'conversation';
         content.text = msg.button?.text ?? '';
+        content.selectionId = msg.button?.payload ?? null;
+        content.selectionTitle = msg.button?.text ?? null;
+        content.interactiveKind = 'quick_reply';
         break;
       default:
         break;
     }
+
+    // If this message is a reply to one of ours, expose the quoted message id.
+    if (msg.context?.id) content.quotedMessageId = msg.context.id;
 
     return {
       messageId: id,
