@@ -40,15 +40,10 @@ export class ProviderRegistry {
 
   /** The provider for a given session — reads `session.provider` when Meta is enabled. */
   for(sessionId: string): MessageProvider {
-    if (metaEnabled()) {
-      try {
-        if (this.adapter.getSessionInfo(sessionId).config?.provider === 'meta') {
-          return this.meta;
-        }
-      } catch {
-        // Unknown session (or Meta-only session not in the Baileys map) — default below.
-      }
-    }
+    // Meta sessions live in the MetaCloudProvider, NOT the Baileys adapter — so
+    // ask the Meta provider directly. (Asking only the adapter resolved every
+    // Meta session to Baileys, which then 404'd with "not found or not connected".)
+    if (metaEnabled() && this.meta.has?.(sessionId)) return this.meta;
     return this.baileys;
   }
 
@@ -57,19 +52,24 @@ export class ProviderRegistry {
     return id === 'meta' ? this.meta : this.baileys;
   }
 
+  /** Session config from whichever provider owns the session (Meta or Baileys). */
+  private sessionConfig(sessionId: string) {
+    try {
+      if (this.meta.has?.(sessionId)) return this.meta.getSessionInfo(sessionId)?.config;
+      return this.adapter.getSessionInfo(sessionId)?.config;
+    } catch {
+      return undefined;
+    }
+  }
+
   /**
    * The opt-in backup provider for a session (`config.fallbackProvider`), or null.
    * Only active when Meta is enabled (the only non-Baileys provider today).
    */
   fallbackFor(sessionId: string): MessageProvider | null {
     if (!metaEnabled()) return null;
-    try {
-      const fb = this.adapter.getSessionInfo(sessionId).config?.fallbackProvider;
-      if (fb) return this.get(fb);
-    } catch {
-      // unknown session — no fallback
-    }
-    return null;
+    const fb = this.sessionConfig(sessionId)?.fallbackProvider;
+    return fb ? this.get(fb) : null;
   }
 
   /**

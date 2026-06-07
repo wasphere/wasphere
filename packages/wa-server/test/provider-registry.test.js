@@ -7,8 +7,10 @@ const { CapabilityError } = require('../dist/whatsapp/providers/capability-error
 
 function makeReg({ provider = 'baileys', fallbackProvider, metaEnabled = true } = {}) {
   const baileys = { id: 'baileys' };
-  const meta = { id: 'meta' };
-  const adapter = { getSessionInfo: () => ({ config: { provider, fallbackProvider } }) };
+  const cfg = { provider, fallbackProvider };
+  // A Meta session lives in the Meta provider (meta.has === true), not the adapter.
+  const meta = { id: 'meta', has: () => provider === 'meta', getSessionInfo: () => ({ config: cfg }) };
+  const adapter = { getSessionInfo: () => ({ config: cfg }) };
   if (metaEnabled) process.env.META_PROVIDER_ENABLED = 'true';
   else delete process.env.META_PROVIDER_ENABLED;
   return { reg: new ProviderRegistry(baileys, meta, adapter), baileys, meta };
@@ -78,6 +80,16 @@ test('flag off → fallback inactive even if configured', async () => {
     /unavailable/,
   );
   assert.deepEqual(calls, ['baileys']); // no fallback when flag off
+  reset();
+});
+
+test('meta session (meta.has) routes to meta provider — regression for 404 on send', async () => {
+  const { reg, meta } = makeReg({ provider: 'meta' });
+  assert.equal(reg.for('s'), meta);
+  const calls = [];
+  const r = await reg.withFailover('s', (p) => { calls.push(p.id); return Promise.resolve(ok); });
+  assert.deepEqual(calls, ['meta']); // not baileys → no "not found or not connected"
+  assert.equal(r.via, 'primary');
   reset();
 });
 
