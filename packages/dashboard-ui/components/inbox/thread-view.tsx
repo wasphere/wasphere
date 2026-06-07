@@ -301,6 +301,7 @@ export function ThreadView({
   onResolveToggle,
   onReact,
   onForward,
+  provider,
   children,
 }: {
   conversation: Conversation
@@ -309,6 +310,7 @@ export function ThreadView({
   onResolveToggle: () => void
   onReact?: (m: InboxMessage, emoji: string) => void
   onForward?: (m: InboxMessage) => void
+  provider?: "baileys" | "meta" | null
   children: React.ReactNode // composer
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -345,6 +347,18 @@ export function ThreadView({
             <AvatarFallback className="text-[10px]">{contactInitials(conversation.contact.name)}</AvatarFallback>
           </Avatar>
           <span className="truncate text-sm font-semibold text-foreground">{conversation.contact.name}</span>
+          {provider && (
+            <Badge
+              variant="secondary"
+              className={
+                provider === "meta"
+                  ? "shrink-0 border-transparent bg-blue-500/10 text-[10px] text-blue-600 dark:text-blue-400"
+                  : "shrink-0 border-transparent bg-emerald-500/10 text-[10px] text-emerald-600 dark:text-emerald-400"
+              }
+            >
+              {provider === "meta" ? "Meta" : "WaSphere"}
+            </Badge>
+          )}
           <span className="hidden text-xs text-muted-foreground sm:inline">· {conversation.sessionId}</span>
           {conversation.status === "RESOLVED" && <Badge variant="secondary" className="text-[10px]">Resolved</Badge>}
         </div>

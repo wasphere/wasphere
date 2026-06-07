@@ -50,6 +50,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
   const [sessionFilter, setSessionFilter] = React.useState<string>("") // "" = all sessions (universal inbox)
   const [mobileContactOpen, setMobileContactOpen] = React.useState(false)
   const [capabilities, setCapabilities] = React.useState<ComposerCapabilities>(null)
+  const [provider, setProvider] = React.useState<"baileys" | "meta" | null>(null)
 
   const selectedId = selected?.id ?? null
   const selectedIdRef = React.useRef<string | null>(null)
@@ -84,12 +85,16 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
   // hide what that provider can't do (e.g. polls on Meta) and show what it can.
   const selectedSessionId = selected?.sessionId ?? null
   React.useEffect(() => {
-    if (!selectedSessionId) { setCapabilities(null); return }
+    if (!selectedSessionId) { setCapabilities(null); setProvider(null); return }
     let cancelled = false
     fetch(`/api/sessions/${encodeURIComponent(selectedSessionId)}/capabilities`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled) setCapabilities(d?.capabilities ?? null) })
-      .catch(() => { if (!cancelled) setCapabilities(null) })
+      .then((d) => {
+        if (cancelled) return
+        setCapabilities(d?.capabilities ?? null)
+        setProvider(d?.provider === "meta" ? "meta" : d?.provider === "baileys" ? "baileys" : null)
+      })
+      .catch(() => { if (!cancelled) { setCapabilities(null); setProvider(null) } })
     return () => { cancelled = true }
   }, [selectedSessionId])
 
@@ -305,6 +310,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
               onResolveToggle={toggleResolve}
               onReact={reactToMessage}
               onForward={setForwardMsg}
+              provider={provider}
             >
               <>
                 <div className="flex items-center gap-1 border-t px-2 py-1 md:hidden">
