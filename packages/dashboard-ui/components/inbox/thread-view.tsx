@@ -113,8 +113,9 @@ function MediaBlock({ m }: { m: InboxMessage }) {
     const addr = (p.address as string) || ""
     const hasCoords = lat != null && lng != null
     const maps = hasCoords ? `https://www.google.com/maps?q=${lat},${lng}` : "#"
+    // Wikimedia static map (keyless, reliable). Falls back to a coords card if it fails.
     const thumb = hasCoords
-      ? `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=320x150&maptype=mapnik&markers=${lat},${lng},red-pushpin`
+      ? `https://maps.wikimedia.org/img/osm-intl,15,${lat},${lng},320x150.png`
       : null
     return (
       <a href={maps} target="_blank" rel="noopener noreferrer" className="-mx-1 block w-60 max-w-full overflow-hidden rounded-lg bg-background/40">

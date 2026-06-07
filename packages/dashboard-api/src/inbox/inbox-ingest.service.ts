@@ -208,13 +208,21 @@ export class InboxIngestService {
       const waMessageId: string | undefined = u?.key?.id ?? u?.messageId;
       const statusNum = u?.update?.status ?? u?.status;
       const status = mapDeliveryStatus(statusNum);
-      if (!waMessageId || !status) continue;
+      if (!waMessageId || !status) {
+        this.logger.debug(`[Inbox] status update skipped — id=${waMessageId ?? 'n/a'} raw=${JSON.stringify(statusNum)}`);
+        continue;
+      }
       const res = await this.prisma.message.updateMany({
         where: { workspaceId, waMessageId },
         data: { status },
       });
       if (res.count > 0) {
+        this.logger.debug(`[Inbox] status ${status} applied to ${waMessageId} (${res.count} row)`);
         this.events.emit({ type: 'message.status', workspaceId, payload: { waMessageId, status } });
+      } else {
+        // Status arrived but no inbox message matched — usually the message was
+        // sent outside the inbox (API/tester) or the id differs.
+        this.logger.warn(`[Inbox] status ${status} for ${waMessageId} matched NO inbox message (sent outside inbox, or id mismatch)`);
       }
     }
   }
