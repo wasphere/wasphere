@@ -70,6 +70,8 @@ export class InboxIngestService {
     switch (dto.event) {
       case 'message.received':
         return this.ingestInbound(workspaceId, dto);
+      case 'message.sent':
+        return this.ingestOutbound(workspaceId, dto);
       case 'messages.update':
         return this.applyStatusUpdates(workspaceId, dto);
       case 'session.deleted':
@@ -194,6 +196,70 @@ export class InboxIngestService {
         },
       });
 
+      return convo.id;
+    });
+
+    this.events.emit({ type: 'message.new', workspaceId, conversationId });
+  }
+
+  // Outbound messages sent via ANY path (API, tester, or inbox composer) are
+  // mirrored here so they appear in the thread and collect status ticks.
+  // Idempotent on (workspace, waMessageId) — the composer also writes its own
+  // copy, so we upsert rather than duplicate.
+  private async ingestOutbound(workspaceId: string, dto: WebhookEventDto): Promise<void> {
+    const data = dto.data as Record<string, any>;
+    const to: string | undefined = data.to;
+    const waMessageId: string | undefined = data.messageId;
+    if (!to || !waMessageId) return;
+
+    const jid = String(to).includes('@') ? String(to) : `${String(to).replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+    // Skip groups/broadcast — 1:1 inbox only (mirror of the inbound guard).
+    if (jid.endsWith('@g.us') || jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) return;
+
+    const phone = jid.split('@')[0].replace(/[^0-9]/g, '');
+    const type = mapType(data.type);
+    const content: Record<string, unknown> = { ...(data.content ?? {}) };
+    const mediaUrl: string | null = (content.dataUri as string) ?? null;
+    delete content.dataUri;
+    const body: string | null = (content.text as string) ?? (content.caption as string) ?? null;
+    const waTimestamp = new Date(toUnixSeconds(data.timestamp) * 1000);
+
+    const conversationId = await this.prisma.$transaction(async (tx) => {
+      const contact = await tx.contact.upsert({
+        where: { workspaceId_jid: { workspaceId, jid } },
+        update: {},
+        create: { workspaceId, jid, phone },
+      });
+      const convo = await tx.conversation.upsert({
+        where: { workspaceId_sessionId_contactId: { workspaceId, sessionId: dto.sessionId, contactId: contact.id } },
+        update: {},
+        create: { workspaceId, contactId: contact.id, sessionId: dto.sessionId },
+      });
+      await tx.message.upsert({
+        where: { workspaceId_waMessageId: { workspaceId, waMessageId } },
+        update: {}, // already recorded (e.g. by the inbox composer) — no-op
+        create: {
+          workspaceId,
+          conversationId: convo.id,
+          waMessageId,
+          direction: 'OUTBOUND',
+          type,
+          body,
+          payload: content as Prisma.InputJsonValue,
+          mediaUrl,
+          status: 'SENT',
+          fromMe: true,
+          waTimestamp,
+        },
+      });
+      await tx.conversation.update({
+        where: { id: convo.id },
+        data: {
+          lastPreview: previewFor(type, body),
+          lastMessageAt: waTimestamp > convo.lastMessageAt ? waTimestamp : convo.lastMessageAt,
+          ...(convo.sessionDeletedAt ? { sessionDeletedAt: null } : {}),
+        },
+      });
       return convo.id;
     });
 

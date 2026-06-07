@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Param, Delete, Query, UseGuards, Get, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, Query, UseGuards, UseInterceptors, Get, HttpCode } from '@nestjs/common';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { OutboundEventInterceptor } from './outbound-event.interceptor';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
 import { ValidateSessionIdPipe } from '../common/validate-session-id.pipe';
@@ -25,6 +26,7 @@ import { BulkJob } from './bulk-message.types';
 @ApiTags('Messages')
 @Controller('sessions/:sessionId/messages')
 @UseGuards(RateLimitGuard)
+@UseInterceptors(OutboundEventInterceptor)
 export class MessagesController {
   constructor(private messagesService: MessagesService) {}
 

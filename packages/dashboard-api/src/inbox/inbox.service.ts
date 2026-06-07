@@ -316,8 +316,12 @@ export class InboxService {
     const preview =
       msgBody && msgBody.length ? msgBody.slice(0, 140) : OUTBOUND_PREVIEW[msgType] ?? msgType;
 
-    const message = await this.prisma.message.create({
-      data: {
+    // Upsert (not create): the wa-server also mirrors this send back as a
+    // `message.sent` event, so guard against a double-insert race on waMessageId.
+    const message = await this.prisma.message.upsert({
+      where: { workspaceId_waMessageId: { workspaceId, waMessageId } },
+      update: {},
+      create: {
         workspaceId,
         conversationId: convo.id,
         waMessageId,
