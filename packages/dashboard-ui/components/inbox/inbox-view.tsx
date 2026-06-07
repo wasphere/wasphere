@@ -64,6 +64,21 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
     } catch { /* ignore */ }
   }, [])
 
+  // Seed the session-filter dropdown from ALL sessions (Baileys + Meta), so it
+  // shows every session even before any conversation exists on it.
+  React.useEffect(() => {
+    let cancelled = false
+    fetch("/api/sessions")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Array<{ id: string }>) => {
+        if (cancelled || !Array.isArray(data)) return
+        const ids = data.map((s) => s.id).filter(Boolean)
+        setSessions((prev) => [...new Set([...prev, ...ids])])
+      })
+      .catch(() => { /* keep conversation-derived list */ })
+    return () => { cancelled = true }
+  }, [])
+
   const toggleMute = (convId: string, muted: boolean) => {
     setMutedIds((prev) => {
       const next = new Set(prev)
