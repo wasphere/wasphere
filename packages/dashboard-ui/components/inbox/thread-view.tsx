@@ -111,7 +111,7 @@ function MediaBlock({ m }: { m: InboxMessage }) {
     const lng = p.longitude as number | undefined
     const name = (p.name as string) || ""
     const addr = (p.address as string) || ""
-    const hasCoords = lat != null && lng != null
+    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng)
     const maps = hasCoords ? `https://www.google.com/maps?q=${lat},${lng}` : "#"
     // Wikimedia static map (keyless, reliable). Falls back to a coords card if it fails.
     const thumb = hasCoords

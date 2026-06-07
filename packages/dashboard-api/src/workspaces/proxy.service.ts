@@ -22,6 +22,8 @@ const STRIP_REQUEST_HEADERS = new Set([
   'authorization',
   'cookie',
   'x-forwarded-for',
+  // Never let a client override the WA-server token we inject below.
+  'x-api-token',
 ]);
 
 const STRIP_RESPONSE_HEADERS = new Set([

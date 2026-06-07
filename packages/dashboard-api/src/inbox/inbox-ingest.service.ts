@@ -48,14 +48,50 @@ function previewFor(type: string, body: string | null): string {
  * the existing `POST /internal/webhook-event/:workspaceId` path alongside the
  * webhook fan-out (it does not replace it). Idempotent on (workspace, waMessageId).
  */
+const STATUS_RANK: Record<string, number> = { SENT: 1, DELIVERED: 2, READ: 3 };
+
 @Injectable()
 export class InboxIngestService {
   private readonly logger = new Logger(InboxIngestService.name);
+
+  // Delivery statuses can arrive BEFORE the outbound message row exists (the
+  // message.sent mirror and messages.update are independent fire-and-forget
+  // POSTs with no ordering guarantee). Buffer the highest unmatched status per
+  // message here, then apply it when the row is created. Short-lived (pruned).
+  private readonly pendingStatus = new Map<string, { status: string; ts: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: InboxEventsService,
   ) {}
+
+  private rememberPendingStatus(workspaceId: string, waMessageId: string, status: string): void {
+    const key = `${workspaceId}:${waMessageId}`;
+    const prev = this.pendingStatus.get(key);
+    if (!prev || (STATUS_RANK[status] ?? 0) > (STATUS_RANK[prev.status] ?? 0)) {
+      this.pendingStatus.set(key, { status, ts: Date.now() });
+    }
+    // Prune entries older than 5 min so the map can't grow unbounded.
+    if (this.pendingStatus.size > 1000) {
+      const cutoff = Date.now() - 5 * 60_000;
+      for (const [k, v] of this.pendingStatus) if (v.ts < cutoff) this.pendingStatus.delete(k);
+    }
+  }
+
+  /** Apply (and clear) any buffered delivery status for a freshly-stored message. */
+  private async applyPendingStatus(workspaceId: string, waMessageId: string): Promise<void> {
+    const key = `${workspaceId}:${waMessageId}`;
+    const pending = this.pendingStatus.get(key);
+    if (!pending) return;
+    this.pendingStatus.delete(key);
+    const res = await this.prisma.message.updateMany({
+      where: { workspaceId, waMessageId },
+      data: { status: pending.status as 'SENT' | 'DELIVERED' | 'READ' },
+    });
+    if (res.count > 0) {
+      this.events.emit({ type: 'message.status', workspaceId, payload: { waMessageId, status: pending.status } });
+    }
+  }
 
   /** Fire-and-forget entry point — never blocks the internal 202 response. */
   ingest(workspaceId: string, dto: WebhookEventDto): void {
@@ -263,6 +299,8 @@ export class InboxIngestService {
       return convo.id;
     });
 
+    // A delivery status may have raced ahead of this row — apply it now.
+    await this.applyPendingStatus(workspaceId, waMessageId);
     this.events.emit({ type: 'message.new', workspaceId, conversationId });
   }
 
@@ -286,9 +324,10 @@ export class InboxIngestService {
         this.logger.debug(`[Inbox] status ${status} applied to ${waMessageId} (${res.count} row)`);
         this.events.emit({ type: 'message.status', workspaceId, payload: { waMessageId, status } });
       } else {
-        // Status arrived but no inbox message matched — usually the message was
-        // sent outside the inbox (API/tester) or the id differs.
-        this.logger.warn(`[Inbox] status ${status} for ${waMessageId} matched NO inbox message (sent outside inbox, or id mismatch)`);
+        // The message row may not exist yet (status raced ahead of the
+        // message.sent mirror). Buffer it; ingestOutbound applies it on insert.
+        this.rememberPendingStatus(workspaceId, waMessageId, status);
+        this.logger.debug(`[Inbox] status ${status} buffered for ${waMessageId} (row not yet present)`);
       }
     }
   }

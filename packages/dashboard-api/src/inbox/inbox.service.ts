@@ -297,8 +297,9 @@ export class InboxService {
       this.logger.warn(
         `[Inbox] reply send failed status=${resp.status} kind=${kind} session=${convo.sessionId} reason=${reason ?? 'n/a'}`,
       );
-      if (resp.status >= 400 && resp.status < 500) {
-        // Client-side: bad media for Meta, capability not supported, etc.
+      // 4xx = bad input; 501 = capability not supported on this provider (e.g.
+      // polls on Meta). Both should surface the real reason, not "disconnected".
+      if ((resp.status >= 400 && resp.status < 500) || resp.status === 501) {
         throw new BadRequestException(reason || `Could not send ${kind} message.`);
       }
       throw new ServiceUnavailableException(reason || 'Session disconnected — reconnect to send.');
