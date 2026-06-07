@@ -76,11 +76,11 @@ export class InternalService {
    * (n8n etc.) get a small payload + a link, not a multi-MB blob. No-op when
    * MEDIA_BASE_URL is unset (keeps the inline data URI for backward compat).
    */
-  private toDeliverableData(workspaceId: string, dto: WebhookEventDto): unknown {
+  private toDeliverableData(dto: WebhookEventDto): unknown {
     const data = dto.data as Record<string, any> | undefined;
     const content = data?.content as Record<string, any> | undefined;
     if (!data || !content?.dataUri || typeof data.messageId !== 'string') return dto.data;
-    const url = mediaUrlFor(workspaceId, data.messageId);
+    const url = mediaUrlFor(data.messageId);
     if (!url) return dto.data;
     const { dataUri, ...restContent } = content;
     void dataUri;
@@ -104,7 +104,7 @@ export class InternalService {
       sessionId: dto.sessionId,
       timestamp: dto.timestamp,
       deliveryId,
-      data: this.toDeliverableData(workspaceId, dto),
+      data: this.toDeliverableData(dto),
     });
     const signature = sign(wh.signingSecret, timestamp, rawBody);
     const start = Date.now();
