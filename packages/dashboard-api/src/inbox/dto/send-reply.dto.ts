@@ -25,9 +25,10 @@ export type ReplyKind =
   | 'location'
   | 'contact'
   | 'buttons'
-  | 'list';
+  | 'list'
+  | 'template';
 
-const KINDS: ReplyKind[] = ['text', 'image', 'document', 'poll', 'reaction', 'location', 'contact', 'buttons', 'list'];
+const KINDS: ReplyKind[] = ['text', 'image', 'document', 'poll', 'reaction', 'location', 'contact', 'buttons', 'list', 'template'];
 
 /**
  * Outbound inbox reply. `kind` selects the message type; the remaining fields
@@ -202,4 +203,27 @@ export class SendReplyDto {
   @ArrayMinSize(1)
   @ArrayMaxSize(10)
   sections?: { title: string; rows: { id: string; title: string; description?: string }[] }[];
+
+  // template (Meta)
+  @ApiPropertyOptional({ description: 'Approved template name' })
+  @ValidateIf((o) => o.kind === 'template')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(512)
+  templateName?: string;
+
+  @ApiPropertyOptional({ description: 'Template language code, e.g. en_US' })
+  @ValidateIf((o) => o.kind === 'template')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(15)
+  languageCode?: string;
+
+  @ApiPropertyOptional({ description: 'Template body variables for {{1}}, {{2}}, …', type: [String] })
+  @ValidateIf((o) => o.kind === 'template')
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(1024, { each: true })
+  bodyParams?: string[];
 }

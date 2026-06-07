@@ -4,7 +4,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import {
   Paperclip, SendHorizonal, MessageSquareText, ImageIcon, FileText,
-  BarChart3, X, Plus, Trash2, Pencil, MapPin, Contact, MousePointerClick, List,
+  BarChart3, X, Plus, Trash2, Pencil, MapPin, Contact, MousePointerClick, List, LayoutTemplate,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -54,6 +54,7 @@ export type ComposerCapabilities = {
   polls?: boolean
   interactiveButtons?: boolean
   mediaUpload?: boolean
+  templates?: boolean
 } | null
 
 export function Composer({
@@ -61,11 +62,13 @@ export function Composer({
   sending,
   sessionOffline,
   capabilities,
+  sessionId,
 }: {
   onSend: (reply: OutboundReply) => Promise<boolean>
   sending: boolean
   sessionOffline: boolean
   capabilities?: ComposerCapabilities
+  sessionId?: string | null
 }) {
   // Unknown capabilities (null) → assume Baileys-style (everything on). Meta
   // turns the relevant flags off, so those entries hide automatically.
@@ -73,6 +76,7 @@ export function Composer({
     media: capabilities?.mediaUpload ?? true,
     poll: capabilities?.polls ?? true,
     interactive: capabilities?.interactiveButtons ?? true,
+    template: capabilities?.templates ?? false, // Meta only
   }
   const [text, setText] = React.useState("")
   const [attachment, setAttachment] = React.useState<Attachment | null>(null)
@@ -110,6 +114,46 @@ export function Composer({
   const [listBody, setListBody] = React.useState("")
   const [listBtn, setListBtn] = React.useState("")
   const [listRows, setListRows] = React.useState<{ title: string; description: string }[]>([{ title: "", description: "" }])
+
+  // Template (Meta)
+  type Tpl = { name: string; language: string; status: string; bodyText: string; variables: number }
+  const [tplOpen, setTplOpen] = React.useState(false)
+  const [tplList, setTplList] = React.useState<Tpl[]>([])
+  const [tplLoading, setTplLoading] = React.useState(false)
+  const [tplSel, setTplSel] = React.useState<Tpl | null>(null)
+  const [tplParams, setTplParams] = React.useState<string[]>([])
+
+  const openTemplate = async () => {
+    setTplOpen(true); setTplSel(null); setTplParams([])
+    if (!sessionId) return
+    setTplLoading(true)
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/templates`)
+      const data = await res.json()
+      const list: Tpl[] = (Array.isArray(data) ? data : []).filter((t: Tpl) => t.status === "APPROVED")
+      setTplList(list)
+    } catch {
+      toast.error("Could not load templates.")
+    } finally {
+      setTplLoading(false)
+    }
+  }
+
+  const pickTemplate = (t: Tpl) => { setTplSel(t); setTplParams(Array.from({ length: t.variables }, () => "")) }
+
+  const sendTemplate = async () => {
+    if (!tplSel) return
+    if (tplParams.some((p) => !p.trim())) { toast.error("Fill all template variables."); return }
+    setExtraSending(true)
+    const ok = await onSend({
+      kind: "template",
+      templateName: tplSel.name,
+      languageCode: tplSel.language,
+      bodyParams: tplParams.length ? tplParams.map((p) => p.trim()) : undefined,
+    })
+    setExtraSending(false)
+    if (ok) { setTplOpen(false); setTplSel(null); setTplParams([]) }
+  }
 
   const [savedReplies, setSavedReplies] = React.useState<string[]>(DEFAULT_REPLIES)
   const [manageOpen, setManageOpen] = React.useState(false)
@@ -315,6 +359,11 @@ export function Composer({
                   <List className="mr-2 size-4" /> List
                 </DropdownMenuItem>
               </>
+            )}
+            {can.template && (
+              <DropdownMenuItem onClick={() => void openTemplate()}>
+                <LayoutTemplate className="mr-2 size-4" /> Template
+              </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -531,6 +580,54 @@ export function Composer({
           <DialogFooter>
             <Button onClick={() => void sendList()} disabled={extraSending}>{extraSending ? "Sending…" : "Send list"}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template (Meta) */}
+      <Dialog open={tplOpen} onOpenChange={setTplOpen}>
+        <DialogContent showCloseButton className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Send template</DialogTitle></DialogHeader>
+          <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
+            {tplLoading ? (
+              <p className="text-sm text-muted-foreground">Loading templates…</p>
+            ) : !tplSel ? (
+              tplList.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No approved templates found for this number.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {tplList.map((t) => (
+                    <button
+                      key={`${t.name}-${t.language}`}
+                      onClick={() => pickTemplate(t)}
+                      className="flex flex-col items-start gap-0.5 rounded-md border border-input px-3 py-2 text-left transition hover:bg-muted/40"
+                    >
+                      <span className="text-sm font-medium">{t.name} <span className="text-xs font-normal text-muted-foreground">· {t.language}</span></span>
+                      {t.bodyText && <span className="line-clamp-2 text-xs text-muted-foreground">{t.bodyText}</span>}
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
+                  <span className="font-medium">{tplSel.name}</span> · {tplSel.language}
+                  {tplSel.bodyText && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{tplSel.bodyText}</p>}
+                </div>
+                {tplParams.map((v, i) => (
+                  <div key={i} className="flex flex-col gap-1.5">
+                    <Label htmlFor={`tpl-${i}`}>Variable {`{{${i + 1}}}`}</Label>
+                    <Input id={`tpl-${i}`} value={v} onChange={(e) => setTplParams((p) => p.map((x, j) => (j === i ? e.target.value : x)))} />
+                  </div>
+                ))}
+                <button onClick={() => setTplSel(null)} className="self-start text-xs text-primary underline">← Back to list</button>
+              </div>
+            )}
+          </div>
+          {tplSel && (
+            <DialogFooter>
+              <Button onClick={() => void sendTemplate()} disabled={extraSending}>{extraSending ? "Sending…" : "Send template"}</Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 

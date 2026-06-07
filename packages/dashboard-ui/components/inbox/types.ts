@@ -63,3 +63,4 @@ export type OutboundReply =
       buttonText: string
       sections: { title: string; rows: { id: string; title: string; description?: string }[] }[]
     }
+  | { kind: "template"; templateName: string; languageCode: string; bodyParams?: string[] }

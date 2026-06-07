@@ -381,6 +381,42 @@ export class MetaCloudProvider implements MessageProvider, OnApplicationBootstra
     });
   }
 
+  /**
+   * List the WABA's approved message templates (name, language, status, body +
+   * how many {{n}} variables the body has) so the dashboard can offer a picker.
+   */
+  async listTemplates(sessionId: string): Promise<Array<{
+    name: string;
+    language: string;
+    status: string;
+    category: string;
+    bodyText: string;
+    variables: number;
+  }>> {
+    const creds = this.credsFor(sessionId);
+    if (!creds.wabaId) {
+      throw new MetaApiError('META_API_ERROR', 'No WhatsApp Business Account ID stored for this session');
+    }
+    const url = `${GRAPH_HOST}/${this.graphVersion}/${creds.wabaId}/message_templates?fields=name,language,status,category,components&limit=200`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${creds.accessToken}` } });
+    const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+    if (!res.ok) throw this.mapError(res.status, data?.error);
+    const list = Array.isArray(data?.data) ? data.data : [];
+    return list.map((t: any) => {
+      const body = (t.components ?? []).find((c: any) => c.type === 'BODY');
+      const bodyText: string = body?.text ?? '';
+      const variables = (bodyText.match(/\{\{\s*\d+\s*\}\}/g) ?? []).length;
+      return {
+        name: t.name,
+        language: t.language,
+        status: t.status,
+        category: t.category ?? '',
+        bodyText,
+        variables,
+      };
+    });
+  }
+
   async markRead(sessionId: string, _to: string, messageIds: string[]): Promise<void> {
     const creds = this.credsFor(sessionId);
     for (const id of messageIds) {

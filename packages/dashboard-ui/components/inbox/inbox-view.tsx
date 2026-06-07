@@ -366,7 +366,7 @@ export function InboxView({ initialConversations }: { initialConversations: Conv
                     <ArrowLeft className="mr-1 size-4" /> Back
                   </Button>
                 </div>
-                <Composer onSend={sendReply} sending={sending} sessionOffline={!!selected.sessionDeletedAt} capabilities={capabilities} />
+                <Composer onSend={sendReply} sending={sending} sessionOffline={!!selected.sessionDeletedAt} capabilities={capabilities} sessionId={selected.sessionId} />
               </>
             </ThreadView>
           ) : (

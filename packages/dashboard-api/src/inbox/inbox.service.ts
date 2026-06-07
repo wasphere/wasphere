@@ -344,6 +344,13 @@ export class InboxService {
         msgBody = dto.text ?? null;
         msgPayload = { title: dto.listTitle ?? null, buttonText: dto.buttonText ?? null, sections: dto.sections ?? [] };
         break;
+      case 'template':
+        endpoint = `${base}/template`;
+        sendBody = { to, name: dto.templateName, languageCode: dto.languageCode, bodyParams: dto.bodyParams };
+        msgType = 'text';
+        msgBody = `📋 Template: ${dto.templateName ?? ''}${dto.bodyParams?.length ? ' — ' + dto.bodyParams.join(', ') : ''}`;
+        msgPayload = { templateName: dto.templateName ?? null, languageCode: dto.languageCode ?? null, bodyParams: dto.bodyParams ?? [] };
+        break;
       default:
         endpoint = `${base}/text`;
         sendBody = { to, text: dto.text };

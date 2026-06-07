@@ -50,6 +50,15 @@ export class SessionsController {
     return this.sessionsService.getCapabilities(id);
   }
 
+  // GET /api/sessions/:id/templates — approved Meta templates (empty for Baileys)
+  @Get(':id/templates')
+  @ApiOperation({ summary: 'List approved Meta message templates for this session' })
+  @ApiParam({ name: 'id', description: 'Session identifier', example: 'my-session' })
+  @ApiResponse({ status: 200, description: 'Array of { name, language, status, category, bodyText, variables }.' })
+  listTemplates(@Param('id', ValidateSessionIdPipe) id: string) {
+    return this.sessionsService.listTemplates(id);
+  }
+
   // POST /api/sessions/meta/test-connection — validate Meta creds (setup wizard)
   @Post('meta/test-connection')
   @ApiOperation({

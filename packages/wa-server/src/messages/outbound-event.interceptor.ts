@@ -21,6 +21,7 @@ const TYPE_BY_SEGMENT: Record<string, string> = {
   buttons: 'buttons',
   list: 'list',
   poll: 'poll',
+  template: 'text',
 };
 
 function buildContent(type: string, b: Record<string, any>): Record<string, unknown> {
@@ -76,11 +77,17 @@ export class OutboundEventInterceptor implements NestInterceptor {
           const type = TYPE_BY_SEGMENT[segment];
           if (!type) return; // reaction/edit/delete/etc — not a thread message
 
+          const b = req.body as Record<string, any>;
+          const content =
+            segment === 'template'
+              ? { text: `📋 Template: ${b.name}${Array.isArray(b.bodyParams) && b.bodyParams.length ? ' — ' + b.bodyParams.join(', ') : ''}` }
+              : buildContent(type, b);
+
           void this.webhooks.fire('message.sent', sessionId, {
             to,
             messageId,
             type,
-            content: buildContent(type, req.body as Record<string, any>),
+            content,
             timestamp: Math.floor(Date.now() / 1000),
           });
         } catch {

@@ -149,6 +149,21 @@ export class MessagesService implements OnApplicationShutdown {
     return this.registry.withFailover(sessionId, (p) => p.sendReaction(sessionId, to, messageId, emoji, fromMe ?? false));
   }
 
+  async sendTemplate(
+    sessionId: string,
+    to: string,
+    name: string,
+    languageCode: string,
+    bodyParams?: string[],
+  ): Promise<SendResult> {
+    const components = bodyParams && bodyParams.length
+      ? [{ type: 'body', parameters: bodyParams.map((text) => ({ type: 'text', text })) }]
+      : undefined;
+    return this.registry.withFailover(sessionId, (p) =>
+      p.sendTemplate(sessionId, to, { name, languageCode, components }),
+    );
+  }
+
   async sendGif(sessionId: string, to: string, gifUrl: string, caption?: string): Promise<SendResult> {
     this.assertBaileysOnly(sessionId, 'GIF send');
     return this.adapter.sendGif(sessionId, to, gifUrl, caption);

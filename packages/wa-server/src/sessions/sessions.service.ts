@@ -19,6 +19,12 @@ export class SessionsService {
     return { provider, capabilities: this.registry.get(provider).capabilities };
   }
 
+  /** Approved Meta templates for a session (for the composer's template picker). */
+  async listTemplates(sessionId: string) {
+    if (!this.meta.has(sessionId)) return []; // Baileys has no templates
+    return this.meta.listTemplates(sessionId);
+  }
+
   /** Validate Meta credentials without creating a session (setup wizard "Test connection"). */
   testMetaConnection(dto: MetaTestConnectionDto) {
     return this.meta.testConnection({
