@@ -84,8 +84,33 @@ export class MetaCloudProvider implements MessageProvider, OnApplicationBootstra
         };
         this.sessions.set(id, { creds: parsed.creds, status: 'connected', info });
         this.logger.log(`[${id}] Restored Meta session`);
+        // Optimistically "connected"; confirm in the background so the session
+        // shows its phone number/name and we detect a dead token after restart.
+        void this.revalidateRestored(id);
       } catch (err) {
         this.logger.warn(`[${id}] Failed to restore Meta session: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+
+  /** Re-validate a restored session's creds, filling in name/phone or flagging a dead token. */
+  private async revalidateRestored(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    try {
+      const v = await this.validateCreds(session.creds);
+      session.info.name = v.verified_name;
+      session.info.phoneNumber = v.display_phone_number;
+      session.info.connectedAt = session.info.connectedAt ?? new Date();
+    } catch (err) {
+      // Only downgrade on a real auth failure — transient errors keep it connected.
+      if (err instanceof MetaApiError && err.code === 'META_AUTH_FAILED') {
+        session.status = 'failed';
+        session.info.status = 'failed';
+        session.info.lastDisconnectReason = err.message;
+        this.logger.warn(`[${sessionId}] Restored Meta token is no longer valid: ${err.message}`);
+      } else {
+        this.logger.warn(`[${sessionId}] Could not re-validate restored Meta session (kept connected): ${err instanceof Error ? err.message : err}`);
       }
     }
   }
