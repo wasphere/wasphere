@@ -32,6 +32,9 @@ services:
       INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET}
       CORS_ORIGIN: ${DASHBOARD_UI_URL}
       DASHBOARD_PORT: "3000"
+      # Public API URL — webhook media download links point here (e.g.
+      # https://api.your-domain.com). Empty keeps base64 inline.
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-https://${DASHBOARD_API_DOMAIN}}
       NODE_ENV: production
     depends_on:
       postgres:
@@ -71,6 +74,9 @@ services:
       # automatically on first start and persists it to the sessions volume.
       # Setting a wrong value here causes a self-loop and breaks all webhooks.
       DASHBOARD_WEBHOOK_URL: ${DASHBOARD_WEBHOOK_URL:-}
+      # Meta WhatsApp Cloud API provider (opt-in). Ships DISABLED.
+      META_PROVIDER_ENABLED: ${META_PROVIDER_ENABLED:-false}
+      GRAPH_VERSION: ${GRAPH_VERSION:-v22.0}
       NODE_ENV: production
     volumes:
       - wa-sessions:/app/sessions
@@ -79,12 +85,29 @@ services:
         condition: service_healthy
     networks:
       - internal
+      # Only joined to the public network so Traefik can route the Meta webhook
+      # path below. The dashboard still reaches wa-server over `internal`.
+      - dokploy-network
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health/live || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 20s
+    # Public route is SCOPED to the Meta webhook path only — every other
+    # wa-server endpoint stays private (reachable just over `internal`). Set
+    # WA_SERVER_DOMAIN in your env (e.g. wa.your-domain.com) and point its DNS
+    # at this host. Needed only if you receive on the Meta Cloud API provider.
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wasphere-wa-webhook.rule=Host(`${WA_SERVER_DOMAIN}`) && PathPrefix(`/api/meta/webhook`)
+      - traefik.http.routers.wasphere-wa-webhook.entrypoints=websecure
+      - traefik.http.routers.wasphere-wa-webhook.tls.certresolver=letsencrypt
+      - traefik.http.routers.wasphere-wa-webhook.service=wasphere-wa-webhook
+      # High priority so this beats any wildcard Host(`*.domain`) router from
+      # another app sharing the Traefik instance (e.g. a whitelabel catch-all).
+      - traefik.http.routers.wasphere-wa-webhook.priority=1000
+      - traefik.http.services.wasphere-wa-webhook.loadbalancer.server.port=3001
 
   # ── Dashboard UI ─────────────────────────────────────────────────────────────
   dashboard-ui:
@@ -95,6 +118,9 @@ services:
     environment:
       DASHBOARD_API_URL: http://dashboard-api:3000
       WA_SERVER_INTERNAL_URL: http://wa-server:3001
+      # Public URL of the WA Server — used only to auto-fill the Meta webhook
+      # callback URL in the New-Session dialog. Set to https://${WA_SERVER_DOMAIN}.
+      WA_SERVER_PUBLIC_URL: ${WA_SERVER_PUBLIC_URL:-}
       NODE_ENV: production
     depends_on:
       dashboard-api:

@@ -83,16 +83,25 @@ export class MetaWebhookService {
 
     if (!appSecret) {
       if (process.env.NODE_ENV === 'production') {
+        this.logger.warn(
+          `[meta:${sessionId}] Webhook rejected — no App Secret stored for this session. ` +
+            `Re-create the session and fill in the App Secret (Meta → App Settings → Basic).`,
+        );
         throw new ForbiddenException('Webhook signature verification is required in production (no app secret configured)');
       }
       this.logger.warn(`[meta:${sessionId}] UNVERIFIED webhook accepted — no app secret (development only)`);
       return;
     }
     if (!header || rawBody === undefined) {
+      this.logger.warn(`[meta:${sessionId}] Webhook rejected — ${!header ? 'no X-Hub-Signature-256 header' : 'raw body unavailable'}`);
       throw new ForbiddenException('Missing webhook signature');
     }
     const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
     if (!this.timingSafeEq(header, expected)) {
+      this.logger.warn(
+        `[meta:${sessionId}] Webhook signature MISMATCH — the session's App Secret does not match this Meta app. ` +
+          `Re-create the session with the exact App Secret from Meta → App Settings → Basic.`,
+      );
       throw new ForbiddenException('Invalid webhook signature');
     }
   }
@@ -141,23 +150,39 @@ export class MetaWebhookService {
         break;
       case 'contacts':
         content.displayName = msg.contacts?.[0]?.name?.formatted_name;
+        content.phoneNumber = msg.contacts?.[0]?.phones?.[0]?.phone;
         break;
       case 'reaction':
         content.reaction = msg.reaction?.emoji;
         content.replyMessageId = msg.reaction?.message_id;
         break;
-      case 'interactive':
-        // A button/list reply the customer tapped — show their selection as text.
+      case 'interactive': {
+        // A button/list reply the customer tapped — expose the visible title AND
+        // the stable id/payload so automations can route on a fixed value.
         type = 'conversation';
-        content.text = msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title ?? '';
+        const br = msg.interactive?.button_reply;
+        const lr = msg.interactive?.list_reply;
+        content.text = br?.title ?? lr?.title ?? '';
+        content.selectionId = br?.id ?? lr?.id ?? null;
+        content.selectionTitle = br?.title ?? lr?.title ?? null;
+        if (lr?.description) content.selectionDescription = lr.description;
+        content.interactiveKind = br ? 'button_reply' : lr ? 'list_reply' : null;
         break;
+      }
       case 'button':
+        // Template quick-reply button — carries text + a developer-set payload.
         type = 'conversation';
         content.text = msg.button?.text ?? '';
+        content.selectionId = msg.button?.payload ?? null;
+        content.selectionTitle = msg.button?.text ?? null;
+        content.interactiveKind = 'quick_reply';
         break;
       default:
         break;
     }
+
+    // If this message is a reply to one of ours, expose the quoted message id.
+    if (msg.context?.id) content.quotedMessageId = msg.context.id;
 
     return {
       messageId: id,

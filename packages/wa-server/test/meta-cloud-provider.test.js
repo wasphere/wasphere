@@ -104,13 +104,30 @@ test('sendMedia document carries filename; audio drops caption', async () => {
   });
 });
 
-test('sendMedia rejects data: URIs (link mode only in v1.2)', async () => {
-  await withProvider(async (p) => {
-    await assert.rejects(
-      () => p.sendMedia('s1', '15550100', { kind: 'image', url: 'data:image/png;base64,AAAA' }),
-      (e) => e instanceof MetaApiError && e.code === 'UNSUPPORTED_MEDIA_SOURCE',
-    );
-  });
+test('sendMedia uploads data: URIs to /media then sends by media id', async () => {
+  const orig = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, opts = {}) => {
+    const method = (opts.method || 'GET').toUpperCase();
+    calls.push({ url: String(url), method, opts });
+    if (method === 'GET') return res(true, 200, okGet);
+    if (String(url).endsWith('/media')) return res(true, 200, { id: 'MEDIA123' });
+    return res(true, 200, okSend);
+  };
+  const p = new MetaCloudProvider();
+  try {
+    await p.init('s1', CREDS);
+    const r = await p.sendMedia('s1', '15550100', { kind: 'image', url: 'data:image/png;base64,AAAA', caption: 'hi' });
+    assert.equal(r.messageId, 'wamid.ABC');
+    const upload = calls.find((c) => c.method === 'POST' && c.url.endsWith('/media'));
+    assert.ok(upload, 'uploads to /media');
+    const send = calls.find((c) => c.method === 'POST' && c.url.endsWith('/messages'));
+    const body = JSON.parse(send.opts.body);
+    assert.equal(body.image.id, 'MEDIA123');
+    assert.equal(body.image.caption, 'hi');
+  } finally {
+    globalThis.fetch = orig;
+  }
 });
 
 test('sendReaction maps message_id + emoji', async () => {

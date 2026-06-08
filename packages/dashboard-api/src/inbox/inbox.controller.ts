@@ -25,6 +25,7 @@ import { ListConversationsQueryDto } from './dto/list-conversations-query.dto';
 import { ListMessagesQueryDto } from './dto/list-messages-query.dto';
 import { PatchConversationDto } from './dto/patch-conversation.dto';
 import { SendReplyDto } from './dto/send-reply.dto';
+import { StartConversationDto } from './dto/start-conversation.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -48,6 +49,17 @@ export class InboxController {
     @Query() query: ListConversationsQueryDto,
   ) {
     return this.inbox.listConversations(req.user.userId, workspaceId, query);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Start a new conversation by sending the first message to a number' })
+  @ApiResponse({ status: 201, description: '{ conversationId }' })
+  start(
+    @Req() req: AuthenticatedRequest,
+    @Param('workspaceId') workspaceId: string,
+    @Body() dto: StartConversationDto,
+  ) {
+    return this.inbox.startConversation(req.user.userId, workspaceId, dto);
   }
 
   @Get(':conversationId')

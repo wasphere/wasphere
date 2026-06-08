@@ -1,4 +1,4 @@
-import { IsObject, IsString } from 'class-validator';
+import { IsDefined, IsString } from 'class-validator';
 
 export class WebhookEventDto {
   // Accept any string event name. wa-server fires events such as
@@ -16,6 +16,10 @@ export class WebhookEventDto {
   @IsString()
   timestamp!: string;
 
-  @IsObject()
-  data!: Record<string, unknown>;
+  // `data` may be an object (message.received / message.sent) OR an ARRAY
+  // (messages.update sends an array of status updates). class-validator's
+  // @IsObject() REJECTS arrays — which silently 400'd every status update, so
+  // delivery ticks never advanced past "sent". Accept any defined payload.
+  @IsDefined()
+  data!: Record<string, unknown> | unknown[];
 }

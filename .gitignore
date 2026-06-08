@@ -36,3 +36,6 @@ docs/internal/
 *.PRD.md
 CLAUDE.md
 docker-compose.test-ports.yml
+
+# Internal audit / strategy notes — never push to the public repo
+*_AUDIT*.md

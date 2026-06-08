@@ -41,6 +41,9 @@ services:
       INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET:?set INTERNAL_WEBHOOK_SECRET in .env}
       CORS_ORIGIN: ${DASHBOARD_UI_URL:-http://localhost:3004}
       DASHBOARD_PORT: "3000"
+      # Public base URL of this API — webhooks emit media download links here
+      # instead of inlining base64. Leave empty to keep inline data URIs.
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-}
       NODE_ENV: production
     ports:
       - "${DASHBOARD_API_PORT:-3000}:3000"
@@ -71,6 +74,10 @@ services:
       # Leave DASHBOARD_WEBHOOK_URL unset — the dashboard registers it automatically.
       # A manual value causes a self-referential webhook loop.
       DASHBOARD_WEBHOOK_URL: ${DASHBOARD_WEBHOOK_URL:-}
+      # Meta WhatsApp Cloud API provider (v1.2 · opt-in). Ships DISABLED — set
+      # META_PROVIDER_ENABLED=true in your env to activate. See .env.example.
+      META_PROVIDER_ENABLED: ${META_PROVIDER_ENABLED:-false}
+      GRAPH_VERSION: ${GRAPH_VERSION:-v22.0}
       NODE_ENV: production
     ports:
       - "${WA_SERVER_PORT:-3001}:3001"
@@ -96,6 +103,9 @@ services:
     environment:
       DASHBOARD_API_URL: http://dashboard-api:3000
       WA_SERVER_INTERNAL_URL: http://wa-server:3001
+      # Public URL of the WA Server (only for the Meta webhook callback shown in
+      # the New-Session dialog). Leave empty unless you expose the Meta webhook.
+      WA_SERVER_PUBLIC_URL: ${WA_SERVER_PUBLIC_URL:-}
       NODE_ENV: production
     ports:
       - "${DASHBOARD_UI_PORT:-3004}:3004"

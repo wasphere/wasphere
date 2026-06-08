@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy, Maximize2, Plus } from "lucide-react"
+import { Check, CheckCheck, ChevronDown, FileText, ImageIcon, MapPin, BarChart3, MoreVertical, MoreHorizontal, SmilePlus, Download, Forward, Copy, Maximize2, Plus, Contact as ContactIcon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -92,7 +92,7 @@ function VideoView({ src }: { src: string }) {
   )
 }
 
-function MediaBlock({ m }: { m: InboxMessage }) {
+function MediaBlock({ m, onStartChat }: { m: InboxMessage; onStartChat?: (phone: string) => void }) {
   const p = (m.payload ?? {}) as Record<string, unknown>
   const cap = (p.caption as string) || m.body
 
@@ -102,6 +102,69 @@ function MediaBlock({ m }: { m: InboxMessage }) {
       <span className="text-xs italic text-muted-foreground">
         ⚠️ This message couldn’t be loaded (unsupported or encrypted).
       </span>
+    )
+  }
+
+  // Location — WhatsApp-style: a map thumbnail with a pin, name + address below.
+  if (m.type === "location") {
+    const lat = p.latitude as number | undefined
+    const lng = p.longitude as number | undefined
+    const name = (p.name as string) || ""
+    const addr = (p.address as string) || ""
+    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng)
+    const maps = hasCoords ? `https://www.google.com/maps?q=${lat},${lng}` : "#"
+    // Wikimedia static map (keyless, reliable). Falls back to a coords card if it fails.
+    const thumb = hasCoords
+      ? `https://maps.wikimedia.org/img/osm-intl,15,${lat},${lng},320x150.png`
+      : null
+    return (
+      <a href={maps} target="_blank" rel="noopener noreferrer" className="-mx-1 block w-60 max-w-full overflow-hidden rounded-lg bg-background/40">
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumb}
+            alt="Map location"
+            className="h-32 w-full object-cover"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
+          />
+        ) : null}
+        <span className="flex items-start gap-2 px-2.5 py-2">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-red-500" />
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-xs font-medium">{name || "Location"}</span>
+            {addr && <span className="line-clamp-2 text-[11px] opacity-70">{addr}</span>}
+            {!name && !addr && hasCoords && <span className="text-[11px] opacity-70">{lat}, {lng}</span>}
+          </span>
+        </span>
+      </a>
+    )
+  }
+
+  // Contact — WhatsApp-style: avatar circle + name + phone.
+  if (m.type === "contact") {
+    const name = (p.displayName as string) || (p.name as string) || m.body || "Contact"
+    const phone = (p.phoneNumber as string) || (p.phone as string) || ""
+    return (
+      <div className="-mx-1 flex w-60 max-w-full flex-col gap-1.5 rounded-lg bg-background/40 p-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-foreground">
+            {contactInitials(name)}
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium">{name}</span>
+            {phone && <span className="truncate text-[11px] opacity-70">{phone}</span>}
+          </span>
+          <ContactIcon className="ml-auto size-4 shrink-0 opacity-50" />
+        </div>
+        {phone && onStartChat && (
+          <button
+            onClick={() => onStartChat(phone)}
+            className="rounded-md border border-current/20 py-1 text-center text-xs font-medium text-primary transition hover:bg-primary/10"
+          >
+            Message
+          </button>
+        )}
+      </div>
     )
   }
 
@@ -260,10 +323,12 @@ function Bubble({
   m,
   onReact,
   onForward,
+  onStartChat,
 }: {
   m: InboxMessage
   onReact?: (m: InboxMessage, emoji: string) => void
   onForward?: (m: InboxMessage) => void
+  onStartChat?: (phone: string) => void
 }) {
   const isTextual = m.type === "text"
   return (
@@ -281,7 +346,7 @@ function Bubble({
         {isTextual ? (
           <span className="whitespace-pre-wrap break-words">{m.body ?? ""}</span>
         ) : (
-          <MediaBlock m={m} />
+          <MediaBlock m={m} onStartChat={onStartChat} />
         )}
         <div className={cn("mt-1 flex items-center justify-end gap-1 text-[10px]", m.fromMe ? "text-primary-foreground/70" : "text-muted-foreground")}>
           <span>{clockTime(m.waTimestamp)}</span>
@@ -301,6 +366,8 @@ export function ThreadView({
   onResolveToggle,
   onReact,
   onForward,
+  onStartChat,
+  provider,
   children,
 }: {
   conversation: Conversation
@@ -309,6 +376,8 @@ export function ThreadView({
   onResolveToggle: () => void
   onReact?: (m: InboxMessage, emoji: string) => void
   onForward?: (m: InboxMessage) => void
+  onStartChat?: (phone: string) => void
+  provider?: "baileys" | "meta" | null
   children: React.ReactNode // composer
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -345,6 +414,18 @@ export function ThreadView({
             <AvatarFallback className="text-[10px]">{contactInitials(conversation.contact.name)}</AvatarFallback>
           </Avatar>
           <span className="truncate text-sm font-semibold text-foreground">{conversation.contact.name}</span>
+          {provider && (
+            <Badge
+              variant="secondary"
+              className={
+                provider === "meta"
+                  ? "shrink-0 border-transparent bg-blue-500/10 text-[10px] text-blue-600 dark:text-blue-400"
+                  : "shrink-0 border-transparent bg-emerald-500/10 text-[10px] text-emerald-600 dark:text-emerald-400"
+              }
+            >
+              {provider === "meta" ? "Meta" : "WaSphere"}
+            </Badge>
+          )}
           <span className="hidden text-xs text-muted-foreground sm:inline">· {conversation.sessionId}</span>
           {conversation.status === "RESOLVED" && <Badge variant="secondary" className="text-[10px]">Resolved</Badge>}
         </div>
@@ -380,7 +461,7 @@ export function ThreadView({
               m.type === "reaction" || m.type === "poll_vote" ? (
                 <SystemLine key={m.id} m={m} />
               ) : (
-                <Bubble key={m.id} m={m} onReact={onReact} onForward={onForward} />
+                <Bubble key={m.id} m={m} onReact={onReact} onForward={onForward} onStartChat={onStartChat} />
               ),
             )}
           </div>

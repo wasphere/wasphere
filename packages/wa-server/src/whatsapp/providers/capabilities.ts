@@ -33,6 +33,8 @@ export const META_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   interactiveButtons: true,
   reactions: true,
   viewOnce: false,
+  // Meta supports media via link OR uploaded media id. The provider uploads
+  // base64 from the dashboard (upload mode), so the composer shows Photo/Document.
   mediaUpload: true,
   freeformAlways: false,
 });

@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Smartphone,
   Inbox,
+  Contact,
   MessageSquare,
   Webhook,
   Code,
@@ -38,14 +39,27 @@ import {
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const NAV_ITEMS = [
-  { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard },
-  { label: "Sessions", href: "/dashboard/sessions", icon: Smartphone },
-  { label: "Inbox", href: "/dashboard/inbox", icon: Inbox },
-  { label: "Messages", href: "/dashboard/messages", icon: MessageSquare },
-  { label: "Webhooks", href: "/dashboard/webhooks", icon: Webhook },
-  { label: "Developer", href: "/dashboard/developer", icon: Code },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings },
+// `cap` → the workspace capability required to see this item (see
+// dashboard-api/src/lib/capabilities.ts). `always` items are visible to every
+// member; `adminOnly` items are OWNER/ADMIN only. Owners/admins have every
+// capability, so they see everything.
+const NAV_ITEMS: {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  cap?: string;
+  always?: boolean;
+  adminOnly?: boolean;
+}[] = [
+  { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard, always: true },
+  { label: "Sessions", href: "/dashboard/sessions", icon: Smartphone, cap: "sessions" },
+  { label: "Inbox", href: "/dashboard/inbox", icon: Inbox, cap: "inbox" },
+  { label: "Contacts", href: "/dashboard/contacts", icon: Contact, cap: "contacts" },
+  { label: "Messages", href: "/dashboard/messages", icon: MessageSquare, cap: "messages" },
+  { label: "Webhooks", href: "/dashboard/webhooks", icon: Webhook, cap: "webhooks" },
+  { label: "Team", href: "/dashboard/team", icon: Users, adminOnly: true },
+  { label: "Developer", href: "/dashboard/developer", icon: Code, cap: "api_keys" },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings, cap: "settings" },
 ];
 
 const PRO_ITEMS = [
@@ -145,6 +159,27 @@ function ExternalNavItem({
 export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
   const pathname = usePathname();
   const { state, setOpen, isMobile } = useSidebar();
+
+  // Nav visibility is driven by the member's effective capabilities. Owners and
+  // admins get everything; agents see Inbox/Contacts plus whatever they've been
+  // granted. Until the role loads, show only the always-visible items to avoid a
+  // flash of links an agent can't use.
+  const [role, setRole] = React.useState<string | null>(null);
+  const [caps, setCaps] = React.useState<string[] | null>(null);
+  React.useEffect(() => {
+    fetch("/api/team/my-role")
+      .then((r) => r.json())
+      .then((d) => { setRole(d?.role ?? null); setCaps(Array.isArray(d?.capabilities) ? d.capabilities : null); })
+      .catch(() => {});
+  }, []);
+  const isManager = role === "OWNER" || role === "ADMIN";
+  const navItems = NAV_ITEMS.filter((i) => {
+    if (i.always) return true;
+    if (i.adminOnly) return isManager;
+    if (isManager) return true;
+    if (caps === null) return false; // still loading — hide gated items
+    return i.cap ? caps.includes(i.cap) : false;
+  });
   // On mobile the sidebar is a full drawer — never icon-collapse it, and the
   // hover-to-expand behaviour is desktop-only.
   const collapsed = !isMobile && state === "collapsed";
@@ -190,7 +225,7 @@ export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map(({ label, href, icon }) => {
+              {navItems.map(({ label, href, icon }) => {
                 const active =
                   pathname === href || pathname.startsWith(href + "/");
                 return (

@@ -6,6 +6,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SsrfExceptionFilter } from './common/ssrf-exception.filter';
 import { UriDecodeExceptionFilter } from './common/uri-decode-exception.filter';
+import { ProviderExceptionFilter } from './common/provider-exception.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 import helmet from 'helmet';
@@ -220,7 +221,7 @@ async function bootstrap() {
     process.exit(1);
   }
   app.enableCors({ origin: corsOrigin }); // Dashboard will connect from different origin
-  app.useGlobalFilters(new UriDecodeExceptionFilter(), new SsrfExceptionFilter());
+  app.useGlobalFilters(new UriDecodeExceptionFilter(), new SsrfExceptionFilter(), new ProviderExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

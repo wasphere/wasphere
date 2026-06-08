@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -169,6 +170,81 @@ export class InboxService {
     return { ok: true, unreadCount: 0 };
   }
 
+  /** Start a new conversation by sending the first text message to a number. */
+  async startConversation(
+    userId: string,
+    workspaceId: string,
+    dto: { sessionId: string; to: string; text: string },
+  ): Promise<{ conversationId: string }> {
+    await this.assertMember(workspaceId, userId);
+    const phone = String(dto.to).replace(/[^0-9]/g, '');
+    if (phone.length < 6) throw new BadRequestException('Enter a valid phone number with country code.');
+    const jid = `${phone}@s.whatsapp.net`;
+
+    const { waServerUrl, token } = await this.workspaces.getDecryptedToken(userId, workspaceId);
+    const endpoint =
+      `${waServerUrl.replace(/\/+$/, '')}/api/sessions/${encodeURIComponent(dto.sessionId)}/messages/text`;
+
+    let resp: globalThis.Response;
+    try {
+      resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'X-Api-Token': token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: phone, text: dto.text }),
+      });
+    } catch {
+      throw new ServiceUnavailableException('WA Server unreachable. Message not sent.');
+    }
+    if (!resp.ok) {
+      const body = (await resp.json().catch(() => ({}))) as { message?: string; error?: string };
+      const reason = body.message || body.error;
+      if ((resp.status >= 400 && resp.status < 500) || resp.status === 501) {
+        throw new BadRequestException(reason || 'Could not start the conversation.');
+      }
+      throw new ServiceUnavailableException(reason || 'Session disconnected — reconnect to send.');
+    }
+    const result = (await resp.json().catch(() => ({}))) as { messageId?: string };
+    const waMessageId = result.messageId ?? `local-${randomUUID()}`;
+    const waTimestamp = new Date();
+
+    const conversationId = await this.prisma.$transaction(async (tx) => {
+      const contact = await tx.contact.upsert({
+        where: { workspaceId_jid: { workspaceId, jid } },
+        update: {},
+        create: { workspaceId, jid, phone },
+      });
+      const convo = await tx.conversation.upsert({
+        where: { workspaceId_sessionId_contactId: { workspaceId, sessionId: dto.sessionId, contactId: contact.id } },
+        update: {},
+        create: { workspaceId, contactId: contact.id, sessionId: dto.sessionId },
+      });
+      await tx.message.upsert({
+        where: { workspaceId_waMessageId: { workspaceId, waMessageId } },
+        update: {},
+        create: {
+          workspaceId,
+          conversationId: convo.id,
+          waMessageId,
+          direction: 'OUTBOUND',
+          type: 'text',
+          body: dto.text,
+          status: 'SENT',
+          fromMe: true,
+          waTimestamp,
+        },
+      });
+      await tx.conversation.update({
+        where: { id: convo.id },
+        data: { lastPreview: dto.text.slice(0, 140), lastMessageAt: waTimestamp },
+      });
+      return convo.id;
+    });
+
+    await this.writeAudit(dto.sessionId, 'POST', `/inbox/conversations`);
+    this.events.emit({ type: 'message.new', workspaceId, conversationId });
+    return { conversationId };
+  }
+
   async sendReply(
     userId: string,
     workspaceId: string,
@@ -235,6 +311,46 @@ export class InboxService {
         msgBody = dto.emoji ?? null;
         msgPayload = undefined;
         break;
+      case 'location':
+        endpoint = `${base}/location`;
+        sendBody = { to, latitude: dto.latitude, longitude: dto.longitude, name: dto.locationName, address: dto.address };
+        msgType = 'location';
+        msgBody = dto.locationName ?? dto.address ?? '📍 Location';
+        msgPayload = {
+          latitude: dto.latitude ?? null,
+          longitude: dto.longitude ?? null,
+          name: dto.locationName ?? null,
+          address: dto.address ?? null,
+        };
+        break;
+      case 'contact':
+        endpoint = `${base}/contact`;
+        sendBody = { to, displayName: dto.contactName, phoneNumber: dto.contactPhone };
+        msgType = 'contact';
+        msgBody = dto.contactName ?? '👤 Contact';
+        msgPayload = { displayName: dto.contactName ?? null, phoneNumber: dto.contactPhone ?? null };
+        break;
+      case 'buttons':
+        endpoint = `${base}/buttons`;
+        sendBody = { to, text: dto.text, footer: dto.footer, buttons: dto.buttons };
+        msgType = 'buttons';
+        msgBody = dto.text ?? null;
+        msgPayload = { footer: dto.footer ?? null, buttons: dto.buttons ?? [] };
+        break;
+      case 'list':
+        endpoint = `${base}/list`;
+        sendBody = { to, title: dto.listTitle, text: dto.text, buttonText: dto.buttonText, sections: dto.sections };
+        msgType = 'list';
+        msgBody = dto.text ?? null;
+        msgPayload = { title: dto.listTitle ?? null, buttonText: dto.buttonText ?? null, sections: dto.sections ?? [] };
+        break;
+      case 'template':
+        endpoint = `${base}/template`;
+        sendBody = { to, name: dto.templateName, languageCode: dto.languageCode, bodyParams: dto.bodyParams };
+        msgType = 'text';
+        msgBody = `📋 Template: ${dto.templateName ?? ''}${dto.bodyParams?.length ? ' — ' + dto.bodyParams.join(', ') : ''}`;
+        msgPayload = { templateName: dto.templateName ?? null, languageCode: dto.languageCode ?? null, bodyParams: dto.bodyParams ?? [] };
+        break;
       default:
         endpoint = `${base}/text`;
         sendBody = { to, text: dto.text };
@@ -256,13 +372,19 @@ export class InboxService {
     }
 
     if (!resp.ok) {
-      // 404 (session not found) / 4xx (bad media) / 5xx (disconnected)
+      // Surface the real reason from wa-server (Meta/Baileys errors carry a
+      // message) instead of a blanket "disconnected".
+      const body = (await resp.json().catch(() => ({}))) as { message?: string; error?: string };
+      const reason = body.message || body.error;
       this.logger.warn(
-        `[Inbox] reply send failed status=${resp.status} kind=${kind} session=${convo.sessionId}`,
+        `[Inbox] reply send failed status=${resp.status} kind=${kind} session=${convo.sessionId} reason=${reason ?? 'n/a'}`,
       );
-      throw new ServiceUnavailableException(
-        'Session disconnected — reconnect to send.',
-      );
+      // 4xx = bad input; 501 = capability not supported on this provider (e.g.
+      // polls on Meta). Both should surface the real reason, not "disconnected".
+      if ((resp.status >= 400 && resp.status < 500) || resp.status === 501) {
+        throw new BadRequestException(reason || `Could not send ${kind} message.`);
+      }
+      throw new ServiceUnavailableException(reason || 'Session disconnected — reconnect to send.');
     }
 
     // Reactions attach to an existing message — nothing to persist in the thread.
@@ -277,8 +399,12 @@ export class InboxService {
     const preview =
       msgBody && msgBody.length ? msgBody.slice(0, 140) : OUTBOUND_PREVIEW[msgType] ?? msgType;
 
-    const message = await this.prisma.message.create({
-      data: {
+    // Upsert (not create): the wa-server also mirrors this send back as a
+    // `message.sent` event, so guard against a double-insert race on waMessageId.
+    const message = await this.prisma.message.upsert({
+      where: { workspaceId_waMessageId: { workspaceId, waMessageId } },
+      update: {},
+      create: {
         workspaceId,
         conversationId: convo.id,
         waMessageId,

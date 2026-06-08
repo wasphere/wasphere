@@ -119,5 +119,11 @@ export function proxyPermission(method: string, rawPath: string): PermissionScop
     return null;
   }
 
+  // /sessions/:id/capabilities and /sessions/:id/templates — read-only metadata
+  if (feature === 'capabilities' || feature === 'templates') {
+    if (m === 'GET') return 'sessions:read';
+    return null;
+  }
+
   return null; // unmapped — fail closed
 }

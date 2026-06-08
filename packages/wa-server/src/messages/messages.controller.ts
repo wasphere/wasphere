@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Param, Delete, Query, UseGuards, Get, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, Query, UseGuards, UseInterceptors, Get, HttpCode } from '@nestjs/common';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { OutboundEventInterceptor } from './outbound-event.interceptor';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
 import { ValidateSessionIdPipe } from '../common/validate-session-id.pipe';
@@ -14,6 +15,7 @@ import { SendButtonsDto } from './dto/send-buttons.dto';
 import { SendListDto } from './dto/send-list.dto';
 import { SendPollDto } from './dto/send-poll.dto';
 import { SendReactionDto } from './dto/send-reaction.dto';
+import { SendTemplateDto } from './dto/send-template.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { DeleteMessageQueryDto } from './dto/delete-message-query.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
@@ -25,6 +27,7 @@ import { BulkJob } from './bulk-message.types';
 @ApiTags('Messages')
 @Controller('sessions/:sessionId/messages')
 @UseGuards(RateLimitGuard)
+@UseInterceptors(OutboundEventInterceptor)
 export class MessagesController {
   constructor(private messagesService: MessagesService) {}
 
@@ -245,6 +248,21 @@ export class MessagesController {
     @Body() body: SendReactionDto,
   ) {
     return this.messagesService.sendReaction(sid, body.to, body.messageId, body.emoji, body.fromMe);
+  }
+
+  @Post('template')
+  @ApiOperation({
+    summary: 'Send an approved template message (Meta Cloud API)',
+    description: 'Sends a pre-approved WhatsApp template — the only way to message a recipient outside the 24-hour customer-service window. Baileys sessions return a capability error.',
+  })
+  @ApiParam({ name: 'sessionId', description: 'Session identifier', example: 'my-session' })
+  @ApiResponse({ status: 201, description: 'Template sent.' })
+  @ApiResponse({ status: 501, description: 'Provider does not support templates (Baileys).' })
+  sendTemplate(
+    @Param('sessionId', ValidateSessionIdPipe) sid: string,
+    @Body() body: SendTemplateDto,
+  ) {
+    return this.messagesService.sendTemplate(sid, body.to, body.name, body.languageCode, body.bodyParams);
   }
 
   @Post('gif')

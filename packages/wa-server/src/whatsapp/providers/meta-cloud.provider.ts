@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   SendResult,
   SessionInfo,
@@ -45,15 +47,84 @@ const MEDIA_CAP_BYTES = 16 * 1024 * 1024;
  * `META_PROVIDER_ENABLED=true` and a session's `provider` is `meta`.
  */
 @Injectable()
-export class MetaCloudProvider implements MessageProvider {
+export class MetaCloudProvider implements MessageProvider, OnApplicationBootstrap {
   readonly id: ProviderId = 'meta';
   readonly capabilities: ProviderCapabilities = META_CAPABILITIES;
 
   private readonly logger = new Logger(MetaCloudProvider.name);
   private readonly sessions = new Map<string, MetaSession>();
+  // Meta creds persist as JSON under the same gitignored sessions/ dir that
+  // already holds Baileys account credentials — same trust boundary.
+  private readonly sessionsDir = './sessions';
 
   private get graphVersion(): string {
     return process.env.GRAPH_VERSION || 'v22.0';
+  }
+
+  /** Restore persisted Meta sessions on boot so they survive restarts. */
+  onApplicationBootstrap(): void {
+    let entries: string[] = [];
+    try {
+      entries = fs.existsSync(this.sessionsDir) ? fs.readdirSync(this.sessionsDir) : [];
+    } catch {
+      return;
+    }
+    for (const id of entries) {
+      const file = path.join(this.sessionsDir, id, 'meta.json');
+      try {
+        if (!fs.existsSync(file) || fs.lstatSync(file).isSymbolicLink()) continue;
+        const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as { creds: MetaCredentials; config?: SessionConfig };
+        if (parsed?.creds?.kind !== 'meta') continue;
+        const info: SessionInfo = {
+          id,
+          status: 'connected',
+          retryCount: 0,
+          lastDisconnectReason: null,
+          config: { ...(parsed.config as SessionConfig), provider: 'meta' } as SessionConfig,
+        };
+        this.sessions.set(id, { creds: parsed.creds, status: 'connected', info });
+        this.logger.log(`[${id}] Restored Meta session`);
+        // Optimistically "connected"; confirm in the background so the session
+        // shows its phone number/name and we detect a dead token after restart.
+        void this.revalidateRestored(id);
+      } catch (err) {
+        this.logger.warn(`[${id}] Failed to restore Meta session: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+
+  /** Re-validate a restored session's creds, filling in name/phone or flagging a dead token. */
+  private async revalidateRestored(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    try {
+      const v = await this.validateCreds(session.creds);
+      session.info.name = v.verified_name;
+      session.info.phoneNumber = v.display_phone_number;
+      session.info.connectedAt = session.info.connectedAt ?? new Date();
+    } catch (err) {
+      // Only downgrade on a real auth failure — transient errors keep it connected.
+      if (err instanceof MetaApiError && err.code === 'META_AUTH_FAILED') {
+        session.status = 'failed';
+        session.info.status = 'failed';
+        session.info.lastDisconnectReason = err.message;
+        this.logger.warn(`[${sessionId}] Restored Meta token is no longer valid: ${err.message}`);
+      } else {
+        this.logger.warn(`[${sessionId}] Could not re-validate restored Meta session (kept connected): ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+
+  private persist(sessionId: string, creds: MetaCredentials, config: SessionConfig): void {
+    try {
+      const dir = path.join(this.sessionsDir, sessionId);
+      fs.mkdirSync(dir, { recursive: true });
+      const tmp = path.join(dir, 'meta.json.tmp');
+      fs.writeFileSync(tmp, JSON.stringify({ creds, config }), 'utf8');
+      fs.renameSync(tmp, path.join(dir, 'meta.json'));
+    } catch (err) {
+      this.logger.warn(`[${sessionId}] Failed to persist Meta creds: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   // ── lifecycle ────────────────────────────────────────────────────────────
@@ -95,15 +166,35 @@ export class MetaCloudProvider implements MessageProvider {
     };
 
     this.sessions.set(sessionId, { creds, status, info });
+    if (status === 'connected') this.persist(sessionId, creds, info.config);
     return info;
   }
 
   async destroy(sessionId: string): Promise<void> {
     this.sessions.delete(sessionId);
+    try {
+      fs.rmSync(path.join(this.sessionsDir, sessionId, 'meta.json'), { force: true });
+    } catch {
+      /* best-effort */
+    }
   }
 
   status(sessionId: string): SessionStatus {
     return this.sessions.get(sessionId)?.status ?? 'disconnected';
+  }
+
+  has(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
+  /** All Meta sessions (for the unified session list). */
+  getAllSessions(): SessionInfo[] {
+    return Array.from(this.sessions.values()).map((s) => s.info);
+  }
+
+  /** Info for a single Meta session, or undefined if not a Meta session. */
+  getSessionInfo(sessionId: string): SessionInfo | undefined {
+    return this.sessions.get(sessionId)?.info;
   }
 
   /** The stored Meta credentials for a session (used by the webhook receiver). */
@@ -165,22 +256,50 @@ export class MetaCloudProvider implements MessageProvider {
     });
   }
 
-  sendMedia(sessionId: string, to: string, m: OutboundMedia): Promise<SendResult> {
+  async sendMedia(sessionId: string, to: string, m: OutboundMedia): Promise<SendResult> {
+    const media: Record<string, unknown> = {};
     if (m.url.startsWith('data:')) {
-      // v1.2 is link-mode only (decision #3); uploaded media (data URIs) is v1.3.
-      return Promise.reject(
-        new MetaApiError(
-          'UNSUPPORTED_MEDIA_SOURCE',
-          'Meta link mode requires a public URL; inline/base64 media (upload mode) lands in v1.3',
-        ),
-      );
+      // Upload mode: push the base64 bytes to Meta and reference the media id.
+      media.id = await this.uploadMedia(sessionId, m.url, m.fileName);
+    } else {
+      // Link mode: Meta fetches the public URL itself.
+      media.link = m.url;
     }
-    const media: Record<string, unknown> = { link: m.url };
     if (m.caption && (m.kind === 'image' || m.kind === 'video' || m.kind === 'document')) {
       media.caption = m.caption;
     }
     if (m.kind === 'document' && m.fileName) media.filename = m.fileName;
     return this.send(sessionId, { type: m.kind, to: this.toPhone(to), [m.kind]: media });
+  }
+
+  /**
+   * Upload a base64 data URI to the Cloud API and return its media id
+   * (POST /{phone-number-id}/media, multipart). Used so the dashboard can send
+   * uploaded media (not just public URLs) on Meta sessions.
+   */
+  private async uploadMedia(sessionId: string, dataUri: string, fileName?: string): Promise<string> {
+    const creds = this.credsFor(sessionId);
+    const match = /^data:([^;]+);base64,(.*)$/s.exec(dataUri);
+    if (!match) {
+      throw new MetaApiError('UNSUPPORTED_MEDIA_SOURCE', 'Invalid media data URI');
+    }
+    const mime = match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    const form = new FormData();
+    form.append('messaging_product', 'whatsapp');
+    form.append('type', mime);
+    form.append('file', new Blob([buffer], { type: mime }), fileName || 'file');
+
+    const url = `${GRAPH_HOST}/${this.graphVersion}/${creds.phoneNumberId}/media`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${creds.accessToken}` },
+      body: form,
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+    if (!res.ok) throw this.mapError(res.status, data?.error);
+    if (!data?.id) throw new MetaApiError('META_API_ERROR', 'Media upload returned no id');
+    return data.id as string;
   }
 
   sendLocation(sessionId: string, to: string, loc: OutboundLocation): Promise<SendResult> {
@@ -259,6 +378,42 @@ export class MetaCloudProvider implements MessageProvider {
         language: { code: t.languageCode },
         ...(t.components ? { components: t.components } : {}),
       },
+    });
+  }
+
+  /**
+   * List the WABA's approved message templates (name, language, status, body +
+   * how many {{n}} variables the body has) so the dashboard can offer a picker.
+   */
+  async listTemplates(sessionId: string): Promise<Array<{
+    name: string;
+    language: string;
+    status: string;
+    category: string;
+    bodyText: string;
+    variables: number;
+  }>> {
+    const creds = this.credsFor(sessionId);
+    if (!creds.wabaId) {
+      throw new MetaApiError('META_API_ERROR', 'No WhatsApp Business Account ID stored for this session');
+    }
+    const url = `${GRAPH_HOST}/${this.graphVersion}/${creds.wabaId}/message_templates?fields=name,language,status,category,components&limit=200`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${creds.accessToken}` } });
+    const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+    if (!res.ok) throw this.mapError(res.status, data?.error);
+    const list = Array.isArray(data?.data) ? data.data : [];
+    return list.map((t: any) => {
+      const body = (t.components ?? []).find((c: any) => c.type === 'BODY');
+      const bodyText: string = body?.text ?? '';
+      const variables = (bodyText.match(/\{\{\s*\d+\s*\}\}/g) ?? []).length;
+      return {
+        name: t.name,
+        language: t.language,
+        status: t.status,
+        category: t.category ?? '',
+        bodyText,
+        variables,
+      };
     });
   }
 

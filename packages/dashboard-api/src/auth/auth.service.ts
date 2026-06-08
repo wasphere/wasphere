@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -13,6 +14,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { hashInviteToken } from '../team/team.service';
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -110,6 +112,10 @@ export class AuthService implements OnModuleInit {
           role: 'OWNER',
         },
       });
+      // Seed a default agent role so the invite picker is never empty.
+      await tx.customRole.create({
+        data: { workspaceId: newWorkspace.id, name: 'Agent', capabilities: ['inbox', 'contacts'] },
+      });
       return { user: newUser, workspace: newWorkspace };
     });
 
@@ -119,6 +125,48 @@ export class AuthService implements OnModuleInit {
       ...tokens,
       user: { id: user.id, email: user.email },
       workspace: { id: workspace.id, name: workspace.name },
+    };
+  }
+
+  /** Join a workspace via an invite link — creates the account (or logs in an
+   * existing one) and adds it as a member with the invite's role. */
+  async acceptInvite(dto: { token: string; email: string; password: string }): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: { id: string; email: string };
+    workspace: { id: string; name: string };
+  }> {
+    const invite = await this.prisma.workspaceInvite.findUnique({
+      where: { tokenHash: hashInviteToken(dto.token) },
+      select: { id: true, workspaceId: true, role: true, customRoleId: true, acceptedAt: true, expiresAt: true, workspace: { select: { name: true } } },
+    });
+    if (!invite || invite.acceptedAt || invite.expiresAt < new Date()) {
+      throw new BadRequestException('Invite is invalid or has expired');
+    }
+
+    let user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (user) {
+      const valid = await argon2.verify(user.passwordHash, dto.password);
+      if (!valid) throw new UnauthorizedException('Invalid credentials');
+    } else {
+      const passwordHash = await argon2.hash(dto.password, argon2Options());
+      user = await this.prisma.user.create({ data: { email: dto.email, passwordHash } });
+    }
+
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.workspaceMember.upsert({
+        where: { workspaceId_userId: { workspaceId: invite.workspaceId, userId: user!.id } },
+        update: {},
+        create: { workspaceId: invite.workspaceId, userId: user!.id, role: invite.role, customRoleId: invite.customRoleId },
+      });
+      await tx.workspaceInvite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
+    });
+
+    const tokens = await this.issueTokenPair(user.id, user.email);
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email },
+      workspace: { id: invite.workspaceId, name: invite.workspace.name },
     };
   }
 

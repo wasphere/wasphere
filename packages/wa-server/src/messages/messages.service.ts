@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException, OnApplicationShutdown } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, NotImplementedException, OnApplicationShutdown } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import {
   WHATSAPP_ADAPTER,
@@ -38,27 +38,26 @@ export class MessagesService implements OnApplicationShutdown {
     this.evictionTimer = setInterval(() => this.evictExpiredJobs(), 5 * 60 * 1000);
   }
 
-  // Shared outbound methods route through the provider registry (design §2.3).
-  // v1.2: the registry always resolves to Baileys, so behaviour is unchanged.
+  // Shared outbound methods route through the provider registry with opt-in
+  // failover (design §2.3, §11). v1.2: the registry resolves to Baileys and no
+  // fallback is configured by default, so behaviour is unchanged.
 
   async sendText(sessionId: string, to: string, text: string, quotedId?: string): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendText(sessionId, to, text, quotedId ? { quotedMessageId: quotedId } : undefined);
+    return this.registry.withFailover(sessionId, (p) =>
+      p.sendText(sessionId, to, text, quotedId ? { quotedMessageId: quotedId } : undefined),
+    );
   }
 
   async sendImage(sessionId: string, to: string, imageUrl: string, caption?: string): Promise<SendResult> {
-    return this.registry.for(sessionId).sendMedia(sessionId, to, { kind: 'image', url: imageUrl, caption });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'image', url: imageUrl, caption }));
   }
 
   async sendVideo(sessionId: string, to: string, videoUrl: string, caption?: string): Promise<SendResult> {
-    return this.registry.for(sessionId).sendMedia(sessionId, to, { kind: 'video', url: videoUrl, caption });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'video', url: videoUrl, caption }));
   }
 
   async sendAudio(sessionId: string, to: string, audioUrl: string, isVoiceNote: boolean = false): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendMedia(sessionId, to, { kind: 'audio', url: audioUrl, isVoiceNote });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'audio', url: audioUrl, isVoiceNote }));
   }
 
   async sendDocument(
@@ -68,13 +67,11 @@ export class MessagesService implements OnApplicationShutdown {
     fileName: string,
     mimetype: string,
   ): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendMedia(sessionId, to, { kind: 'document', url: docUrl, fileName, mimetype });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'document', url: docUrl, fileName, mimetype }));
   }
 
   async sendSticker(sessionId: string, to: string, stickerUrl: string): Promise<SendResult> {
-    return this.registry.for(sessionId).sendMedia(sessionId, to, { kind: 'sticker', url: stickerUrl });
+    return this.registry.withFailover(sessionId, (p) => p.sendMedia(sessionId, to, { kind: 'sticker', url: stickerUrl }));
   }
 
   async sendLocation(
@@ -85,9 +82,7 @@ export class MessagesService implements OnApplicationShutdown {
     name?: string,
     address?: string,
   ): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendLocation(sessionId, to, { latitude, longitude, name, address });
+    return this.registry.withFailover(sessionId, (p) => p.sendLocation(sessionId, to, { latitude, longitude, name, address }));
   }
 
   async sendContact(
@@ -96,7 +91,7 @@ export class MessagesService implements OnApplicationShutdown {
     displayName: string,
     phoneNumber: string,
   ): Promise<SendResult> {
-    return this.registry.for(sessionId).sendContact(sessionId, to, { displayName, phoneNumber });
+    return this.registry.withFailover(sessionId, (p) => p.sendContact(sessionId, to, { displayName, phoneNumber }));
   }
 
   async sendButtons(
@@ -106,9 +101,7 @@ export class MessagesService implements OnApplicationShutdown {
     footer: string,
     buttons: { id: string; text: string }[],
   ): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendInteractive(sessionId, to, { kind: 'buttons', text, footer, buttons });
+    return this.registry.withFailover(sessionId, (p) => p.sendInteractive(sessionId, to, { kind: 'buttons', text, footer, buttons }));
   }
 
   async sendList(
@@ -119,12 +112,22 @@ export class MessagesService implements OnApplicationShutdown {
     buttonText: string,
     sections: { title: string; rows: { id: string; title: string; description?: string }[] }[],
   ): Promise<SendResult> {
-    return this.registry
-      .for(sessionId)
-      .sendInteractive(sessionId, to, { kind: 'list', title, text, buttonText, sections });
+    return this.registry.withFailover(sessionId, (p) => p.sendInteractive(sessionId, to, { kind: 'list', title, text, buttonText, sections }));
   }
 
   // Baileys-only (not in the shared MessageProvider contract) — direct to adapter.
+  /** True when this session runs on a provider other than Baileys (i.e. Meta). */
+  private isMetaSession(sessionId: string): boolean {
+    return this.registry.for(sessionId).id === 'meta';
+  }
+
+  /** Reject a Baileys-only operation on a Meta session with a clear 501 (not a confusing 404). */
+  private assertBaileysOnly(sessionId: string, feature: string): void {
+    if (this.isMetaSession(sessionId)) {
+      throw new NotImplementedException(`${feature} is not supported on the Meta Cloud API provider.`);
+    }
+  }
+
   async sendPoll(
     sessionId: string,
     to: string,
@@ -132,6 +135,7 @@ export class MessagesService implements OnApplicationShutdown {
     options: string[],
     selectableCount: number = 1,
   ): Promise<SendResult> {
+    this.assertBaileysOnly(sessionId, 'Polls');
     return this.adapter.sendPoll(sessionId, to, name, options, selectableCount);
   }
 
@@ -142,14 +146,31 @@ export class MessagesService implements OnApplicationShutdown {
     emoji: string,
     fromMe?: boolean,
   ): Promise<SendResult> {
-    return this.registry.for(sessionId).sendReaction(sessionId, to, messageId, emoji, fromMe ?? false);
+    return this.registry.withFailover(sessionId, (p) => p.sendReaction(sessionId, to, messageId, emoji, fromMe ?? false));
+  }
+
+  async sendTemplate(
+    sessionId: string,
+    to: string,
+    name: string,
+    languageCode: string,
+    bodyParams?: string[],
+  ): Promise<SendResult> {
+    const components = bodyParams && bodyParams.length
+      ? [{ type: 'body', parameters: bodyParams.map((text) => ({ type: 'text', text })) }]
+      : undefined;
+    return this.registry.withFailover(sessionId, (p) =>
+      p.sendTemplate(sessionId, to, { name, languageCode, components }),
+    );
   }
 
   async sendGif(sessionId: string, to: string, gifUrl: string, caption?: string): Promise<SendResult> {
+    this.assertBaileysOnly(sessionId, 'GIF send');
     return this.adapter.sendGif(sessionId, to, gifUrl, caption);
   }
 
   async sendViewOnce(sessionId: string, to: string, imageUrl: string, caption?: string): Promise<SendResult> {
+    this.assertBaileysOnly(sessionId, 'View-once messages');
     return this.adapter.sendViewOnce(sessionId, to, imageUrl, caption);
   }
 
@@ -159,6 +180,7 @@ export class MessagesService implements OnApplicationShutdown {
     messageId: string,
     newText: string,
   ): Promise<SendResult> {
+    this.assertBaileysOnly(sessionId, 'Editing messages');
     return this.adapter.editMessage(sessionId, to, messageId, newText);
   }
 
@@ -168,14 +190,21 @@ export class MessagesService implements OnApplicationShutdown {
     messageId: string,
     forEveryone: boolean = true,
   ): Promise<{ status: string }> {
+    this.assertBaileysOnly(sessionId, 'Deleting messages');
     return this.adapter.deleteMessage(sessionId, to, messageId, forEveryone);
   }
 
   async markRead(sessionId: string, to: string, messageIds: string[]): Promise<{ status: string }> {
+    // Meta supports read receipts via the Graph API — route to the owning provider.
+    if (this.isMetaSession(sessionId)) {
+      await this.registry.for(sessionId).markRead(sessionId, to, messageIds);
+      return { status: 'ok' };
+    }
     return this.adapter.markRead(sessionId, to, messageIds);
   }
 
   async sendTyping(sessionId: string, to: string, isGroup: boolean = false): Promise<{ status: string }> {
+    this.assertBaileysOnly(sessionId, 'Typing indicators');
     return this.adapter.sendTyping(sessionId, to, isGroup);
   }
 
@@ -184,6 +213,7 @@ export class MessagesService implements OnApplicationShutdown {
     to: string,
     presence: PresenceType,
   ): Promise<{ status: string }> {
+    this.assertBaileysOnly(sessionId, 'Presence updates');
     return this.adapter.sendPresence(sessionId, to, presence);
   }
 
@@ -239,7 +269,7 @@ export class MessagesService implements OnApplicationShutdown {
         const outcome = job.outcomes[i];
 
         try {
-          const result = await this.registry.for(sessionId).sendText(sessionId, recipient, dto.message.text);
+          const result = await this.registry.withFailover(sessionId, (p) => p.sendText(sessionId, recipient, dto.message.text));
           outcome.status = 'sent';
           outcome.messageId = result.messageId;
           outcome.timestamp = Date.now();

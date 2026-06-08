@@ -53,3 +53,14 @@ export type OutboundReply =
   | { kind: "document"; media: string; fileName: string; mimetype: string }
   | { kind: "poll"; pollName: string; options: string[]; selectableCount?: number }
   | { kind: "reaction"; targetMessageId: string; emoji: string; targetFromMe: boolean }
+  | { kind: "location"; latitude: number; longitude: number; locationName?: string; address?: string }
+  | { kind: "contact"; contactName: string; contactPhone: string }
+  | { kind: "buttons"; text: string; footer: string; buttons: { id: string; text: string }[] }
+  | {
+      kind: "list"
+      listTitle: string
+      text: string
+      buttonText: string
+      sections: { title: string; rows: { id: string; title: string; description?: string }[] }[]
+    }
+  | { kind: "template"; templateName: string; languageCode: string; bodyParams?: string[] }
