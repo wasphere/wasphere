@@ -112,6 +112,10 @@ export class AuthService implements OnModuleInit {
           role: 'OWNER',
         },
       });
+      // Seed a default agent role so the invite picker is never empty.
+      await tx.customRole.create({
+        data: { workspaceId: newWorkspace.id, name: 'Agent', capabilities: ['inbox', 'contacts'] },
+      });
       return { user: newUser, workspace: newWorkspace };
     });
 
@@ -134,7 +138,7 @@ export class AuthService implements OnModuleInit {
   }> {
     const invite = await this.prisma.workspaceInvite.findUnique({
       where: { tokenHash: hashInviteToken(dto.token) },
-      select: { id: true, workspaceId: true, role: true, acceptedAt: true, expiresAt: true, workspace: { select: { name: true } } },
+      select: { id: true, workspaceId: true, role: true, customRoleId: true, acceptedAt: true, expiresAt: true, workspace: { select: { name: true } } },
     });
     if (!invite || invite.acceptedAt || invite.expiresAt < new Date()) {
       throw new BadRequestException('Invite is invalid or has expired');
@@ -153,7 +157,7 @@ export class AuthService implements OnModuleInit {
       await tx.workspaceMember.upsert({
         where: { workspaceId_userId: { workspaceId: invite.workspaceId, userId: user!.id } },
         update: {},
-        create: { workspaceId: invite.workspaceId, userId: user!.id, role: invite.role },
+        create: { workspaceId: invite.workspaceId, userId: user!.id, role: invite.role, customRoleId: invite.customRoleId },
       });
       await tx.workspaceInvite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
     });

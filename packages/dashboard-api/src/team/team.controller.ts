@@ -1,22 +1,40 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsArray, IsIn, IsString } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Request } from 'express';
-import { WorkspaceRole } from '@prisma/client';
 import { CombinedAuthGuard } from '../auth/combined-auth.guard';
-import { GRANTABLE_CAPABILITIES } from '../lib/capabilities';
+import { CAPABILITIES } from '../lib/capabilities';
 import { TeamService } from './team.service';
 
-class RoleDto {
-  @IsIn(['ADMIN', 'MEMBER'])
-  role: 'ADMIN' | 'MEMBER';
+// `role` is either the literal 'ADMIN' tier or a custom-role id (uuid).
+class RoleRefDto {
+  @IsString()
+  @MinLength(1)
+  role: string;
 }
 
-class PermissionsDto {
+class CreateRoleDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  name: string;
+
   @IsArray()
-  @IsString({ each: true })
-  @IsIn(GRANTABLE_CAPABILITIES, { each: true })
-  permissions: string[];
+  @IsIn(CAPABILITIES, { each: true })
+  capabilities: string[];
+}
+
+class UpdateRoleDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  name?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(CAPABILITIES, { each: true })
+  capabilities?: string[];
 }
 
 interface AuthedRequest extends Request {
@@ -41,13 +59,8 @@ export class TeamController {
   }
 
   @Patch('members/:userId')
-  changeRole(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('userId') userId: string, @Body() dto: RoleDto) {
-    return this.team.changeRole(ws, req.user.userId, userId, dto.role as WorkspaceRole);
-  }
-
-  @Patch('members/:userId/permissions')
-  setPermissions(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('userId') userId: string, @Body() dto: PermissionsDto) {
-    return this.team.setMemberPermissions(ws, req.user.userId, userId, dto.permissions);
+  assignRole(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('userId') userId: string, @Body() dto: RoleRefDto) {
+    return this.team.assignRole(ws, req.user.userId, userId, dto.role);
   }
 
   @Delete('members/:userId')
@@ -55,9 +68,33 @@ export class TeamController {
     return this.team.removeMember(ws, req.user.userId, userId);
   }
 
+  // ── Custom roles ─────────────────────────────────────────────────────────
+
+  @Get('roles')
+  listRoles(@Req() req: AuthedRequest, @Param('workspaceId') ws: string) {
+    return this.team.listRoles(ws, req.user.userId);
+  }
+
+  @Post('roles')
+  createRole(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: CreateRoleDto) {
+    return this.team.createRole(ws, req.user.userId, dto.name, dto.capabilities);
+  }
+
+  @Patch('roles/:roleId')
+  updateRole(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('roleId') roleId: string, @Body() dto: UpdateRoleDto) {
+    return this.team.updateRole(ws, req.user.userId, roleId, dto.name, dto.capabilities);
+  }
+
+  @Delete('roles/:roleId')
+  deleteRole(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('roleId') roleId: string) {
+    return this.team.deleteRole(ws, req.user.userId, roleId);
+  }
+
+  // ── Invites ──────────────────────────────────────────────────────────────
+
   @Post('invites')
-  createInvite(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: RoleDto) {
-    return this.team.createInvite(ws, req.user.userId, dto.role as WorkspaceRole);
+  createInvite(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: RoleRefDto) {
+    return this.team.createInvite(ws, req.user.userId, dto.role);
   }
 
   @Get('invites')

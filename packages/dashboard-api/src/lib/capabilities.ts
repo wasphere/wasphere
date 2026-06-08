@@ -1,11 +1,10 @@
 import { WorkspaceRole } from '@prisma/client';
 
 /**
- * Workspace *capabilities* — what a human member is allowed to do in the
- * dashboard. Distinct from API-key PermissionScopes (which gate the public
- * HTTP API for machine clients). Capabilities gate the UI/owner endpoints.
+ * Workspace *capabilities* — what a member is allowed to do in the dashboard.
+ * Distinct from API-key PermissionScopes (which gate the public HTTP API for
+ * machine clients). Capabilities gate the UI/owner endpoints.
  *
- * Each capability maps to a section of the product:
  *   inbox     — view + reply in the Inbox
  *   contacts  — view + edit the contact book
  *   messages  — the Messages page (manual / API sends)
@@ -13,6 +12,9 @@ import { WorkspaceRole } from '@prisma/client';
  *   webhooks  — manage outbound webhooks
  *   api_keys  — manage API keys (machine credentials)
  *   settings  — workspace settings, branding, danger-zone
+ *
+ * OWNER/ADMIN (authority tiers) always have every capability. A MEMBER (agent)
+ * has exactly the capabilities of their assigned custom role.
  */
 export const CAPABILITIES = [
   'inbox',
@@ -26,52 +28,34 @@ export const CAPABILITIES = [
 
 export type Capability = (typeof CAPABILITIES)[number];
 
-/** What an agent (MEMBER) can always do, with no extra grants. */
-export const DEFAULT_MEMBER_CAPABILITIES: Capability[] = ['inbox', 'contacts'];
-
-/**
- * Capabilities an OWNER/ADMIN may grant to an agent on top of the defaults.
- * `team` is intentionally NOT grantable — managing roles/permissions stays
- * owner/admin-only to avoid privilege escalation.
- */
-export const GRANTABLE_CAPABILITIES: Capability[] = [
-  'messages',
-  'sessions',
-  'webhooks',
-  'api_keys',
-  'settings',
-];
-
 export function isCapability(value: unknown): value is Capability {
   return typeof value === 'string' && CAPABILITIES.includes(value as Capability);
 }
 
-/** Keep only valid, grantable capabilities from arbitrary input. */
-export function sanitizeGrants(input: unknown): Capability[] {
+/** Keep only valid capability strings from arbitrary input (deduped). */
+export function sanitizeCapabilities(input: unknown): Capability[] {
   if (!Array.isArray(input)) return [];
   const out = new Set<Capability>();
-  for (const v of input) {
-    if (isCapability(v) && GRANTABLE_CAPABILITIES.includes(v)) out.add(v);
-  }
+  for (const v of input) if (isCapability(v)) out.add(v);
   return [...out];
 }
 
 /**
- * The effective capability set for a member: owners/admins get everything;
- * agents get their defaults plus whatever was granted to them.
+ * Effective capability set for a member: owners/admins get everything; an
+ * agent gets exactly their custom role's capabilities (empty if none).
  */
 export function resolveCapabilities(
   role: WorkspaceRole,
-  grants: unknown,
+  roleCapabilities: unknown,
 ): Capability[] {
   if (role === 'OWNER' || role === 'ADMIN') return [...CAPABILITIES];
-  return [...new Set([...DEFAULT_MEMBER_CAPABILITIES, ...sanitizeGrants(grants)])];
+  return sanitizeCapabilities(roleCapabilities);
 }
 
 export function hasCapability(
   role: WorkspaceRole,
-  grants: unknown,
+  roleCapabilities: unknown,
   required: Capability,
 ): boolean {
-  return resolveCapabilities(role, grants).includes(required);
+  return resolveCapabilities(role, roleCapabilities).includes(required);
 }

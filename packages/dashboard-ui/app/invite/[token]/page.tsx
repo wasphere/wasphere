@@ -7,14 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-const ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", MEMBER: "Agent" }
-
 export default function AcceptInvitePage() {
   const params = useParams<{ token: string }>()
   const router = useRouter()
   const token = params.token
 
-  const [preview, setPreview] = React.useState<{ workspaceName: string; role: string } | null>(null)
+  const [preview, setPreview] = React.useState<{ workspaceName: string; role: string; roleName?: string } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [email, setEmail] = React.useState("")
@@ -63,7 +61,7 @@ export default function AcceptInvitePage() {
           <>
             <h1 className="text-lg font-semibold">Join {preview?.workspaceName}</h1>
             <p className="mb-4 mt-1 text-sm text-muted-foreground">
-              You&apos;ve been invited as <span className="font-medium">{ROLE_LABEL[preview?.role ?? ""] ?? preview?.role}</span>. Set your login to join.
+              You&apos;ve been invited as <span className="font-medium">{preview?.roleName ?? preview?.role}</span>. Set your login to join.
             </p>
             <form onSubmit={submit} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">

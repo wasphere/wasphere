@@ -89,6 +89,10 @@ export class WorkspacesService implements OnApplicationBootstrap {
       await tx.workspaceMember.create({
         data: { workspaceId: workspace.id, userId, role: 'OWNER' },
       });
+      // Seed a default agent role so the invite picker is never empty.
+      await tx.customRole.create({
+        data: { workspaceId: workspace.id, name: 'Agent', capabilities: ['inbox', 'contacts'] },
+      });
       return { workspace };
     });
     return { id: workspace.id, name: workspace.name };

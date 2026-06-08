@@ -54,11 +54,11 @@ export class CapabilityGuard implements CanActivate {
 
     const member = await this.prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: user.userId } },
-      select: { role: true, permissions: true },
+      select: { role: true, customRole: { select: { capabilities: true } } },
     });
     if (!member) throw new ForbiddenException('Not a member of this workspace');
 
-    if (!hasCapability(member.role, member.permissions, required)) {
+    if (!hasCapability(member.role, member.customRole?.capabilities, required)) {
       throw new ForbiddenException(
         `You don't have the "${required}" permission in this workspace`,
       );

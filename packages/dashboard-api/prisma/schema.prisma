@@ -70,6 +70,7 @@ model Workspace {
   owner         User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   members       WorkspaceMember[]
   invites       WorkspaceInvite[]
+  customRoles   CustomRole[]
   apiKeys       ApiKey[]
   webhooks      Webhook[]
   // Inbox (v1.1) — virtual back-relations, no DB columns added to workspaces
@@ -88,18 +89,21 @@ model WorkspaceMember {
   id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId String        @map("workspace_id") @db.Uuid
   userId      String        @map("user_id") @db.Uuid
+  // Authority tier. OWNER/ADMIN have full access; MEMBER's capabilities come
+  // from the assigned custom role (see customRole).
   role        WorkspaceRole @default(MEMBER)
-  // Extra capabilities granted to an agent (MEMBER) beyond the defaults
-  // (inbox/contacts). Ignored for OWNER/ADMIN, who have everything.
-  // See src/lib/capabilities.ts.
-  permissions Json          @default("[]")
+  // For MEMBER tier: the custom role defining this agent's capabilities.
+  // Null = defaults only (inbox/contacts). Ignored for OWNER/ADMIN.
+  customRoleId String?      @map("custom_role_id") @db.Uuid
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz()
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customRole CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, userId])
   @@index([userId])
+  @@index([customRoleId])
   @@map("workspace_members")
 }
 
@@ -109,19 +113,43 @@ enum WorkspaceRole {
   MEMBER
 }
 
+// Named, reusable permission sets an owner defines for agents (MEMBER tier).
+// e.g. "Support" = inbox+contacts, "Developer" = api_keys+webhooks.
+model CustomRole {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String   @map("workspace_id") @db.Uuid
+  name         String
+  // Array of capability strings (see src/lib/capabilities.ts).
+  capabilities Json     @default("[]")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   WorkspaceMember[]
+  invites   WorkspaceInvite[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@map("custom_roles")
+}
+
 // Pending invitations to join a workspace (invite-link flow; no email needed).
 model WorkspaceInvite {
   id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId String        @map("workspace_id") @db.Uuid
   // SHA-256 of the invite token; the raw token only ever lives in the link.
   tokenHash   String        @unique @map("token_hash")
+  // Authority tier the invitee joins as.
   role        WorkspaceRole @default(MEMBER)
+  // For MEMBER-tier invites: the custom role assigned on acceptance.
+  customRoleId String?      @map("custom_role_id") @db.Uuid
   createdBy   String        @map("created_by") @db.Uuid
   expiresAt   DateTime      @map("expires_at") @db.Timestamptz()
   acceptedAt  DateTime?     @map("accepted_at") @db.Timestamptz()
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz()
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  customRole CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
   @@map("workspace_invites")
