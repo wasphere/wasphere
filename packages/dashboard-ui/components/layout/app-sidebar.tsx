@@ -39,13 +39,16 @@ import {
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
+// `member: true` → also visible to MEMBER (agent) role. Everything else is
+// OWNER/ADMIN only (agents get a focused Inbox/Contacts view).
 const NAV_ITEMS = [
-  { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard },
+  { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard, member: true },
   { label: "Sessions", href: "/dashboard/sessions", icon: Smartphone },
-  { label: "Inbox", href: "/dashboard/inbox", icon: Inbox },
-  { label: "Contacts", href: "/dashboard/contacts", icon: Contact },
-  { label: "Messages", href: "/dashboard/messages", icon: MessageSquare },
+  { label: "Inbox", href: "/dashboard/inbox", icon: Inbox, member: true },
+  { label: "Contacts", href: "/dashboard/contacts", icon: Contact, member: true },
+  { label: "Messages", href: "/dashboard/messages", icon: MessageSquare, member: true },
   { label: "Webhooks", href: "/dashboard/webhooks", icon: Webhook },
+  { label: "Team", href: "/dashboard/team", icon: Users },
   { label: "Developer", href: "/dashboard/developer", icon: Code },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
@@ -147,6 +150,14 @@ function ExternalNavItem({
 export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
   const pathname = usePathname();
   const { state, setOpen, isMobile } = useSidebar();
+
+  // Agents (MEMBER role) get a focused nav (Inbox/Contacts/etc.); owners/admins
+  // see everything. Default to showing all until the role loads.
+  const [role, setRole] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    fetch("/api/team/my-role").then((r) => r.json()).then((d) => setRole(d?.role ?? null)).catch(() => {});
+  }, []);
+  const navItems = role === "MEMBER" ? NAV_ITEMS.filter((i) => i.member) : NAV_ITEMS;
   // On mobile the sidebar is a full drawer — never icon-collapse it, and the
   // hover-to-expand behaviour is desktop-only.
   const collapsed = !isMobile && state === "collapsed";
@@ -192,7 +203,7 @@ export function AppSidebar({ demoMode = false }: { demoMode?: boolean }) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map(({ label, href, icon }) => {
+              {navItems.map(({ label, href, icon }) => {
                 const active =
                   pathname === href || pathname.startsWith(href + "/");
                 return (

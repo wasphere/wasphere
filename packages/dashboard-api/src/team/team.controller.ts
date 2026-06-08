@@ -22,6 +22,11 @@ interface AuthedRequest extends Request {
 export class TeamController {
   constructor(private readonly team: TeamService) {}
 
+  @Get('my-role')
+  myRole(@Req() req: AuthedRequest, @Param('workspaceId') ws: string) {
+    return this.team.myRole(ws, req.user.userId);
+  }
+
   @Get('members')
   members(@Req() req: AuthedRequest, @Param('workspaceId') ws: string) {
     return this.team.listMembers(ws, req.user.userId);

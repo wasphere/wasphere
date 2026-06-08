@@ -26,6 +26,16 @@ export class TeamService {
     return m.role;
   }
 
+  /** The caller's own role in the workspace (for UI nav gating). */
+  async myRole(workspaceId: string, userId: string): Promise<{ role: WorkspaceRole }> {
+    const m = await this.prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId } },
+      select: { role: true },
+    });
+    if (!m) throw new ForbiddenException('Not a member of this workspace');
+    return { role: m.role };
+  }
+
   async listMembers(workspaceId: string, userId: string) {
     await this.assertManager(workspaceId, userId);
     const members = await this.prisma.workspaceMember.findMany({

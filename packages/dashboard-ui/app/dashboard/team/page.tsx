@@ -1,0 +1,170 @@
+"use client"
+
+import * as React from "react"
+import { toast } from "sonner"
+import { Users as UsersIcon, Trash2, Copy, Check, Link2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+
+type Member = { userId: string; email: string; role: "OWNER" | "ADMIN" | "MEMBER"; joinedAt: string }
+type Invite = { id: string; role: string; createdAt: string; expiresAt: string }
+
+const ROLE_LABEL: Record<string, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Agent" }
+
+export default function TeamPage() {
+  const [members, setMembers] = React.useState<Member[]>([])
+  const [invites, setInvites] = React.useState<Invite[]>([])
+  const [myRole, setMyRole] = React.useState<string | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [inviteRole, setInviteRole] = React.useState<"ADMIN" | "MEMBER">("MEMBER")
+  const [creating, setCreating] = React.useState(false)
+  const [newLink, setNewLink] = React.useState<string | null>(null)
+  const [copied, setCopied] = React.useState(false)
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const [mr, m, i] = await Promise.all([
+        fetch("/api/team/my-role").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/team/members").then((r) => r.json()).catch(() => []),
+        fetch("/api/team/invites").then((r) => r.json()).catch(() => []),
+      ])
+      setMyRole(mr?.role ?? null)
+      setMembers(Array.isArray(m) ? m : [])
+      setInvites(Array.isArray(i) ? i : [])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => { void load() }, [load])
+
+  const canManage = myRole === "OWNER" || myRole === "ADMIN"
+
+  const createInvite = async () => {
+    setCreating(true); setNewLink(null)
+    try {
+      const res = await fetch("/api/team/invites", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: inviteRole }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data?.message ?? "Could not create invite"); return }
+      setNewLink(data.inviteUrl)
+      void load()
+    } catch { toast.error("Could not reach the server.") }
+    finally { setCreating(false) }
+  }
+
+  const copyLink = async () => {
+    if (!newLink) return
+    await navigator.clipboard.writeText(newLink).catch(() => null)
+    setCopied(true); setTimeout(() => setCopied(false), 1500)
+  }
+
+  const changeRole = async (userId: string, role: string) => {
+    const res = await fetch(`/api/team/members/${userId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }),
+    })
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d?.message ?? "Could not change role"); return }
+    toast.success("Role updated"); void load()
+  }
+
+  const removeMember = async (userId: string, email: string) => {
+    if (!confirm(`Remove ${email} from the workspace?`)) return
+    const res = await fetch(`/api/team/members/${userId}`, { method: "DELETE" })
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d?.message ?? "Could not remove"); return }
+    toast.success("Member removed"); void load()
+  }
+
+  const revokeInvite = async (id: string) => {
+    const res = await fetch(`/api/team/invites/${id}`, { method: "DELETE" })
+    if (!res.ok) { toast.error("Could not revoke"); return }
+    void load()
+  }
+
+  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>
+
+  if (!canManage) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border bg-card py-16 text-center">
+        <UsersIcon className="size-8 text-primary/40" />
+        <p className="text-sm text-muted-foreground">Only owners and admins can manage the team.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold">Team</h1>
+
+      {/* Invite */}
+      <div className="rounded-xl border bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold">Invite a teammate</h2>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="role">Role</Label>
+            <select id="role" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "ADMIN" | "MEMBER")} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
+              <option value="MEMBER">Agent (Inbox + Contacts)</option>
+              {myRole === "OWNER" && <option value="ADMIN">Admin (manage everything)</option>}
+            </select>
+          </div>
+          <Button onClick={() => void createInvite()} disabled={creating}>
+            <Link2 className="mr-1.5 size-4" /> {creating ? "Generating…" : "Generate invite link"}
+          </Button>
+        </div>
+        {newLink && (
+          <div className="mt-3 flex items-center gap-2">
+            <code className="flex-1 truncate rounded-md border border-input bg-muted/40 px-2.5 py-2 text-xs">{newLink}</code>
+            <Button variant="outline" size="icon" onClick={copyLink}>{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}</Button>
+          </div>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">Share this link with your teammate. It expires in 7 days. They set their own password on joining.</p>
+      </div>
+
+      {/* Pending invites */}
+      {invites.length > 0 && (
+        <div className="rounded-xl border bg-card">
+          <h2 className="border-b px-4 py-2.5 text-sm font-semibold">Pending invites ({invites.length})</h2>
+          {invites.map((i) => (
+            <div key={i.id} className="flex items-center gap-3 border-b px-4 py-2.5 last:border-0">
+              <span className="text-sm">{ROLE_LABEL[i.role] ?? i.role} invite</span>
+              <span className="text-xs text-muted-foreground">expires {new Date(i.expiresAt).toLocaleDateString()}</span>
+              <Button variant="ghost" size="sm" className="ml-auto text-destructive" onClick={() => void revokeInvite(i.id)}>Revoke</Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Members */}
+      <div className="rounded-xl border bg-card">
+        <h2 className="border-b px-4 py-2.5 text-sm font-semibold">Members ({members.length})</h2>
+        {members.map((m) => (
+          <div key={m.userId} className="flex items-center gap-3 border-b px-4 py-2.5 last:border-0">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold">{m.email[0]?.toUpperCase()}</span>
+            <span className="min-w-0 truncate text-sm">{m.email}</span>
+            {m.role === "OWNER" ? (
+              <span className="ml-auto rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600">Owner</span>
+            ) : (
+              <div className="ml-auto flex items-center gap-2">
+                <select
+                  value={m.role}
+                  onChange={(e) => void changeRole(m.userId, e.target.value)}
+                  disabled={myRole === "ADMIN" && m.role === "ADMIN"}
+                  className="h-8 rounded-md border border-input bg-transparent px-2 text-xs disabled:opacity-50"
+                >
+                  <option value="MEMBER">Agent</option>
+                  {myRole === "OWNER" && <option value="ADMIN">Admin</option>}
+                </select>
+                <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => void removeMember(m.userId, m.email)} disabled={myRole === "ADMIN" && m.role === "ADMIN"}>
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
