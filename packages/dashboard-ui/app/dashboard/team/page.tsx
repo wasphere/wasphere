@@ -2,15 +2,32 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { Users as UsersIcon, Trash2, Copy, Check, Link2 } from "lucide-react"
+import { Users as UsersIcon, Trash2, Copy, Check, Link2, SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-type Member = { userId: string; email: string; role: "OWNER" | "ADMIN" | "MEMBER"; joinedAt: string }
+type Member = {
+  userId: string
+  email: string
+  role: "OWNER" | "ADMIN" | "MEMBER"
+  permissions: string[]
+  capabilities: string[]
+  joinedAt: string
+}
 type Invite = { id: string; role: string; createdAt: string; expiresAt: string }
 
 const ROLE_LABEL: Record<string, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Agent" }
+
+// Granular capabilities an agent can be granted on top of Inbox + Contacts.
+// Must match GRANTABLE_CAPABILITIES in dashboard-api/src/lib/capabilities.ts.
+const GRANTABLE: { key: string; label: string; hint: string }[] = [
+  { key: "messages", label: "Messages", hint: "Send messages / use the API page" },
+  { key: "sessions", label: "Sessions", hint: "Link & manage WhatsApp numbers" },
+  { key: "webhooks", label: "Webhooks", hint: "Manage outbound webhooks" },
+  { key: "api_keys", label: "API keys", hint: "Create & revoke API keys" },
+  { key: "settings", label: "Settings", hint: "Workspace settings & branding" },
+]
 
 export default function TeamPage() {
   const [members, setMembers] = React.useState<Member[]>([])
@@ -21,6 +38,8 @@ export default function TeamPage() {
   const [creating, setCreating] = React.useState(false)
   const [newLink, setNewLink] = React.useState<string | null>(null)
   const [copied, setCopied] = React.useState(false)
+  const [expanded, setExpanded] = React.useState<string | null>(null)
+  const [savingPerms, setSavingPerms] = React.useState<string | null>(null)
 
   const load = React.useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true)
@@ -87,6 +106,24 @@ export default function TeamPage() {
     void load(true)
   }
 
+  const togglePermission = async (m: Member, cap: string) => {
+    const next = m.permissions.includes(cap)
+      ? m.permissions.filter((p) => p !== cap)
+      : [...m.permissions, cap]
+    // Optimistic update so the toggle feels instant.
+    setMembers((prev) => prev.map((x) => (x.userId === m.userId ? { ...x, permissions: next } : x)))
+    setSavingPerms(m.userId)
+    try {
+      const res = await fetch(`/api/team/members/${m.userId}/permissions`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: next }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d?.message ?? "Could not save"); void load(true); return }
+      void load(true)
+    } catch { toast.error("Could not reach the server."); void load(true) }
+    finally { setSavingPerms(null) }
+  }
+
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>
 
   if (!canManage) {
@@ -144,25 +181,69 @@ export default function TeamPage() {
       <div className="rounded-xl border bg-card">
         <h2 className="border-b px-4 py-2.5 text-sm font-semibold">Members ({members.length})</h2>
         {members.map((m) => (
-          <div key={m.userId} className="flex items-center gap-3 border-b px-4 py-2.5 last:border-0">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold">{m.email[0]?.toUpperCase()}</span>
-            <span className="min-w-0 truncate text-sm">{m.email}</span>
-            {m.role === "OWNER" ? (
-              <span className="ml-auto rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600">Owner</span>
-            ) : (
-              <div className="ml-auto flex items-center gap-2">
-                <select
-                  value={m.role}
-                  onChange={(e) => void changeRole(m.userId, e.target.value)}
-                  disabled={myRole === "ADMIN" && m.role === "ADMIN"}
-                  className="h-8 rounded-md border border-input bg-transparent px-2 text-xs disabled:opacity-50"
-                >
-                  <option value="MEMBER">Agent</option>
-                  {myRole === "OWNER" && <option value="ADMIN">Admin</option>}
-                </select>
-                <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => void removeMember(m.userId, m.email)} disabled={myRole === "ADMIN" && m.role === "ADMIN"}>
-                  <Trash2 className="size-4" />
-                </Button>
+          <div key={m.userId} className="border-b last:border-0">
+            <div className="flex items-center gap-3 px-4 py-2.5">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold">{m.email[0]?.toUpperCase()}</span>
+              <span className="min-w-0 truncate text-sm">{m.email}</span>
+              {m.role === "OWNER" ? (
+                <span className="ml-auto rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600">Owner</span>
+              ) : (
+                <div className="ml-auto flex items-center gap-2">
+                  {m.role === "MEMBER" && (
+                    <Button
+                      variant={expanded === m.userId ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => setExpanded(expanded === m.userId ? null : m.userId)}
+                    >
+                      <SlidersHorizontal className="size-3.5" />
+                      Permissions{m.permissions.length > 0 ? ` (${m.permissions.length})` : ""}
+                    </Button>
+                  )}
+                  <select
+                    value={m.role}
+                    onChange={(e) => void changeRole(m.userId, e.target.value)}
+                    disabled={myRole === "ADMIN" && m.role === "ADMIN"}
+                    className="h-8 rounded-md border border-input bg-transparent px-2 text-xs disabled:opacity-50"
+                  >
+                    <option value="MEMBER">Agent</option>
+                    {myRole === "OWNER" && <option value="ADMIN">Admin</option>}
+                  </select>
+                  <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => void removeMember(m.userId, m.email)} disabled={myRole === "ADMIN" && m.role === "ADMIN"}>
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {m.role === "MEMBER" && expanded === m.userId && (
+              <div className="bg-muted/30 px-4 pb-3.5 pt-1">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Agents always have <span className="font-medium">Inbox</span> and <span className="font-medium">Contacts</span>. Grant extra access below.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {GRANTABLE.map((cap) => {
+                    const on = m.permissions.includes(cap.key)
+                    return (
+                      <button
+                        key={cap.key}
+                        type="button"
+                        title={cap.hint}
+                        disabled={savingPerms === m.userId}
+                        onClick={() => void togglePermission(m, cap.key)}
+                        className={[
+                          "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors disabled:opacity-50",
+                          on
+                            ? "border-primary/30 bg-primary/10 text-primary"
+                            : "border-input bg-transparent text-muted-foreground hover:bg-muted",
+                        ].join(" ")}
+                      >
+                        {on && <Check className="size-3" />}
+                        {cap.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>

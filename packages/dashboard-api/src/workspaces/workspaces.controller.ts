@@ -20,6 +20,8 @@ import { Request, Response } from 'express';
 import { CombinedAuthGuard } from '../auth/combined-auth.guard';
 import { ApiKeyPermissionGuard } from '../auth/api-key-permission.guard';
 import { RequiresPermission } from '../auth/requires-permission.decorator';
+import { CapabilityGuard } from '../auth/capability.guard';
+import { RequireCapability } from '../auth/require-capability.decorator';
 import { WorkspacesService } from './workspaces.service';
 import { ProxyService } from './proxy.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -40,7 +42,7 @@ interface AuthenticatedRequest extends Request {
 @ApiTags('Workspaces')
 @ApiBearerAuth()
 @Controller('workspaces')
-@UseGuards(CombinedAuthGuard, ApiKeyPermissionGuard)
+@UseGuards(CombinedAuthGuard, ApiKeyPermissionGuard, CapabilityGuard)
 export class WorkspacesController {
   constructor(
     private readonly workspacesService: WorkspacesService,
@@ -79,6 +81,7 @@ export class WorkspacesController {
 
   @Patch(':id/wa-server')
   @RequiresPermission('workspace:write')
+  @RequireCapability('settings')
   @ApiOperation({ summary: 'Configure the WA Server URL and API token for a workspace' })
   @ApiParam({ name: 'id', description: 'Workspace UUID' })
   @ApiResponse({ status: 200, description: 'Updated workspace' })
@@ -95,6 +98,7 @@ export class WorkspacesController {
 
   @Patch(':id/branding')
   @RequiresPermission('workspace:write')
+  @RequireCapability('settings')
   @ApiOperation({ summary: 'Update dashboard branding (custom logo, name)' })
   @ApiParam({ name: 'id', description: 'Workspace UUID' })
   @ApiResponse({ status: 200, description: 'Branding updated' })
@@ -111,6 +115,7 @@ export class WorkspacesController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @RequiresPermission('workspace:write')
+  @RequireCapability('settings')
   @ApiOperation({ summary: 'Permanently delete a workspace and all its data' })
   @ApiParam({ name: 'id', description: 'Workspace UUID' })
   @ApiResponse({ status: 200, description: 'Workspace deleted' })

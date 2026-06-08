@@ -12,7 +12,7 @@
     "db:reset": "prisma migrate reset",
     "postinstall": "prisma generate",
     "test:setup": "docker exec wasphere-postgres psql -U wasphere -tc \"SELECT 1 FROM pg_database WHERE datname='wasphere_test'\" | grep -q 1 || docker exec wasphere-postgres createdb -U wasphere wasphere_test; DATABASE_URL=postgresql://wasphere:wasphere_dev@localhost:5432/wasphere_test npx prisma migrate deploy",
-    "test": "pnpm build && node --test --test-concurrency=1 test/inbox-ingest.test.js test/inbox-service.test.js"
+    "test": "pnpm build && node --test --test-concurrency=1 test/capabilities.test.js test/inbox-ingest.test.js test/inbox-service.test.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

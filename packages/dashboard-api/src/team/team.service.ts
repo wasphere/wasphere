@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { randomBytes, createHash } from 'crypto';
 import { WorkspaceRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveCapabilities, sanitizeGrants } from '../lib/capabilities';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -26,24 +27,54 @@ export class TeamService {
     return m.role;
   }
 
-  /** The caller's own role in the workspace (for UI nav gating). */
-  async myRole(workspaceId: string, userId: string): Promise<{ role: WorkspaceRole }> {
+  /**
+   * The caller's own role + effective capabilities in the workspace
+   * (drives UI nav gating and feature visibility).
+   */
+  async myRole(workspaceId: string, userId: string): Promise<{ role: WorkspaceRole; capabilities: string[] }> {
     const m = await this.prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId } },
-      select: { role: true },
+      select: { role: true, permissions: true },
     });
     if (!m) throw new ForbiddenException('Not a member of this workspace');
-    return { role: m.role };
+    return { role: m.role, capabilities: resolveCapabilities(m.role, m.permissions) };
   }
 
   async listMembers(workspaceId: string, userId: string) {
     await this.assertManager(workspaceId, userId);
     const members = await this.prisma.workspaceMember.findMany({
       where: { workspaceId },
-      select: { userId: true, role: true, createdAt: true, user: { select: { email: true } } },
+      select: { userId: true, role: true, permissions: true, createdAt: true, user: { select: { email: true } } },
       orderBy: { createdAt: 'asc' },
     });
-    return members.map((m) => ({ userId: m.userId, email: m.user.email, role: m.role, joinedAt: m.createdAt }));
+    return members.map((m) => ({
+      userId: m.userId,
+      email: m.user.email,
+      role: m.role,
+      // Only the granular grants are editable; owners/admins show as full.
+      permissions: m.role === 'MEMBER' ? sanitizeGrants(m.permissions) : [],
+      capabilities: resolveCapabilities(m.role, m.permissions),
+      joinedAt: m.createdAt,
+    }));
+  }
+
+  /** Grant/revoke an agent's granular capabilities. Owner/admin only. */
+  async setMemberPermissions(workspaceId: string, actorId: string, targetUserId: string, grants: unknown) {
+    await this.assertManager(workspaceId, actorId);
+    const target = await this.prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+      select: { role: true },
+    });
+    if (!target) throw new NotFoundException('Member not found');
+    if (target.role !== 'MEMBER') {
+      throw new BadRequestException('Permissions only apply to agents — owners and admins already have full access.');
+    }
+    const sanitized = sanitizeGrants(grants);
+    await this.prisma.workspaceMember.update({
+      where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+      data: { permissions: sanitized },
+    });
+    return { ok: true, permissions: sanitized };
   }
 
   async changeRole(workspaceId: string, actorId: string, targetUserId: string, role: WorkspaceRole) {

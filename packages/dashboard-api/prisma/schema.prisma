@@ -89,6 +89,10 @@ model WorkspaceMember {
   workspaceId String        @map("workspace_id") @db.Uuid
   userId      String        @map("user_id") @db.Uuid
   role        WorkspaceRole @default(MEMBER)
+  // Extra capabilities granted to an agent (MEMBER) beyond the defaults
+  // (inbox/contacts). Ignored for OWNER/ADMIN, who have everything.
+  // See src/lib/capabilities.ts.
+  permissions Json          @default("[]")
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz()
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

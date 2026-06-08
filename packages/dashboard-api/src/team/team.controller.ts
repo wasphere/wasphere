@@ -1,14 +1,22 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsIn } from 'class-validator';
+import { IsArray, IsIn, IsString } from 'class-validator';
 import { Request } from 'express';
 import { WorkspaceRole } from '@prisma/client';
 import { CombinedAuthGuard } from '../auth/combined-auth.guard';
+import { GRANTABLE_CAPABILITIES } from '../lib/capabilities';
 import { TeamService } from './team.service';
 
 class RoleDto {
   @IsIn(['ADMIN', 'MEMBER'])
   role: 'ADMIN' | 'MEMBER';
+}
+
+class PermissionsDto {
+  @IsArray()
+  @IsString({ each: true })
+  @IsIn(GRANTABLE_CAPABILITIES, { each: true })
+  permissions: string[];
 }
 
 interface AuthedRequest extends Request {
@@ -35,6 +43,11 @@ export class TeamController {
   @Patch('members/:userId')
   changeRole(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('userId') userId: string, @Body() dto: RoleDto) {
     return this.team.changeRole(ws, req.user.userId, userId, dto.role as WorkspaceRole);
+  }
+
+  @Patch('members/:userId/permissions')
+  setPermissions(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('userId') userId: string, @Body() dto: PermissionsDto) {
+    return this.team.setMemberPermissions(ws, req.user.userId, userId, dto.permissions);
   }
 
   @Delete('members/:userId')
