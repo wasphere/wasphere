@@ -93,6 +93,7 @@ A realtime, two-pane WhatsApp **Inbox** right in your dashboard — send, receiv
 | **Polls + vote tracking** | send a poll, receive the **decrypted vote** on a `poll.vote` webhook — powers Shopify / WooCommerce order confirmation |
 | Reactions · forward · copy | react to any message (inbound **or** your own), forward to another chat |
 | Tags · notes · mute | organise customers · private per-contact notes · per-chat mute |
+| Contacts CRM | tags · notes · manual add · **CSV import / export** · bulk tag & delete |
 | Realtime | live updates over SSE with automatic polling fallback |
 | Multi-session filter | one universal inbox, or filter to a single WhatsApp number |
 | Mobile-ready | responsive layout, slide-in panels, tap-friendly actions |
@@ -149,6 +150,7 @@ incoming message and status update.
 | SSRF-guarded delivery         |   ✅   | DNS pinning + private-IP denylist on all outbound webhooks     |
 | Encrypted secrets at rest     |   ✅   | AES-256-GCM for stored WA Server tokens                        |
 | Argon2id + JWT rotation       |   ✅   | timing-safe login, refresh-token rotation + reuse detection    |
+| Email password reset          |   ✅   | self-service reset + team invites over SMTP (optional)         |
 | Security headers              |   ✅   | helmet on the API + headers on the UI                          |
 | Audit log                     |   ✅   | every API request logged; filterable; 90-day retention         |
 
@@ -213,6 +215,62 @@ curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sess
   -H "Content-Type: application/json" \
   -d '{ "to": "12125550100", "text": "Hello from WaSphere!" }'
 ```
+
+<details>
+<summary><b>curl for every send type</b> (image, video, audio, document, sticker, gif, view-once, buttons, list, poll, reaction, location, contact, template)</summary>
+
+All endpoints share the same base and headers:
+
+```bash
+BASE="https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages"
+AUTH=(-H "Authorization: Bearer wsk_your_key" -H "Content-Type: application/json")
+
+# Image (also: video, gif, view-once — same body)
+curl -X POST "$BASE/image" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "url": "https://example.com/pic.jpg", "caption": "Hi" }'
+
+# Audio (voice note)
+curl -X POST "$BASE/audio" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "url": "https://example.com/voice.ogg", "isVoiceNote": true }'
+
+# Document
+curl -X POST "$BASE/document" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "url": "https://example.com/invoice.pdf", "fileName": "invoice.pdf", "mimetype": "application/pdf" }'
+
+# Sticker
+curl -X POST "$BASE/sticker" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "url": "https://example.com/sticker.webp" }'
+
+# Buttons (quick reply)
+curl -X POST "$BASE/buttons" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "text": "Pick one", "footer": "WaSphere", "buttons": [{ "id": "yes", "text": "Yes" }, { "id": "no", "text": "No" }] }'
+
+# List (menu picker)
+curl -X POST "$BASE/list" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "title": "Menu", "text": "Choose", "buttonText": "Open", "sections": [{ "title": "Drinks", "rows": [{ "id": "tea", "title": "Tea" }] }] }'
+
+# Poll
+curl -X POST "$BASE/poll" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "name": "Lunch?", "options": ["Pizza", "Sushi"], "selectableCount": 1 }'
+
+# Reaction
+curl -X POST "$BASE/reaction" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "messageId": "3EB0...", "emoji": "👍" }'
+
+# Location
+curl -X POST "$BASE/location" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "latitude": 37.422, "longitude": -122.084, "name": "HQ", "address": "1600 Amphitheatre Pkwy" }'
+
+# Contact (vCard)
+curl -X POST "$BASE/contact" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "displayName": "Jane Doe", "phoneNumber": "12125550111" }'
+
+# Template (Meta Cloud API sessions — pre-approved templates)
+curl -X POST "$BASE/template" "${AUTH[@]}" \
+  -d '{ "to": "12125550100", "name": "order_update", "languageCode": "en_US", "bodyParams": ["A123", "shipped"] }'
+```
+
+</details>
 
 ```bash
 # Register a signed webhook

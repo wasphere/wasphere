@@ -40,10 +40,19 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
       INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET:?set INTERNAL_WEBHOOK_SECRET in .env}
       CORS_ORIGIN: ${DASHBOARD_UI_URL:-http://localhost:3004}
+      # Public UI base for links in emails (password reset, invites).
+      DASHBOARD_UI_URL: ${DASHBOARD_UI_URL:-http://localhost:3004}
       DASHBOARD_PORT: "3000"
       # Public base URL of this API — webhooks emit media download links here
       # instead of inlining base64. Leave empty to keep inline data URIs.
       MEDIA_BASE_URL: ${MEDIA_BASE_URL:-}
+      # Email / SMTP (optional — blank SMTP_HOST disables email; see .env.example).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       NODE_ENV: production
     ports:
       - "${DASHBOARD_API_PORT:-3000}:3000"

@@ -31,10 +31,19 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       INTERNAL_WEBHOOK_SECRET: ${INTERNAL_WEBHOOK_SECRET}
       CORS_ORIGIN: ${DASHBOARD_UI_URL}
+      # Public UI base for links in emails (password reset, invites).
+      DASHBOARD_UI_URL: ${DASHBOARD_UI_URL}
       DASHBOARD_PORT: "3000"
       # Public API URL — webhook media download links point here (e.g.
       # https://api.your-domain.com). Empty keeps base64 inline.
       MEDIA_BASE_URL: ${MEDIA_BASE_URL:-https://${DASHBOARD_API_DOMAIN}}
+      # Email / SMTP (optional — blank SMTP_HOST disables email; see .env.prod.example).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       NODE_ENV: production
     depends_on:
       postgres:
