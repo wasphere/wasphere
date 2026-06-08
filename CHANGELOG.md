@@ -8,7 +8,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### v1.2 "Reliability & Trust" — in progress (on `develop`)
+---
+
+## [1.3.0] - 2026-06-08
+
+### v1.3 "Inbox CRM" — team inbox, roles & contacts
+
+#### Added
+- **Two-way Inbox** — inbound + outbound (API-sent and manual) messages sync into one conversation view; live updates over SSE; delivery/read ticks advance sent → delivered → read.
+- **Interactive reply IDs** — button/list selections surface a stable `id` in the webhook for automation routing (Meta + Baileys).
+- **Inbound media as download URLs** — webhook media is delivered as an authenticated download link (Bearer API key) instead of inline base64.
+- **New chat** — start a fresh conversation by number from the dashboard.
+- **Template send** — pick an approved Meta template (auto-listed from WhatsApp Manager) with variables, from the composer.
+- **Contact card actions** — message a contact directly from their card.
+- **Team & multi-agent** — invite teammates by link (7-day expiry, self-set password); Owner / Admin / Agent tiers.
+- **Roles & granular permissions** — owner-defined custom roles (named capability sets: inbox, contacts, messages, sessions, webhooks, api_keys, settings); invites and members carry a role; the backend enforces capabilities (agents can no longer reach admin endpoints via the API, not just the UI).
+- **Contact book CRM** — tags, notes, manual add, delete, tag filtering, bulk tag/delete, and CSV export.
+
+### v1.2 "Reliability & Trust"
 
 #### Added
 - **Meta WhatsApp Cloud API provider** (opt-in — `META_PROVIDER_ENABLED=false` by default). Run a session on the official Cloud API alongside Baileys behind one unified API:
