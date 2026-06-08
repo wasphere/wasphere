@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Request } from 'express';
 import { CombinedAuthGuard } from '../auth/combined-auth.guard';
@@ -33,6 +33,18 @@ class BulkContactsDto {
 
 class ExportContactsDto {
   @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(10000) ids?: string[];
+}
+
+class ImportRowDto {
+  @IsString() @MaxLength(30) phone: string;
+  @IsOptional() @IsString() @MaxLength(100) name?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(20) tags?: string[];
+  @IsOptional() @IsString() @MaxLength(2000) notes?: string;
+}
+
+class ImportContactsDto {
+  @IsArray() @ArrayMaxSize(2000) @ValidateNested({ each: true }) @Type(() => ImportRowDto)
+  contacts: ImportRowDto[];
 }
 
 interface AuthedRequest extends Request {
@@ -74,6 +86,12 @@ export class ContactsController {
   @ApiOperation({ summary: 'Export contacts to CSV (all, or a selected subset)' })
   export(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: ExportContactsDto) {
     return this.contacts.exportCsv(req.user.userId, ws, dto.ids);
+  }
+
+  @Post('import')
+  @ApiOperation({ summary: 'Bulk-import contacts (new numbers added, existing skipped)' })
+  import(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: ImportContactsDto) {
+    return this.contacts.importContacts(req.user.userId, ws, dto.contacts);
   }
 
   @Patch(':contactId')

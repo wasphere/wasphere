@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
+import Papa from "papaparse"
 import { toast } from "sonner"
-import { Search, Pencil, Users as UsersIcon, Plus, Download, Trash2, Tag as TagIcon, X, Check } from "lucide-react"
+import { Search, Pencil, Users as UsersIcon, Plus, Download, Upload, Trash2, Tag as TagIcon, X, Check } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +25,36 @@ type Contact = {
 function initials(name: string): string {
   const p = name.trim().split(/\s+/)
   return ((p[0]?.[0] ?? "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase() || "#"
+}
+
+type ImportRow = { phone: string; name?: string; tags?: string[]; notes?: string }
+
+const PHONE_RE = /phone|mobile|number|whatsapp|tel|cell/i
+const NAME_RE = /saved.?name|full.?name|display.?name|contact.?name|first.?name|^name$/i
+const TAGS_RE = /tags|labels|groups?/i
+const NOTES_RE = /notes?|description|remarks?/i
+
+const digitsOf = (v: unknown): string => String(v ?? "").replace(/[^0-9]/g, "")
+const splitTags = (v: unknown): string[] =>
+  String(v ?? "").split(/[;,]/).map((t) => t.trim()).filter(Boolean).slice(0, 20)
+
+/** Find which CSV columns hold phone/name/tags/notes — by header name, with a
+ *  value-sampling fallback for the phone column when headers are unhelpful. */
+function pickColumns(fields: string[], rows: Record<string, unknown>[]) {
+  const byName = (re: RegExp) => fields.find((f) => re.test(f))
+  let phone = byName(PHONE_RE)
+  if (!phone) {
+    let best: string | undefined
+    let bestScore = 0
+    for (const f of fields) {
+      const sample = rows.slice(0, 20).map((r) => r[f]).filter((x) => x != null && x !== "")
+      if (!sample.length) continue
+      const score = sample.filter((x) => digitsOf(x).length >= 6).length / sample.length
+      if (score > bestScore) { bestScore = score; best = f }
+    }
+    if (bestScore >= 0.5) phone = best
+  }
+  return { phone, name: byName(NAME_RE), tags: byName(TAGS_RE), notes: byName(NOTES_RE) }
 }
 
 /** Small chips + free-text input for editing a tag list. */
@@ -75,6 +106,11 @@ export default function ContactsPage() {
 
   // Bulk tag dialog
   const [bulkTag, setBulkTag] = React.useState<{ mode: "addTag" | "removeTag"; tag: string } | null>(null)
+
+  // Import
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [importPreview, setImportPreview] = React.useState<{ fileName: string; rows: ImportRow[]; invalid: number } | null>(null)
+  const [importing, setImporting] = React.useState(false)
 
   const load = React.useCallback(async (q: string, tag: string | null) => {
     if (!loadedOnce.current) setLoading(true)
@@ -180,6 +216,56 @@ export default function ContactsPage() {
     toast.success(`Exported ${data.count ?? 0} contact${(data.count ?? 0) === 1 ? "" : "s"}`)
   }
 
+  // ── Import ─────────────────────────────────────────────────────────────
+  const onFile = (file: File) => {
+    Papa.parse<Record<string, unknown>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (res) => {
+        const fields = res.meta.fields ?? []
+        const data = (res.data ?? []) as Record<string, unknown>[]
+        const cols = pickColumns(fields, data)
+        if (!cols.phone) { toast.error("Couldn't find a phone-number column in that CSV."); return }
+        const rows: ImportRow[] = []
+        let invalid = 0
+        for (const r of data) {
+          const phone = digitsOf(r[cols.phone])
+          if (phone.length < 6) { invalid++; continue }
+          rows.push({
+            phone,
+            name: cols.name ? String(r[cols.name] ?? "").trim().slice(0, 100) || undefined : undefined,
+            tags: cols.tags ? splitTags(r[cols.tags]) : undefined,
+            notes: cols.notes ? String(r[cols.notes] ?? "").trim().slice(0, 2000) || undefined : undefined,
+          })
+        }
+        if (!rows.length) { toast.error("No valid contacts found in that file."); return }
+        setImportPreview({ fileName: file.name, rows, invalid })
+      },
+      error: () => toast.error("Could not read that file."),
+    })
+  }
+
+  const runImport = async () => {
+    if (!importPreview) return
+    setImporting(true)
+    const CHUNK = 500
+    let imported = 0, skipped = 0, invalid = importPreview.invalid
+    try {
+      for (let i = 0; i < importPreview.rows.length; i += CHUNK) {
+        const res = await fetch(`/api/contacts/import`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contacts: importPreview.rows.slice(i, i + CHUNK) }),
+        })
+        const data = await res.json()
+        if (!res.ok) { toast.error(data?.message ?? "Import failed"); return }
+        imported += data.imported ?? 0; skipped += data.skipped ?? 0; invalid += data.invalid ?? 0
+      }
+      toast.success(`Imported ${imported} · ${skipped} already existed · ${invalid} invalid`)
+      setImportPreview(null); refresh()
+    } catch { toast.error("Could not reach the server.") }
+    finally { setImporting(false) }
+  }
+
   const selCount = selected.size
 
   return (
@@ -188,6 +274,9 @@ export default function ContactsPage() {
         <h1 className="text-2xl font-semibold">Contacts</h1>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">{contacts.length} contact{contacts.length === 1 ? "" : "s"}</span>
+          <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = "" }} />
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()}><Upload className="size-4" /> Import</Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void exportCsv(false)}><Download className="size-4" /> Export</Button>
           <Button size="sm" className="gap-1.5" onClick={() => setAdding(true)}><Plus className="size-4" /> Add contact</Button>
         </div>
@@ -332,6 +421,37 @@ export default function ContactsPage() {
           <DialogFooter>
             <Button disabled={!bulkTag?.tag.trim()} onClick={() => bulkTag && void runBulk(bulkTag.mode, bulkTag.tag.trim())}>
               <Check className="mr-1.5 size-4" />{bulkTag?.mode === "addTag" ? "Add tag" : "Remove tag"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import preview dialog */}
+      <Dialog open={!!importPreview} onOpenChange={(o) => !o && setImportPreview(null)}>
+        <DialogContent showCloseButton className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Import contacts</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-3 text-sm">
+            <p className="text-muted-foreground">From <span className="font-medium text-foreground">{importPreview?.fileName}</span></p>
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p><strong>{importPreview?.rows.length ?? 0}</strong> contact{(importPreview?.rows.length ?? 0) === 1 ? "" : "s"} ready to import.</p>
+              {!!importPreview?.invalid && <p className="mt-0.5 text-xs text-muted-foreground">{importPreview.invalid} row{importPreview.invalid === 1 ? "" : "s"} skipped — no valid phone number.</p>}
+              <p className="mt-0.5 text-xs text-muted-foreground">Numbers already in your book are skipped automatically.</p>
+            </div>
+            <div className="max-h-40 divide-y overflow-auto rounded-md border text-xs">
+              {importPreview?.rows.slice(0, 5).map((r, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+                  <span className="truncate">{r.name || <span className="text-muted-foreground">—</span>}</span>
+                  <span className="tabular-nums text-muted-foreground">{r.phone}</span>
+                </div>
+              ))}
+              {(importPreview?.rows.length ?? 0) > 5 && (
+                <div className="px-2.5 py-1.5 text-muted-foreground">+{(importPreview?.rows.length ?? 0) - 5} more…</div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => void runImport()} disabled={importing}>
+              {importing ? "Importing…" : `Import ${importPreview?.rows.length ?? 0}`}
             </Button>
           </DialogFooter>
         </DialogContent>

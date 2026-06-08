@@ -205,6 +205,59 @@ export class ContactsService {
     return { ok: true, affected: rows.length };
   }
 
+  /**
+   * Bulk-import contacts from parsed rows. New numbers are inserted; numbers
+   * that already exist are skipped (saved names/tags are never overwritten).
+   * Rows without a usable phone number are reported as invalid.
+   */
+  async importContacts(
+    userId: string,
+    workspaceId: string,
+    rows: { phone?: string; name?: string; tags?: unknown; notes?: string }[],
+  ): Promise<{ imported: number; skipped: number; invalid: number }> {
+    await this.assertMember(workspaceId, userId);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new BadRequestException('No rows to import');
+    }
+    if (rows.length > 2000) {
+      throw new BadRequestException('Import at most 2000 rows per request');
+    }
+
+    let invalid = 0;
+    const seen = new Set<string>();
+    const data: Prisma.ContactCreateManyInput[] = [];
+
+    for (const row of rows) {
+      const digits = (row.phone ?? '').replace(/[^0-9]/g, '');
+      if (digits.length < 6) {
+        invalid++;
+        continue;
+      }
+      const jid = `${digits}@s.whatsapp.net`;
+      if (seen.has(jid)) continue; // collapse duplicates within this batch
+      seen.add(jid);
+
+      const notes = typeof row.notes === 'string' ? row.notes.trim().slice(0, 2000) : '';
+      data.push({
+        workspaceId,
+        jid,
+        phone: digits,
+        savedName: typeof row.name === 'string' && row.name.trim() ? row.name.trim().slice(0, 100) : null,
+        tags: sanitizeTags(row.tags),
+        notes: notes || null,
+      });
+    }
+
+    if (data.length === 0) {
+      return { imported: 0, skipped: 0, invalid };
+    }
+
+    // skipDuplicates relies on the @@unique([workspaceId, jid]) constraint to
+    // skip numbers already in the book — existing rows are left untouched.
+    const res = await this.prisma.contact.createMany({ data, skipDuplicates: true });
+    return { imported: res.count, skipped: data.length - res.count, invalid };
+  }
+
   /** Build a CSV of the workspace's contacts (optionally a selected subset). */
   async exportCsv(userId: string, workspaceId: string, ids?: string[]) {
     await this.assertMember(workspaceId, userId);
