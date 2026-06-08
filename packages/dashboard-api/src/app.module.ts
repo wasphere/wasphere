@@ -12,6 +12,7 @@ import { HealthModule } from './health/health.module';
 import { InboxModule } from './inbox/inbox.module';
 import { MediaModule } from './media/media.module';
 import { ContactsModule } from './contacts/contacts.module';
+import { TeamModule } from './team/team.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ContactsModule } from './contacts/contacts.module';
     InboxModule,
     MediaModule,
     ContactsModule,
+    TeamModule,
   ],
   providers: [
     {

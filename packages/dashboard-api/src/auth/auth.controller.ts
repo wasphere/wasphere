@@ -13,6 +13,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { LogoutDto } from './dto/logout.dto';
@@ -41,6 +42,16 @@ export class AuthController {
   @ApiResponse({ status: 403, description: 'Registration is locked — an account already exists' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Post('accept-invite')
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Join a workspace via an invite link (creates or logs in the account)' })
+  @ApiResponse({ status: 201, description: 'Access token, refresh token, user, and workspace returned' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired invite' })
+  acceptInvite(@Body() dto: AcceptInviteDto) {
+    return this.authService.acceptInvite(dto);
   }
 
   @Post('login')
