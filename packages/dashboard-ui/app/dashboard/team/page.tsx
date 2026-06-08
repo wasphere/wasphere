@@ -51,7 +51,10 @@ export default function TeamPage() {
       })
       const data = await res.json()
       if (!res.ok) { toast.error(data?.message ?? "Could not create invite"); return }
-      setNewLink(data.inviteUrl)
+      // Build the absolute link from THIS dashboard's origin (backend may not
+      // know its public URL), falling back to whatever it returned.
+      const link = data.token ? `${window.location.origin}/invite/${data.token}` : data.inviteUrl
+      setNewLink(link)
       void load()
     } catch { toast.error("Could not reach the server.") }
     finally { setCreating(false) }
