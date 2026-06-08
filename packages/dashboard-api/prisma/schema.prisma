@@ -289,6 +289,10 @@ model Contact {
   // operator-set; NEVER auto-overwritten
   savedName    String?  @map("saved_name")
   avatarUrl    String?  @map("avatar_url")
+  // CRM labels for segmenting contacts (e.g. Lead, Customer, VIP)
+  tags         String[] @default([])
+  // Free-form operator note about this contact
+  notes        String?  @db.Text
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 

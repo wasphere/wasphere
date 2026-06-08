@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Request } from 'express';
 import { CombinedAuthGuard } from '../auth/combined-auth.guard';
@@ -8,12 +8,31 @@ import { ContactsService } from './contacts.service';
 
 class ListContactsQueryDto {
   @IsOptional() @IsString() @MaxLength(100) search?: string;
+  @IsOptional() @IsString() @MaxLength(30) tag?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
   @IsOptional() @IsString() cursor?: string;
 }
 
-class RenameContactDto {
+class CreateContactDto {
+  @IsString() @MaxLength(30) phone: string;
   @IsOptional() @IsString() @MaxLength(100) savedName?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(20) tags?: string[];
+}
+
+class UpdateContactDto {
+  @IsOptional() @IsString() @MaxLength(100) savedName?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(20) tags?: string[];
+  @IsOptional() @IsString() @MaxLength(2000) notes?: string;
+}
+
+class BulkContactsDto {
+  @IsArray() @IsString({ each: true }) @ArrayMaxSize(500) ids: string[];
+  @IsIn(['addTag', 'removeTag', 'delete']) action: 'addTag' | 'removeTag' | 'delete';
+  @IsOptional() @IsString() @MaxLength(30) tag?: string;
+}
+
+class ExportContactsDto {
+  @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(10000) ids?: string[];
 }
 
 interface AuthedRequest extends Request {
@@ -29,22 +48,43 @@ export class ContactsController {
 
   @Get()
   @ApiOperation({ summary: 'List/search contacts (the contact book)' })
-  list(
-    @Req() req: AuthedRequest,
-    @Param('workspaceId') workspaceId: string,
-    @Query() q: ListContactsQueryDto,
-  ) {
-    return this.contacts.list(req.user.userId, workspaceId, q);
+  list(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Query() q: ListContactsQueryDto) {
+    return this.contacts.list(req.user.userId, ws, q);
+  }
+
+  @Get('tags')
+  @ApiOperation({ summary: 'Distinct tags used across the workspace' })
+  tags(@Req() req: AuthedRequest, @Param('workspaceId') ws: string) {
+    return this.contacts.listTags(req.user.userId, ws);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Manually add a contact by phone number' })
+  create(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: CreateContactDto) {
+    return this.contacts.create(req.user.userId, ws, dto);
+  }
+
+  @Post('bulk')
+  @ApiOperation({ summary: 'Tag or delete many contacts at once' })
+  bulk(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: BulkContactsDto) {
+    return this.contacts.bulk(req.user.userId, ws, dto);
+  }
+
+  @Post('export')
+  @ApiOperation({ summary: 'Export contacts to CSV (all, or a selected subset)' })
+  export(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: ExportContactsDto) {
+    return this.contacts.exportCsv(req.user.userId, ws, dto.ids);
   }
 
   @Patch(':contactId')
-  @ApiOperation({ summary: 'Rename a contact (operator-set saved name)' })
-  rename(
-    @Req() req: AuthedRequest,
-    @Param('workspaceId') workspaceId: string,
-    @Param('contactId') contactId: string,
-    @Body() dto: RenameContactDto,
-  ) {
-    return this.contacts.rename(req.user.userId, workspaceId, contactId, dto.savedName ?? null);
+  @ApiOperation({ summary: 'Update a contact (saved name, tags, notes)' })
+  update(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('contactId') id: string, @Body() dto: UpdateContactDto) {
+    return this.contacts.update(req.user.userId, ws, id, dto);
+  }
+
+  @Delete(':contactId')
+  @ApiOperation({ summary: 'Delete a contact from the book' })
+  remove(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Param('contactId') id: string) {
+    return this.contacts.remove(req.user.userId, ws, id);
   }
 }
