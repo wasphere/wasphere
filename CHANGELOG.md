@@ -11,6 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### v1.3 polish — email, bulk import & docs
 
 #### Added
+- **Create message templates in-app** — build and submit a Meta message template (name, category, language, header/body/footer, variables with sample values) straight from the composer's template picker, instead of only in WhatsApp Manager. Meta reviews it for approval; Meta Cloud API sessions only.
 - **SMTP email delivery** — password-reset and team-invite links are now emailed. Optional and provider-agnostic: set `SMTP_HOST` (+ `SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM`) and `DASHBOARD_UI_URL` to enable; left blank, email is a no-op and both flows behave as before. Adds a forgot-password and reset-password page and a "Forgot password?" link on login.
 - **Contacts CSV import** — bulk-load contacts from a CSV. Columns are auto-detected (phone / name / tags / notes, with a value-sampling fallback for the phone column), rows are previewed before import, new numbers are added and existing ones skipped (saved names/tags never overwritten). Round-trips the contacts CSV export.
 - **Send-message API examples** — every WhatsApp send endpoint now has a copy-paste `curl` example in the README.

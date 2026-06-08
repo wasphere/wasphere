@@ -19,6 +19,7 @@ import {
   DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { StatusDot } from "@/components/ui/status-dot"
+import { TemplateBuilder } from "./template-builder"
 import type { OutboundReply } from "./types"
 
 // ~7 MB raw keeps the base64 data URI under the WA server's 10 MB cap.
@@ -118,6 +119,7 @@ export function Composer({
   // Template (Meta)
   type Tpl = { name: string; language: string; status: string; bodyText: string; variables: number }
   const [tplOpen, setTplOpen] = React.useState(false)
+  const [tplBuilderOpen, setTplBuilderOpen] = React.useState(false)
   const [tplList, setTplList] = React.useState<Tpl[]>([])
   const [tplLoading, setTplLoading] = React.useState(false)
   const [tplSel, setTplSel] = React.useState<Tpl | null>(null)
@@ -591,22 +593,30 @@ export function Composer({
             {tplLoading ? (
               <p className="text-sm text-muted-foreground">Loading templates…</p>
             ) : !tplSel ? (
-              tplList.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No approved templates found for this number.</p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {tplList.map((t) => (
-                    <button
-                      key={`${t.name}-${t.language}`}
-                      onClick={() => pickTemplate(t)}
-                      className="flex flex-col items-start gap-0.5 rounded-md border border-input px-3 py-2 text-left transition hover:bg-muted/40"
-                    >
-                      <span className="text-sm font-medium">{t.name} <span className="text-xs font-normal text-muted-foreground">· {t.language}</span></span>
-                      {t.bodyText && <span className="line-clamp-2 text-xs text-muted-foreground">{t.bodyText}</span>}
-                    </button>
-                  ))}
-                </div>
-              )
+              <>
+                <button
+                  onClick={() => setTplBuilderOpen(true)}
+                  className="flex items-center gap-1.5 self-start rounded-md border border-dashed border-input px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-muted/40"
+                >
+                  <Plus className="size-3.5" /> New template
+                </button>
+                {tplList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No approved templates found for this number.</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {tplList.map((t) => (
+                      <button
+                        key={`${t.name}-${t.language}`}
+                        onClick={() => pickTemplate(t)}
+                        className="flex flex-col items-start gap-0.5 rounded-md border border-input px-3 py-2 text-left transition hover:bg-muted/40"
+                      >
+                        <span className="text-sm font-medium">{t.name} <span className="text-xs font-normal text-muted-foreground">· {t.language}</span></span>
+                        {t.bodyText && <span className="line-clamp-2 text-xs text-muted-foreground">{t.bodyText}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex flex-col gap-3">
                 <div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
@@ -630,6 +640,15 @@ export function Composer({
           )}
         </DialogContent>
       </Dialog>
+
+      {sessionId && (
+        <TemplateBuilder
+          sessionId={sessionId}
+          open={tplBuilderOpen}
+          onOpenChange={setTplBuilderOpen}
+          onCreated={() => void openTemplate()}
+        />
+      )}
 
       <Dialog open={manageOpen} onOpenChange={setManageOpen}>
         <DialogContent showCloseButton className="sm:max-w-md">

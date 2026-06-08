@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { WHATSAPP_ADAPTER, IWhatsAppAdapter, SessionInfo, SessionConfig } from '../whatsapp/whatsapp-adapter.interface';
 import { PatchSessionConfigDto } from './dto/patch-session-config.dto';
 import { MetaTestConnectionDto } from './dto/meta-test-connection.dto';
+import { CreateTemplateDto } from './dto/create-template.dto';
 import { ProviderRegistry, MetaCloudProvider, ProviderId, ProviderCapabilities } from '../whatsapp/providers';
 
 @Injectable()
@@ -23,6 +24,14 @@ export class SessionsService {
   async listTemplates(sessionId: string) {
     if (!this.meta.has(sessionId)) return []; // Baileys has no templates
     return this.meta.listTemplates(sessionId);
+  }
+
+  /** Create a Meta message template (Meta-only; submitted to Meta for approval). */
+  async createTemplate(sessionId: string, dto: CreateTemplateDto) {
+    if (!this.meta.has(sessionId)) {
+      throw new BadRequestException('Templates can only be created on Meta Cloud API sessions.');
+    }
+    return this.meta.createTemplate(sessionId, dto);
   }
 
   /** Validate Meta credentials without creating a session (setup wizard "Test connection"). */

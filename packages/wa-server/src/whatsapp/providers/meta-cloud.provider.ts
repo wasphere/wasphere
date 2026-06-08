@@ -417,6 +417,66 @@ export class MetaCloudProvider implements MessageProvider, OnApplicationBootstra
     });
   }
 
+  /**
+   * Create a message template on the WABA. Meta returns it as PENDING and runs
+   * its own review (approval is async). Requires a token with the
+   * `whatsapp_business_management` scope.
+   */
+  async createTemplate(
+    sessionId: string,
+    input: {
+      name: string;
+      category: 'UTILITY' | 'MARKETING' | 'AUTHENTICATION';
+      language: string;
+      headerText?: string;
+      body: string;
+      bodyExamples?: string[];
+      footer?: string;
+    },
+  ): Promise<{ id: string; status: string; category: string }> {
+    const creds = this.credsFor(sessionId);
+    if (!creds.wabaId) {
+      throw new MetaApiError('META_API_ERROR', 'No WhatsApp Business Account ID stored for this session');
+    }
+
+    const components: Record<string, unknown>[] = [];
+    if (input.headerText?.trim()) {
+      components.push({ type: 'HEADER', format: 'TEXT', text: input.headerText.trim() });
+    }
+    const bodyComponent: Record<string, unknown> = { type: 'BODY', text: input.body };
+    const examples = (input.bodyExamples ?? []).map((e) => e.trim()).filter(Boolean);
+    if (examples.length > 0) {
+      // Meta requires an example per {{n}} variable, nested one level deep.
+      bodyComponent.example = { body_text: [examples] };
+    }
+    components.push(bodyComponent);
+    if (input.footer?.trim()) {
+      components.push({ type: 'FOOTER', text: input.footer.trim() });
+    }
+
+    const url = `${GRAPH_HOST}/${this.graphVersion}/${creds.wabaId}/message_templates`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${creds.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: input.name,
+        category: input.category,
+        language: input.language,
+        components,
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+    if (!res.ok) throw this.mapError(res.status, data?.error);
+    return {
+      id: data?.id ?? '',
+      status: data?.status ?? 'PENDING',
+      category: data?.category ?? input.category,
+    };
+  }
+
   async markRead(sessionId: string, _to: string, messageIds: string[]): Promise<void> {
     const creds = this.credsFor(sessionId);
     for (const id of messageIds) {

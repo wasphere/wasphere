@@ -5,6 +5,7 @@ import { ValidateSessionIdPipe } from '../common/validate-session-id.pipe';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { PatchSessionConfigDto } from './dto/patch-session-config.dto';
 import { MetaTestConnectionDto } from './dto/meta-test-connection.dto';
+import { CreateTemplateDto } from './dto/create-template.dto';
 
 @ApiTags('Sessions')
 @Controller('sessions')
@@ -57,6 +58,19 @@ export class SessionsController {
   @ApiResponse({ status: 200, description: 'Array of { name, language, status, category, bodyText, variables }.' })
   listTemplates(@Param('id', ValidateSessionIdPipe) id: string) {
     return this.sessionsService.listTemplates(id);
+  }
+
+  // POST /api/sessions/:id/templates — create a Meta template (Meta-only)
+  @Post(':id/templates')
+  @ApiOperation({
+    summary: 'Create a Meta message template',
+    description: 'Submits a new message template to Meta for approval (Meta Cloud API sessions only). Returns the template id + initial status (usually PENDING).',
+  })
+  @ApiParam({ name: 'id', description: 'Session identifier', example: 'my-session' })
+  @ApiResponse({ status: 201, description: '{ id, status, category }.' })
+  @ApiResponse({ status: 400, description: 'Not a Meta session, or invalid template body.' })
+  createTemplate(@Param('id', ValidateSessionIdPipe) id: string, @Body() dto: CreateTemplateDto) {
+    return this.sessionsService.createTemplate(id, dto);
   }
 
   // POST /api/sessions/meta/test-connection — validate Meta creds (setup wizard)
