@@ -22,8 +22,8 @@ export default function TeamPage() {
   const [newLink, setNewLink] = React.useState<string | null>(null)
   const [copied, setCopied] = React.useState(false)
 
-  const load = React.useCallback(async () => {
-    setLoading(true)
+  const load = React.useCallback(async (silent?: boolean) => {
+    if (!silent) setLoading(true)
     try {
       const [mr, m, i] = await Promise.all([
         fetch("/api/team/my-role").then((r) => r.json()).catch(() => ({})),
@@ -55,7 +55,7 @@ export default function TeamPage() {
       // know its public URL), falling back to whatever it returned.
       const link = data.token ? `${window.location.origin}/invite/${data.token}` : data.inviteUrl
       setNewLink(link)
-      void load()
+      void load(true)
     } catch { toast.error("Could not reach the server.") }
     finally { setCreating(false) }
   }
@@ -71,20 +71,20 @@ export default function TeamPage() {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }),
     })
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d?.message ?? "Could not change role"); return }
-    toast.success("Role updated"); void load()
+    toast.success("Role updated"); void load(true)
   }
 
   const removeMember = async (userId: string, email: string) => {
     if (!confirm(`Remove ${email} from the workspace?`)) return
     const res = await fetch(`/api/team/members/${userId}`, { method: "DELETE" })
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d?.message ?? "Could not remove"); return }
-    toast.success("Member removed"); void load()
+    toast.success("Member removed"); void load(true)
   }
 
   const revokeInvite = async (id: string) => {
     const res = await fetch(`/api/team/invites/${id}`, { method: "DELETE" })
     if (!res.ok) { toast.error("Could not revoke"); return }
-    void load()
+    void load(true)
   }
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>

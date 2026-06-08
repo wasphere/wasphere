@@ -32,8 +32,12 @@ export default function ContactsPage() {
   const [draftName, setDraftName] = React.useState("")
   const [saving, setSaving] = React.useState(false)
 
+  const loadedOnce = React.useRef(false)
+
   const load = React.useCallback(async (q: string) => {
-    setLoading(true)
+    // Only blank the page on the very first load; searches refresh in place so
+    // the list doesn't flash on every keystroke.
+    if (!loadedOnce.current) setLoading(true)
     try {
       const qs = new URLSearchParams({ limit: "100" })
       if (q.trim()) qs.set("search", q.trim())
@@ -43,6 +47,7 @@ export default function ContactsPage() {
     } catch {
       toast.error("Could not load contacts.")
     } finally {
+      loadedOnce.current = true
       setLoading(false)
     }
   }, [])
