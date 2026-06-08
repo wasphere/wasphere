@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsArray, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Request } from 'express';
 import { CombinedAuthGuard } from '../auth/combined-auth.guard';
 import { CAPABILITIES } from '../lib/capabilities';
@@ -11,6 +11,17 @@ class RoleRefDto {
   @IsString()
   @MinLength(1)
   role: string;
+}
+
+// Invite creation: a role ref plus an optional email to send the invite link to.
+class CreateInviteDto {
+  @IsString()
+  @MinLength(1)
+  role: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 }
 
 class CreateRoleDto {
@@ -93,8 +104,8 @@ export class TeamController {
   // ── Invites ──────────────────────────────────────────────────────────────
 
   @Post('invites')
-  createInvite(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: RoleRefDto) {
-    return this.team.createInvite(ws, req.user.userId, dto.role);
+  createInvite(@Req() req: AuthedRequest, @Param('workspaceId') ws: string, @Body() dto: CreateInviteDto) {
+    return this.team.createInvite(ws, req.user.userId, dto.role, dto.email);
   }
 
   @Get('invites')

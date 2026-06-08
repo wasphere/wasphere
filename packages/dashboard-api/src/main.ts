@@ -45,6 +45,17 @@ function validateEnv(): void {
     }
   }
 
+  // SMTP is optional. Only validate the rest of the config when a host is set.
+  if (process.env.SMTP_HOST) {
+    const smtpPort = parseInt(process.env.SMTP_PORT ?? '587', 10);
+    if (isNaN(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+      errors.push('SMTP_PORT must be a valid port number (1–65535) when SMTP_HOST is set');
+    }
+    if (!process.env.SMTP_FROM) {
+      errors.push('SMTP_FROM is required when SMTP_HOST is set (e.g. "WaSphere <no-reply@your-domain.com>")');
+    }
+  }
+
   if (errors.length > 0) {
     for (const err of errors) {
       console.error(`[Config] FATAL: ${err}`);
@@ -61,6 +72,14 @@ function validateEnv(): void {
     console.error(
       '[Config] SECURITY WARNING: EXPOSE_RESET_TOKEN_IN_LOGS is true in production. ' +
         'Reset tokens will NOT be logged, but you should unset this flag.',
+    );
+  }
+
+  // Non-fatal: emailed links (reset, invite) need an absolute UI base URL.
+  if (process.env.SMTP_HOST && !process.env.DASHBOARD_UI_URL) {
+    console.error(
+      '[Config] WARNING: SMTP is configured but DASHBOARD_UI_URL is not set. ' +
+        'Password-reset and invite emails will contain relative links that may not resolve.',
     );
   }
 }

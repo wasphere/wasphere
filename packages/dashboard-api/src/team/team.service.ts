@@ -3,6 +3,7 @@ import { randomBytes, createHash } from 'crypto';
 import { WorkspaceRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveCapabilities, sanitizeCapabilities } from '../lib/capabilities';
+import { MailService } from '../mail/mail.service';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -15,7 +16,10 @@ export function hashInviteToken(token: string): string {
 
 @Injectable()
 export class TeamService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   /** Require the caller to be OWNER or ADMIN of the workspace. */
   private async assertManager(workspaceId: string, userId: string): Promise<WorkspaceRole> {
@@ -215,7 +219,7 @@ export class TeamService {
 
   // ── Invites ─────────────────────────────────────────────────────────────
 
-  async createInvite(workspaceId: string, actorId: string, roleRef: string) {
+  async createInvite(workspaceId: string, actorId: string, roleRef: string, email?: string) {
     const actorRole = await this.assertManager(workspaceId, actorId);
     const { role, customRoleId } = await this.resolveRoleRef(workspaceId, actorRole, roleRef);
 
@@ -225,12 +229,35 @@ export class TeamService {
       data: { workspaceId, tokenHash: hashInviteToken(token), role, customRoleId, createdBy: actorId, expiresAt },
     });
     const base = (process.env.DASHBOARD_UI_URL ?? '').replace(/\/+$/, '');
-    return {
-      token,
-      inviteUrl: base ? `${base}/invite/${token}` : `/invite/${token}`,
-      role,
-      expiresAt,
-    };
+    const inviteUrl = base ? `${base}/invite/${token}` : `/invite/${token}`;
+
+    // If an email was provided, deliver the invite link. Best-effort: a failed
+    // or disabled send still returns the link so the inviter can share it.
+    let emailed = false;
+    if (email) {
+      const [workspace, roleName] = await Promise.all([
+        this.prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } }),
+        this.inviteRoleName(role, customRoleId),
+      ]);
+      emailed = await this.mail.sendTeamInviteEmail(
+        email,
+        inviteUrl,
+        workspace?.name ?? 'a workspace',
+        roleName,
+      );
+    }
+
+    return { token, inviteUrl, role, expiresAt, emailed };
+  }
+
+  /** Human-readable role label for invite emails. */
+  private async inviteRoleName(role: WorkspaceRole, customRoleId: string | null): Promise<string> {
+    if (role === 'ADMIN') return 'Admin';
+    if (customRoleId) {
+      const r = await this.prisma.customRole.findUnique({ where: { id: customRoleId }, select: { name: true } });
+      if (r?.name) return r.name;
+    }
+    return 'Agent';
   }
 
   async listInvites(workspaceId: string, userId: string) {

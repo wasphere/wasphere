@@ -13,7 +13,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const token = (await cookies()).get("wa_access")?.value
   if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 })
-  let body: { role?: string }
+  let body: { role?: string; email?: string }
   try { body = await req.json() } catch { return Response.json({ message: "Invalid body" }, { status: 400 }) }
   const { workspaceId, wsError } = await resolveWorkspaceId(token)
   if (!workspaceId) return wsError!

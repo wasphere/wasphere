@@ -13,9 +13,11 @@ import { InboxModule } from './inbox/inbox.module';
 import { MediaModule } from './media/media.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { TeamModule } from './team/team.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
+    MailModule,
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {

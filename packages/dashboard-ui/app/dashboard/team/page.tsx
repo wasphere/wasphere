@@ -41,6 +41,7 @@ export default function TeamPage() {
   const [myRole, setMyRole] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [inviteRole, setInviteRole] = React.useState<string>("")
+  const [inviteEmail, setInviteEmail] = React.useState<string>("")
   const [creating, setCreating] = React.useState(false)
   const [newLink, setNewLink] = React.useState<string | null>(null)
   const [copied, setCopied] = React.useState(false)
@@ -79,16 +80,20 @@ export default function TeamPage() {
 
   const createInvite = async () => {
     if (!inviteRole) { toast.error("Pick a role first."); return }
+    const email = inviteEmail.trim()
     setCreating(true); setNewLink(null)
     try {
       const res = await fetch("/api/team/invites", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: inviteRole }),
+        body: JSON.stringify(email ? { role: inviteRole, email } : { role: inviteRole }),
       })
       const data = await res.json()
       if (!res.ok) { toast.error(data?.message ?? "Could not create invite"); return }
       const link = data.token ? `${window.location.origin}/invite/${data.token}` : data.inviteUrl
       setNewLink(link)
+      if (data.emailed) toast.success(`Invite emailed to ${email}.`)
+      else if (email) toast.message("Invite link created — email could not be sent, share the link below.")
+      setInviteEmail("")
       void load(true)
     } catch { toast.error("Could not reach the server.") }
     finally { setCreating(false) }
@@ -179,8 +184,12 @@ export default function TeamPage() {
               {isOwner && <option value={ADMIN}>Admin (full access)</option>}
             </select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="inviteEmail">Email <span className="text-muted-foreground">(optional)</span></Label>
+            <Input id="inviteEmail" type="email" placeholder="teammate@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="h-9 min-w-[220px]" />
+          </div>
           <Button onClick={() => void createInvite()} disabled={creating || !inviteRole}>
-            <Link2 className="mr-1.5 size-4" /> {creating ? "Generating…" : "Generate invite link"}
+            <Link2 className="mr-1.5 size-4" /> {creating ? "Generating…" : inviteEmail.trim() ? "Send invite" : "Generate invite link"}
           </Button>
         </div>
         {newLink && (
@@ -189,7 +198,7 @@ export default function TeamPage() {
             <Button variant="outline" size="icon" onClick={copyLink}>{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}</Button>
           </div>
         )}
-        <p className="mt-2 text-xs text-muted-foreground">Share this link with your teammate. It expires in 7 days. They join with the role you pick and set their own password.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Add an email to send the invite directly, or leave it blank to just generate a link. It expires in 7 days. They join with the role you pick and set their own password.</p>
       </div>
 
       {/* Roles */}

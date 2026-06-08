@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { hashInviteToken } from '../team/team.service';
+import { MailService } from '../mail/mail.service';
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -46,6 +47,7 @@ export class AuthService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly mail: MailService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -277,6 +279,11 @@ export class AuthService implements OnModuleInit {
     await this.prisma.passwordResetToken.create({
       data: { userId: user.id, tokenHash, expiresAt },
     });
+
+    // Deliver the reset link by email. The send is best-effort: failures are
+    // logged inside MailService and never surface here, so the response stays
+    // enumeration-safe (identical whether or not the email exists or sends).
+    await this.mail.sendPasswordResetEmail(user.email, rawToken);
 
     // Raw token may only be logged outside production. In production this is a
     // full account-takeover credential, so the flag is ignored and refused.
