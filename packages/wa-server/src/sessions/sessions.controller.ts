@@ -6,6 +6,7 @@ import { CreateSessionDto } from './dto/create-session.dto';
 import { PatchSessionConfigDto } from './dto/patch-session-config.dto';
 import { MetaTestConnectionDto } from './dto/meta-test-connection.dto';
 import { CreateTemplateDto } from './dto/create-template.dto';
+import { SendFlowDto } from './dto/send-flow.dto';
 
 @ApiTags('Sessions')
 @Controller('sessions')
@@ -71,6 +72,28 @@ export class SessionsController {
   @ApiResponse({ status: 400, description: 'Not a Meta session, or invalid template body.' })
   createTemplate(@Param('id', ValidateSessionIdPipe) id: string, @Body() dto: CreateTemplateDto) {
     return this.sessionsService.createTemplate(id, dto);
+  }
+
+  // GET /api/sessions/:id/flows — published Meta Flows (empty for Baileys)
+  @Get(':id/flows')
+  @ApiOperation({ summary: 'List published Meta WhatsApp Flows for this session' })
+  @ApiParam({ name: 'id', description: 'Session identifier', example: 'my-session' })
+  @ApiResponse({ status: 200, description: 'Array of { id, name, status, categories }.' })
+  listFlows(@Param('id', ValidateSessionIdPipe) id: string) {
+    return this.sessionsService.listFlows(id);
+  }
+
+  // POST /api/sessions/:id/flows/send — send a published Meta Flow (Meta-only)
+  @Post(':id/flows/send')
+  @ApiOperation({
+    summary: 'Send a published Meta WhatsApp Flow',
+    description: 'Sends an interactive Flow message (Meta Cloud API sessions only). Flows are designed and published in Meta’s Flow Builder.',
+  })
+  @ApiParam({ name: 'id', description: 'Session identifier', example: 'my-session' })
+  @ApiResponse({ status: 201, description: 'SendResult { id, ... }.' })
+  @ApiResponse({ status: 400, description: 'Not a Meta session, or invalid flow parameters.' })
+  sendFlow(@Param('id', ValidateSessionIdPipe) id: string, @Body() dto: SendFlowDto) {
+    return this.sessionsService.sendFlow(id, dto);
   }
 
   // POST /api/sessions/meta/test-connection — validate Meta creds (setup wizard)

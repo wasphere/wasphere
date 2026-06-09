@@ -132,5 +132,13 @@ export function proxyPermission(method: string, rawPath: string): PermissionScop
     return null;
   }
 
+  // /sessions/:id/flows — GET lists published flows; POST /flows/send sends one.
+  if (feature === 'flows') {
+    const action = segs[3];
+    if (!action) return m === 'GET' ? 'sessions:read' : null;
+    if (action === 'send' && m === 'POST') return 'messages:send';
+    return null;
+  }
+
   return null; // unmapped — fail closed
 }

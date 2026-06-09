@@ -3,6 +3,7 @@ import { WHATSAPP_ADAPTER, IWhatsAppAdapter, SessionInfo, SessionConfig } from '
 import { PatchSessionConfigDto } from './dto/patch-session-config.dto';
 import { MetaTestConnectionDto } from './dto/meta-test-connection.dto';
 import { CreateTemplateDto } from './dto/create-template.dto';
+import { SendFlowDto } from './dto/send-flow.dto';
 import { ProviderRegistry, MetaCloudProvider, ProviderId, ProviderCapabilities } from '../whatsapp/providers';
 
 @Injectable()
@@ -32,6 +33,28 @@ export class SessionsService {
       throw new BadRequestException('Templates can only be created on Meta Cloud API sessions.');
     }
     return this.meta.createTemplate(sessionId, dto);
+  }
+
+  /** Published Meta Flows for a session (for the composer's flow picker). */
+  async listFlows(sessionId: string) {
+    if (!this.meta.has(sessionId)) return []; // Baileys has no flows
+    return this.meta.listFlows(sessionId);
+  }
+
+  /** Send a published Meta Flow (Meta-only). */
+  async sendFlow(sessionId: string, dto: SendFlowDto) {
+    if (!this.meta.has(sessionId)) {
+      throw new BadRequestException('Flows can only be sent on Meta Cloud API sessions.');
+    }
+    return this.meta.sendFlow(sessionId, dto.to, {
+      flowId: dto.flowId,
+      cta: dto.cta,
+      body: dto.body,
+      header: dto.header,
+      footer: dto.footer,
+      screen: dto.screen,
+      mode: dto.mode,
+    });
   }
 
   /** Validate Meta credentials without creating a session (setup wizard "Test connection"). */

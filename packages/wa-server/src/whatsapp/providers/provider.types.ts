@@ -27,6 +27,8 @@ export interface ProviderCapabilities {
   profileEdit: boolean;
   polls: boolean;
   templates: boolean;
+  /** Meta-only: send a published WhatsApp Flow (interactive form). */
+  flows: boolean;
   interactiveButtons: boolean;
   reactions: boolean;
   viewOnce: boolean;
@@ -143,6 +145,27 @@ export interface TemplateMessage {
   components?: TemplateComponent[];
 }
 
+/** Send a published Meta WhatsApp Flow as an interactive message. */
+export interface FlowMessage {
+  /** The published flow's id (from listFlows). */
+  flowId: string;
+  /** Button label that opens the flow, e.g. "Book now". */
+  cta: string;
+  /** Body text shown above the button. */
+  body: string;
+  header?: string;
+  footer?: string;
+  /**
+   * First screen id — REQUIRED for 'navigate' flows. Omit for endpoint-driven
+   * ('data_exchange') flows.
+   */
+  screen?: string;
+  /** Defaults to 'navigate' when a screen is given, else 'data_exchange'. */
+  mode?: 'navigate' | 'data_exchange';
+  /** Correlation token echoed back in the flow response; auto-generated if absent. */
+  flowToken?: string;
+}
+
 // ─── The common contract ────────────────────────────────────────────────────
 
 /**
@@ -206,6 +229,12 @@ export interface MessageProvider {
     sessionId: string,
     to: string,
     template: TemplateMessage,
+  ): Promise<SendResult>;
+  /** Meta-only; Baileys throws `CapabilityError('flows')`. */
+  sendFlow(
+    sessionId: string,
+    to: string,
+    flow: FlowMessage,
   ): Promise<SendResult>;
   markRead(
     sessionId: string,

@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -19,6 +20,7 @@ import {
   OutboundContact,
   Interactive,
   TemplateMessage,
+  FlowMessage,
 } from './provider.types';
 import { META_CAPABILITIES } from './capabilities';
 import { CapabilityError } from './capability-error';
@@ -379,6 +381,62 @@ export class MetaCloudProvider implements MessageProvider, OnApplicationBootstra
         ...(t.components ? { components: t.components } : {}),
       },
     });
+  }
+
+  /** Send a published WhatsApp Flow as an interactive message. */
+  sendFlow(sessionId: string, to: string, f: FlowMessage): Promise<SendResult> {
+    const mode = f.mode ?? (f.screen ? 'navigate' : 'data_exchange');
+    return this.send(sessionId, {
+      type: 'interactive',
+      to: this.toPhone(to),
+      interactive: {
+        type: 'flow',
+        ...(f.header ? { header: { type: 'text', text: f.header } } : {}),
+        body: { text: f.body },
+        ...(f.footer ? { footer: { text: f.footer } } : {}),
+        action: {
+          name: 'flow',
+          parameters: {
+            flow_message_version: '3',
+            flow_token: f.flowToken ?? randomUUID(),
+            flow_id: f.flowId,
+            flow_cta: f.cta,
+            flow_action: mode,
+            ...(mode === 'navigate'
+              ? { flow_action_payload: { screen: f.screen } }
+              : {}),
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * List the WABA's published Flows (id, name, status, categories) so the
+   * dashboard can offer a picker. Flows are designed/published in Meta's Flow
+   * Builder; here we only list + send them.
+   */
+  async listFlows(sessionId: string): Promise<Array<{
+    id: string;
+    name: string;
+    status: string;
+    categories: string[];
+  }>> {
+    const creds = this.credsFor(sessionId);
+    if (!creds.wabaId) {
+      throw new MetaApiError('META_API_ERROR', 'No WhatsApp Business Account ID stored for this session');
+    }
+    const url = `${GRAPH_HOST}/${this.graphVersion}/${creds.wabaId}/flows?fields=id,name,status,categories&limit=200`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${creds.accessToken}` } });
+    const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+    if (!res.ok) throw this.mapError(res.status, data?.error);
+    const list = Array.isArray(data?.data) ? data.data : [];
+    return list.map((fl: any) => ({
+      id: fl.id,
+      name: fl.name,
+      status: fl.status,
+      categories: Array.isArray(fl.categories) ? fl.categories : [],
+    }));
   }
 
   /**

@@ -18,6 +18,7 @@ import {
   OutboundContact,
   Interactive,
   TemplateMessage,
+  FlowMessage,
 } from './provider.types';
 import { BAILEYS_CAPABILITIES } from './capabilities';
 import { CapabilityError } from './capability-error';
@@ -159,6 +160,15 @@ export class BaileysProvider implements MessageProvider {
     _template: TemplateMessage,
   ): Promise<SendResult> {
     throw new CapabilityError('templates', this.id);
+  }
+
+  // WhatsApp Flows are a Meta Cloud API feature — not available on Baileys.
+  async sendFlow(
+    _sessionId: string,
+    _to: string,
+    _flow: FlowMessage,
+  ): Promise<SendResult> {
+    throw new CapabilityError('flows', this.id);
   }
 
   async markRead(
