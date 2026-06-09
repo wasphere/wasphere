@@ -83,6 +83,14 @@ export class MailService {
 
   async sendPasswordResetEmail(to: string, rawToken: string): Promise<boolean> {
     const base = this.uiBaseUrl;
+    if (!base) {
+      // No public UI URL → the link would be relative and useless in a mail
+      // client. Don't send a broken email; the misconfig is logged at boot.
+      this.logger.error(
+        'Cannot send password-reset email: DASHBOARD_UI_URL is not set (the reset link would be broken).',
+      );
+      return false;
+    }
     const resetUrl = `${base}/reset-password?token=${encodeURIComponent(rawToken)}`;
     const { subject, html, text } = passwordResetEmail(resetUrl);
     return this.send(to, subject, html, text);
@@ -94,6 +102,12 @@ export class MailService {
     workspaceName: string,
     roleName: string,
   ): Promise<boolean> {
+    if (!/^https?:\/\//i.test(inviteUrl)) {
+      this.logger.error(
+        'Cannot send invite email: invite URL is not absolute (set DASHBOARD_UI_URL).',
+      );
+      return false;
+    }
     const { subject, html, text } = teamInviteEmail(
       inviteUrl,
       workspaceName,

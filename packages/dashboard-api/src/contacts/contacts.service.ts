@@ -81,10 +81,13 @@ export class ContactsService {
     const s = q.search?.trim();
     if (s) {
       where.OR = [
-        { phone: { contains: s.replace(/[^0-9]/g, '') || s } },
         { savedName: { contains: s, mode: 'insensitive' } },
         { whatsappName: { contains: s, mode: 'insensitive' } },
       ];
+      // Only match on phone when the query has a meaningful run of digits —
+      // otherwise a query like "john-5" collapses to "5" and matches everyone.
+      const digits = s.replace(/[^0-9]/g, '');
+      if (digits.length >= 3) where.OR.push({ phone: { contains: digits } });
     }
     if (q.tag?.trim()) where.tags = { has: q.tag.trim() };
 
@@ -224,6 +227,7 @@ export class ContactsService {
     }
 
     let invalid = 0;
+    let duplicate = 0; // collapsed within this batch — counted as skipped
     const seen = new Set<string>();
     const data: Prisma.ContactCreateManyInput[] = [];
 
@@ -234,7 +238,7 @@ export class ContactsService {
         continue;
       }
       const jid = `${digits}@s.whatsapp.net`;
-      if (seen.has(jid)) continue; // collapse duplicates within this batch
+      if (seen.has(jid)) { duplicate++; continue; } // collapse duplicates within this batch
       seen.add(jid);
 
       const notes = typeof row.notes === 'string' ? row.notes.trim().slice(0, 2000) : '';
@@ -249,13 +253,14 @@ export class ContactsService {
     }
 
     if (data.length === 0) {
-      return { imported: 0, skipped: 0, invalid };
+      return { imported: 0, skipped: duplicate, invalid };
     }
 
     // skipDuplicates relies on the @@unique([workspaceId, jid]) constraint to
     // skip numbers already in the book — existing rows are left untouched.
     const res = await this.prisma.contact.createMany({ data, skipDuplicates: true });
-    return { imported: res.count, skipped: data.length - res.count, invalid };
+    // skipped = already-in-DB (data.length - inserted) + within-file duplicates.
+    return { imported: res.count, skipped: (data.length - res.count) + duplicate, invalid };
   }
 
   /** Build a CSV of the workspace's contacts (optionally a selected subset). */

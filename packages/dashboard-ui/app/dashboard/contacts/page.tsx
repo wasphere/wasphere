@@ -218,12 +218,21 @@ export default function ContactsPage() {
 
   // ── Import ─────────────────────────────────────────────────────────────
   const onFile = (file: File) => {
+    // Guard the browser: a huge CSV parsed in-page would freeze/OOM the tab.
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("That file is too large (max 15 MB). Split it into smaller files.")
+      return
+    }
+    const MAX_ROWS = 50000
     Papa.parse<Record<string, unknown>>(file, {
       header: true,
       skipEmptyLines: true,
+      worker: true,
       complete: (res) => {
         const fields = res.meta.fields ?? []
-        const data = (res.data ?? []) as Record<string, unknown>[]
+        let data = (res.data ?? []) as Record<string, unknown>[]
+        let truncated = false
+        if (data.length > MAX_ROWS) { data = data.slice(0, MAX_ROWS); truncated = true }
         const cols = pickColumns(fields, data)
         if (!cols.phone) { toast.error("Couldn't find a phone-number column in that CSV."); return }
         const rows: ImportRow[] = []
@@ -239,6 +248,7 @@ export default function ContactsPage() {
           })
         }
         if (!rows.length) { toast.error("No valid contacts found in that file."); return }
+        if (truncated) toast.message(`Large file — only the first ${MAX_ROWS.toLocaleString()} rows were loaded.`)
         setImportPreview({ fileName: file.name, rows, invalid })
       },
       error: () => toast.error("Could not read that file."),

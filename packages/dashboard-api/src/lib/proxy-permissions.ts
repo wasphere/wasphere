@@ -119,9 +119,16 @@ export function proxyPermission(method: string, rawPath: string): PermissionScop
     return null;
   }
 
-  // /sessions/:id/capabilities and /sessions/:id/templates — read-only metadata
-  if (feature === 'capabilities' || feature === 'templates') {
+  // /sessions/:id/capabilities — read-only metadata
+  if (feature === 'capabilities') {
     if (m === 'GET') return 'sessions:read';
+    return null;
+  }
+
+  // /sessions/:id/templates — GET lists templates; POST creates one at Meta.
+  if (feature === 'templates') {
+    if (m === 'GET') return 'sessions:read';
+    if (m === 'POST') return 'sessions:write';
     return null;
   }
 

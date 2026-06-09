@@ -7,7 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-const CATEGORIES = ["UTILITY", "MARKETING", "AUTHENTICATION"] as const
+// AUTHENTICATION omitted: Meta requires a dedicated OTP button + security
+// body for that category, which this simple builder doesn't produce — so
+// those submissions always reject. Re-add when OTP components are supported.
+const CATEGORIES = ["UTILITY", "MARKETING"] as const
 const LANGUAGES = ["en_US", "en_GB", "en", "es_ES", "es", "pt_BR", "fr", "de", "ar", "hi", "id", "ur"]
 
 /** Unique {{n}} variable indices found in the body, in ascending order. */

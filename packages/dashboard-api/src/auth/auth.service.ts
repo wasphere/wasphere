@@ -280,10 +280,11 @@ export class AuthService implements OnModuleInit {
       data: { userId: user.id, tokenHash, expiresAt },
     });
 
-    // Deliver the reset link by email. The send is best-effort: failures are
-    // logged inside MailService and never surface here, so the response stays
-    // enumeration-safe (identical whether or not the email exists or sends).
-    await this.mail.sendPasswordResetEmail(user.email, rawToken);
+    // Deliver the reset link by email. Fire-and-forget — NOT awaited — so the
+    // request returns in the same time whether or not the user exists (an
+    // awaited SMTP round-trip on the user-exists path only would leak existence
+    // via response latency). Failures are logged inside MailService.
+    void this.mail.sendPasswordResetEmail(user.email, rawToken).catch(() => undefined);
 
     // Raw token may only be logged outside production. In production this is a
     // full account-takeover credential, so the flag is ignored and refused.
