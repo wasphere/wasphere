@@ -214,6 +214,112 @@ curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sess
   -d '{ "to": "12125550100", "text": "Hello from WaSphere!" }'
 ```
 
+### Send messages with every supported type
+
+```bash
+# Send an image
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/image \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "url": "https://cdn.example.com/media/product-launch.jpg", "caption": "Launch poster" }'
+```
+
+```bash
+# Send a video
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/video \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "url": "https://cdn.example.com/media/demo.mp4", "caption": "Quick walkthrough" }'
+```
+
+```bash
+# Send an audio file
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/audio \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "url": "https://cdn.example.com/media/voice-note.ogg", "isVoiceNote": true }'
+```
+
+```bash
+# Send a document
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/document \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "url": "https://cdn.example.com/docs/invoice-042.pdf", "fileName": "invoice-042.pdf", "mimetype": "application/pdf" }'
+```
+
+```bash
+# Send a sticker
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/sticker \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "url": "https://cdn.example.com/stickers/celebration.webp" }'
+```
+
+```bash
+# Send a GIF
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/gif \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "url": "https://cdn.example.com/media/launch-loop.mp4", "caption": "It loops as a GIF in chat" }'
+```
+
+```bash
+# Send a view-once image or video
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/view-once \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "url": "https://cdn.example.com/media/quote.png", "caption": "Open once" }'
+```
+
+```bash
+# Send a buttons message
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/buttons \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "text": "Choose a delivery window", "footer": "Reply with a button", "buttons": [{ "id": "delivery_morning", "text": "Morning" }, { "id": "delivery_afternoon", "text": "Afternoon" }, { "id": "delivery_evening", "text": "Evening" }] }'
+```
+
+```bash
+# Send a list message
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/list \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "title": "Choose your plan", "text": "Please select an option from the list below.", "buttonText": "View plans", "sections": [{ "title": "Monthly plans", "rows": [{ "id": "starter", "title": "Starter", "description": "Up to 1,000 messages" }, { "id": "growth", "title": "Growth", "description": "Up to 10,000 messages" }] }] }'
+```
+
+```bash
+# Send a poll
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/poll \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "name": "Which reminder cadence works best?", "options": ["Daily", "Twice a week", "Weekly"], "selectableCount": 1 }'
+```
+
+```bash
+# React to an existing message
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/reaction \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "messageId": "3EB0123456789ABCDEF0", "emoji": "👍" }'
+```
+
+```bash
+# Send a location pin
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/location \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "latitude": 37.7749, "longitude": -122.4194, "name": "San Francisco Office", "address": "1 Market St, San Francisco, CA 94105" }'
+```
+
+```bash
+# Send a contact card
+curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/proxy/api/sessions/{sessionId}/messages/contact \
+  -H "Authorization: Bearer wsk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "12125550100", "displayName": "Alex Morgan", "phoneNumber": "+1 415 555 2671" }'
+```
+
 ```bash
 # Register a signed webhook
 curl -X POST https://api.your-domain.com/workspaces/{workspaceId}/webhooks \
