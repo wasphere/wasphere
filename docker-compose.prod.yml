@@ -1,3 +1,10 @@
+# wasphere.com / www.wasphere.com are not routed by the labels in this file.
+# The apex marketing site is a separate Next.js app on LiteSpeed behind
+# Cloudflare. https://www.wasphere.com/<path> returns 200 and does not 301
+# to https://wasphere.com/<path>. Apply that redirect on Cloudflare or the
+# LiteSpeed vhost — see CANONICAL_HOST.md. Do not hardcode it in the
+# dashboard or these Traefik routers: this Compose file is what self-hosters
+# run, and their own www host must stay theirs.
 services:
 
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
