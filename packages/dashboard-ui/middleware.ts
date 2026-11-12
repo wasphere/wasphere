@@ -11,9 +11,14 @@ export async function middleware(request: NextRequest) {
   if (process.env.DEMO_MODE === "true") {
     // There's no real auth in demo — never strand the visitor on login/register.
     if (pathname === "/" || pathname === "/login" || pathname === "/register") {
-      return NextResponse.redirect(new URL("/dashboard/overview", request.url))
+      const redirect = NextResponse.redirect(new URL("/dashboard/overview", request.url))
+      redirect.headers.set("X-Robots-Tag", "noindex, follow")
+      return redirect
     }
     const res = NextResponse.next()
+    // The public demo duplicates the app UI; it is not a marketing page.
+    // A header also covers non-HTML documents such as /favicon.ico.
+    res.headers.set("X-Robots-Tag", "noindex, follow")
     if (!request.cookies.has("wa_access")) {
       res.cookies.set("wa_access", "demo", { httpOnly: true, sameSite: "lax", path: "/" })
     }
@@ -41,5 +46,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/register", "/dashboard/:path*", "/api/:path*"],
+  matcher: ["/", "/login", "/register", "/favicon.ico", "/dashboard/:path*", "/api/:path*"],
 }
